@@ -1023,11 +1023,13 @@ static void msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 	struct msm_isp_timestamp *ts)
 {
 	int rc;
+	unsigned long flags;
 	struct msm_isp_event_data buf_event;
 	struct timeval *time_stamp;
 	uint32_t stream_idx = HANDLE_TO_IDX(stream_info->stream_handle);
 	uint32_t frame_id;
 	uint32_t buf_src;
+	uint8_t drop_frame = 0;
 	memset(&buf_event, 0, sizeof(buf_event));
 
 	if (stream_idx >= MAX_NUM_STREAM) {
@@ -1035,12 +1037,34 @@ static void msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 		return;
 	}
 
+	frame_id = vfe_dev->axi_data.
+		src_info[SRC_TO_INTF(stream_info->stream_src)].frame_id;
+
 	if (SRC_TO_INTF(stream_info->stream_src) >= VFE_SRC_MAX) {
 		pr_err("%s: Invalid stream index, put buf back to vb2 queue\n",
 			__func__);
-		vfe_dev->buf_mgr->ops->put_buf(vfe_dev->buf_mgr,
+		rc = vfe_dev->buf_mgr->ops->put_buf(vfe_dev->buf_mgr,
 			buf->bufq_handle, buf->buf_idx);
 		return;
+	}
+
+	if (stream_info->stream_type != BURST_STREAM &&
+		(stream_info->sw_skip.stream_src_mask &
+		(1 << stream_info->stream_src))) {
+		/* Hw stream output of this src is requested for drop */
+		if (stream_info->sw_skip.skip_mode == SKIP_ALL) {
+			/* drop all buffers */
+			drop_frame = 1;
+		} else if (stream_info->sw_skip.skip_mode == SKIP_RANGE &&
+			(stream_info->sw_skip.min_frame_id <= frame_id &&
+			stream_info->sw_skip.max_frame_id >= frame_id)) {
+			drop_frame = 1;
+		} else if (frame_id > stream_info->sw_skip.max_frame_id) {
+			spin_lock_irqsave(&stream_info->lock, flags);
+			memset(&stream_info->sw_skip, 0,
+					sizeof(struct msm_isp_sw_framskip));
+			spin_unlock_irqrestore(&stream_info->lock, flags);
+		}
 	}
 
 	if (!buf || !ts)
@@ -1053,9 +1077,6 @@ static void msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 	else
 		time_stamp = &ts->buf_time;
 
-	frame_id = vfe_dev->axi_data.
-		src_info[SRC_TO_INTF(stream_info->stream_src)].frame_id;
-
 	rc = vfe_dev->buf_mgr->ops->get_buf_src(vfe_dev->buf_mgr,
 					buf->bufq_handle, &buf_src);
 	if (stream_info->buf_divert && rc == 0 &&
@@ -1067,40 +1088,68 @@ static void msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 		 * can be diverted. A positive return value means
 		 * other ISP hardware is still processing the frame.
 		 */
-		if (rc == 0) {
-			buf_event.input_intf =
-				SRC_TO_INTF(stream_info->stream_src);
-			buf_event.frame_id = frame_id;
-			buf_event.timestamp = *time_stamp;
-			buf_event.u.buf_done.session_id =
-				stream_info->session_id;
-			buf_event.u.buf_done.stream_id =
-				stream_info->stream_id;
-			buf_event.u.buf_done.handle =
-				stream_info->bufq_handle;
-			buf_event.u.buf_done.buf_idx = buf->buf_idx;
-			buf_event.u.buf_done.output_format =
-				stream_info->runtime_output_format;
-			msm_isp_send_event(vfe_dev,
-				ISP_EVENT_BUF_DIVERT + stream_idx,
-				&buf_event);
+		if (rc)
+			return;
+
+		if (drop_frame) {
+			/* Put but if dual vfe usecase and
+			 * both vfe have done using buf
+			 */
+			rc = vfe_dev->buf_mgr->ops->put_buf(vfe_dev->buf_mgr,
+				buf->bufq_handle, buf->buf_idx);
+			if (!rc) {
+				ISP_DBG("%s:%d] vfe_id %d Buffer dropped %d\n",
+					__func__, __LINE__,
+					vfe_dev->pdev->id, frame_id);
+					return;
+			}
 		}
-	} else {
-		buf_event.input_intf =
-			SRC_TO_INTF(stream_info->stream_src);
+
+		buf_event.input_intf = SRC_TO_INTF(stream_info->stream_src);
 		buf_event.frame_id = frame_id;
-		buf_event.timestamp = ts->buf_time;
-		buf_event.u.buf_done.session_id =
-			stream_info->session_id;
-		buf_event.u.buf_done.stream_id =
-			stream_info->stream_id;
+		buf_event.timestamp = *time_stamp;
+		buf_event.u.buf_done.session_id = stream_info->session_id;
+		buf_event.u.buf_done.stream_id = stream_info->stream_id;
+		buf_event.u.buf_done.handle = stream_info->bufq_handle;
+		buf_event.u.buf_done.buf_idx = buf->buf_idx;
 		buf_event.u.buf_done.output_format =
 			stream_info->runtime_output_format;
-		msm_isp_send_event(vfe_dev,
-			ISP_EVENT_BUF_DONE, &buf_event);
+		msm_isp_send_event(vfe_dev, ISP_EVENT_BUF_DIVERT + stream_idx,
+			&buf_event);
+	} else {
+		rc = vfe_dev->buf_mgr->ops->update_put_buf_cnt(vfe_dev->buf_mgr,
+			buf->bufq_handle, buf->buf_idx);
+		/* Buf done state return value represent whether the buf
+		 * can be dispatched. A positive return value means
+		 * other ISP hardware is still processing the frame.
+		 */
+		if (rc)
+			return;
+
+		if (drop_frame) {
+			/* Put but if dual vfe usecase and
+			 * both vfe have done using buf
+			 */
+			rc = vfe_dev->buf_mgr->ops->put_buf(vfe_dev->buf_mgr,
+				buf->bufq_handle, buf->buf_idx);
+			if (!rc) {
+				ISP_DBG("%s:%d] vfe_id %d Buffer dropped %d\n",
+					__func__, __LINE__,
+					vfe_dev->pdev->id, frame_id);
+					return;
+			}
+		}
+
+		buf_event.input_intf = SRC_TO_INTF(stream_info->stream_src);
+		buf_event.frame_id = frame_id;
+		buf_event.timestamp = ts->buf_time;
+		buf_event.u.buf_done.session_id = stream_info->session_id;
+		buf_event.u.buf_done.stream_id = stream_info->stream_id;
+		buf_event.u.buf_done.output_format =
+			stream_info->runtime_output_format;
+		msm_isp_send_event(vfe_dev, ISP_EVENT_BUF_DONE, &buf_event);
 		vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
-			buf->bufq_handle, buf->buf_idx,
-			time_stamp, frame_id,
+			buf->bufq_handle, buf->buf_idx, time_stamp, frame_id,
 			stream_info->runtime_output_format);
 	}
 }
@@ -1831,6 +1880,8 @@ int msm_isp_update_axi_stream(struct vfe_device *vfe_dev, void *arg)
 	struct msm_vfe_axi_shared_data *axi_data = &vfe_dev->axi_data;
 	struct msm_vfe_axi_stream_update_cmd *update_cmd = arg;
 	struct msm_vfe_axi_stream_cfg_update_info *update_info;
+	struct msm_isp_sw_framskip *sw_skip_info = NULL;
+	unsigned long flags;
 
 	if (update_cmd->update_type == UPDATE_STREAM_AXI_CONFIG &&
 		atomic_read(&axi_data->axi_cfg_update)) {
@@ -1888,6 +1939,23 @@ int msm_isp_update_axi_stream(struct vfe_device *vfe_dev, void *arg)
 				stream_info->runtime_init_frame_drop = 0;
 				vfe_dev->hw_info->vfe_ops.axi_ops.
 					cfg_framedrop(vfe_dev, stream_info);
+			}
+			break;
+		}
+		case UPDATE_STREAM_SW_FRAME_DROP: {
+			sw_skip_info = &update_info->sw_skip_info;
+			if (sw_skip_info->stream_src_mask != 0) {
+				/* SW image buffer drop */
+				pr_debug("%s:%x sw skip type %x mode %d min %d max %d\n",
+					__func__, stream_info->stream_id,
+					sw_skip_info->stats_type_mask,
+					sw_skip_info->skip_mode,
+					sw_skip_info->min_frame_id,
+					sw_skip_info->max_frame_id);
+				spin_lock_irqsave(&stream_info->lock, flags);
+				stream_info->sw_skip = *sw_skip_info;
+				spin_unlock_irqrestore(&stream_info->lock,
+					flags);
 			}
 			break;
 		}
