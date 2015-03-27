@@ -89,6 +89,8 @@ module_param(modem_trigger_panic, uint, S_IRUGO | S_IWUSR);
 static uint modem_dbg_cfg;
 module_param(modem_dbg_cfg, uint, S_IRUGO | S_IWUSR);
 
+static struct device *mbadev;
+
 static void modem_log_rmb_regs(void __iomem *base)
 {
 	pr_err("RMB_MBA_IMAGE: %08x\n", readl_relaxed(base + RMB_MBA_IMAGE));
@@ -492,6 +494,8 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 	int ret, count;
 	const u8 *data;
 
+	mbadev = drv->non_elf_image ? pil->dev : &md->mba_mem_dev;
+
 	fw_name_p = drv->non_elf_image ? fw_name_legacy : fw_name;
 	ret = request_firmware(&fw, fw_name_p, pil->dev);
 	if (ret) {
@@ -527,7 +531,7 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 		drv->mba_dp_size += drv->dp_size;
 	}
 
-	mba_dp_virt = dma_alloc_attrs(&md->mba_mem_dev, drv->mba_dp_size,
+	mba_dp_virt = dma_alloc_attrs(mbadev, drv->mba_dp_size,
 			&mba_dp_phys, GFP_KERNEL, &md->attrs_dma);
 	if (!mba_dp_virt) {
 		dev_err(pil->dev, "MBA metadata buffer allocation failed\n");
@@ -581,7 +585,7 @@ err_mss_reset:
 		pil_assign_mem_to_linux(pil, drv->mba_dp_phys,
 							drv->mba_dp_size);
 err_mba_data:
-	dma_free_attrs(&md->mba_mem_dev, drv->mba_dp_size, drv->mba_dp_virt,
+	dma_free_attrs(mbadev, drv->mba_dp_size, drv->mba_dp_virt,
 				drv->mba_dp_phys, &md->attrs_dma);
 err_invalid_fw:
 	if (dp_fw)
@@ -594,6 +598,7 @@ err_invalid_fw:
 static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 					size_t size)
 {
+	struct q6v5_data *q6_drv = container_of(pil, struct q6v5_data, desc);
 	struct modem_data *drv = dev_get_drvdata(pil->dev);
 	void *mdata_virt;
 	dma_addr_t mdata_phys;
@@ -601,11 +606,13 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 	int ret;
 	DEFINE_DMA_ATTRS(attrs);
 
+	mbadev = q6_drv->non_elf_image ? pil->dev : &drv->mba_mem_dev;
+
 	drv->mba_mem_dev.coherent_dma_mask =
 		DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
 	dma_set_attr(DMA_ATTR_STRONGLY_ORDERED, &attrs);
 	/* Make metadata physically contiguous and 4K aligned. */
-	mdata_virt = dma_alloc_attrs(&drv->mba_mem_dev, size, &mdata_phys,
+	mdata_virt = dma_alloc_attrs(mbadev, size, &mdata_phys,
 					GFP_KERNEL, &attrs);
 	if (!mdata_virt) {
 		dev_err(pil->dev, "MBA metadata buffer allocation failed\n");
@@ -647,7 +654,7 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 	if (pil->subsys_vmid > 0)
 		pil_assign_mem_to_linux(pil, mdata_phys, ALIGN(size, SZ_4K));
 
-	dma_free_attrs(&drv->mba_mem_dev, size, mdata_virt, mdata_phys, &attrs);
+	dma_free_attrs(mbadev, size, mdata_virt, mdata_phys, &attrs);
 
 	if (!ret)
 		return ret;
@@ -713,6 +720,8 @@ static int pil_msa_mba_auth(struct pil_desc *pil)
 	int ret;
 	s32 status;
 
+	mbadev = q6_drv->non_elf_image ? pil->dev : &drv->mba_mem_dev;
+
 	/* Wait for all segments to be authenticated or an error to occur */
 	ret = readl_poll_timeout(drv->rmb_base + RMB_MBA_STATUS, status,
 			status == STATUS_AUTH_COMPLETE || status < 0,
@@ -731,7 +740,7 @@ static int pil_msa_mba_auth(struct pil_desc *pil)
 				pil_assign_mem_to_linux(pil,
 					drv->q6->mba_dp_phys,
 					drv->q6->mba_dp_size);
-			dma_free_attrs(&drv->mba_mem_dev, drv->q6->mba_dp_size,
+			dma_free_attrs(mbadev, drv->q6->mba_dp_size,
 					drv->q6->mba_dp_virt,
 					drv->q6->mba_dp_phys, &drv->attrs_dma);
 
