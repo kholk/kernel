@@ -1277,6 +1277,7 @@ static int msm_vfe46_axi_halt(struct vfe_device *vfe_dev,
 
 	/*push clear cmd*/
 	msm_camera_io_w(0x1, vfe_dev->vfe_base + 0x58);
+	msm_camera_io_w_mb(0x20000, vfe_dev->vfe_base + 0x3CC);
 
 	if (blocking) {
 		init_completion(&vfe_dev->halt_complete);

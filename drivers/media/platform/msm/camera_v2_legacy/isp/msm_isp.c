@@ -379,7 +379,6 @@ static long msm_isp_dqevent(struct file *file, struct v4l2_fh *vfh, void *arg)
 				event_data->mono_timestamp.tv_sec;
 		event_data32->mono_timestamp.tv_usec =
 				event_data->mono_timestamp.tv_usec;
-		event_data32->input_intf = event_data->input_intf;
 		event_data32->frame_id = event_data->frame_id;
 		memcpy(&(event_data32->u), &(event_data->u),
 					sizeof(event_data32->u));
