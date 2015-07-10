@@ -337,6 +337,8 @@ struct sdhci_ops {
 	void	(*init)(struct sdhci_host *host);
 	void	(*pre_req)(struct sdhci_host *host, struct mmc_request *req);
 	void	(*post_req)(struct sdhci_host *host, struct mmc_request *req);
+	void	(*notify_pm_status)(struct sdhci_host *host,
+					enum dev_state state);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS
