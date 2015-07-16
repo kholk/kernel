@@ -2538,6 +2538,9 @@ static int _mmc_suspend(struct mmc_host *host, bool is_suspend)
 	if (mmc_card_suspended(host->card))
 		goto out;
 
+	if (is_suspend)
+		host->dev_status = DEV_SUSPENDING;
+
 	if (host->card->cmdq_init) {
 		BUG_ON(host->cmdq_ctx.active_reqs);
 
@@ -2601,6 +2604,11 @@ out_err:
 	}
 
 out:
+	if (err)
+		host->dev_status = DEV_UNKNOWN;
+	else if (is_suspend)
+		host->dev_status = DEV_SUSPENDED;
+
 	/* Kick CMDQ thread to process any requests came in while suspending */
 	if (host->card->cmdq_init)
 		wake_up(&host->cmdq_ctx.wait);
@@ -2787,6 +2795,8 @@ static int _mmc_resume(struct mmc_host *host)
 			mmc_hostname(host), __func__, err);
 
 out:
+	if (!err)
+		host->dev_status = DEV_RESUMED;
 	return err;
 }
 
