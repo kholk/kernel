@@ -67,3 +67,5 @@ obj-$(CONFIG_CNSS)	+= cnss/
 obj-$(CONFIG_WCNSS_MEM_PRE_ALLOC) += cnss_prealloc/
 obj-$(CONFIG_CNSS_CRYPTO)	+= cnss_crypto/
 obj-$(CONFIG_CNSS_GENL) += cnss_genl/
+
+obj-y                           += controlfnc/
