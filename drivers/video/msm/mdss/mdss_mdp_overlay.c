@@ -1271,6 +1271,10 @@ void mdss_mdp_handoff_cleanup_pipes(struct msm_fb_data_type *mfd,
 	struct mdss_mdp_pipe *pipe;
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	struct msm_fb_backup_type *fb_backup = &mfd->msm_fb_backup;
+	uint32_t flags;
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 	switch (type) {
 	case MDSS_MDP_PIPE_TYPE_VIG:
@@ -1331,7 +1335,13 @@ int mdss_mdp_overlay_start(struct msm_fb_data_type *mfd)
 			if (rc) {
 				pr_debug("empty kickoff on fb%d during cont splash\n",
 					mfd->index);
-				return -EPERM;
+#ifndef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+ 			return -EPERM;
+#else
+			flags = fb_backup->disp_commit.flags;
+			if (flags & MDP_DISPLAY_COMMIT_OVERLAY)
+				return 0; /* Should this be -EPERM?? */
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 			}
 		}
 	} else if (mdata->handoff_pending) {
