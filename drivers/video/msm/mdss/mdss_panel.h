@@ -225,7 +225,40 @@ enum mdss_intf_events {
 	MDSS_EVENT_DSI_DYNAMIC_SWITCH,
 	MDSS_EVENT_DSI_RECONFIG_CMD,
 	MDSS_EVENT_DSI_RESET_WRITE_PTR,
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	MDSS_EVENT_DISP_ON,
+#endif	/* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 };
+
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+struct change_fps_rtn_pos {
+	int num;
+	int *pos;
+};
+
+struct change_fps {
+	bool enable;
+	u32 disp_clk;
+	u32 dric_vbp;
+	u32 dric_vfp;
+	bool rtn_adj;
+	struct change_fps_rtn_pos rtn_pos;
+	bool te_c_update;
+	u32 threshold;
+	u32 te_c_60fps[2];
+	u32 te_c_45fps[2];
+	u32 te_c_pos[2];
+
+	u32 wait_on_60fps;
+	u32 wait_on_45fps;
+	u32 wait_off_60fps;
+	u32 wait_off_45fps;
+	u32 wait_on_cmds_num;
+	u32 wait_off_cmds_num;
+
+	bool susres_mode;
+};
+#endif	/* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 struct lcd_panel_info {
 	u32 h_back_porch;
@@ -245,6 +278,9 @@ struct lcd_panel_info {
 	u32 xres_pad;
 	/* Pad height */
 	u32 yres_pad;
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	struct change_fps chg_fps;
+#endif
 };
 
 
@@ -322,6 +358,10 @@ struct mipi_panel_info {
 	char lp11_init;
 	u32  init_delay;
 	u32  post_init_delay;
+
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	int input_fpks;
+#endif
 };
 
 struct edp_panel_info {
@@ -537,12 +577,39 @@ struct mdss_panel_info {
 	bool is_dba_panel;
 	/* debugfs structure for the panel */
 	struct mdss_panel_debugfs_info *debugfs_info;
+
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	const char *panel_id_name;
+	int dsi_master;
+	int disp_on_in_hs;
+	int wait_time_before_on_cmd;
+
+	u32 rev_u[2], rev_v[2]; /* ROI */
+
+	/* physical size in mm */
+	__u32 width;
+	__u32 height;
+#endif
 };
 
 struct mdss_panel_data {
 	struct mdss_panel_info panel_info;
 	void (*set_backlight) (struct mdss_panel_data *pdata, u32 bl_level);
 	unsigned char *mmss_cc_base;
+
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	struct platform_device *panel_pdev;
+
+	int (*intf_ready) (struct mdss_panel_data *pdata);
+	void (*crash_counter_reset) (void);
+	void (*blackscreen_det) (struct mdss_panel_data *pdata);
+	void (*fff_time_update) (struct mdss_panel_data *pdata);
+
+	int (*detect) (struct mdss_panel_data *pdata);
+	int (*update_panel) (struct mdss_panel_data *pdata);
+
+	bool resume_started;
+#endif
 
 	/**
 	 * event_handler() - callback handler for MDP core events
@@ -775,6 +842,18 @@ struct mdss_panel_cfg *mdss_panel_intf_type(int intf_val);
  */
 bool mdss_is_ready(void);
 int mdss_rect_cmp(struct mdss_rect *rect1, struct mdss_rect *rect2);
+
+struct msm_fb_data_type;
+#if defined(CONFIG_DEBUG_FS) && defined(CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL)
+void mipi_dsi_panel_create_debugfs(struct msm_fb_data_type *mfd);
+bool mdss_dsi_panel_flip_ud(void);
+#else
+static inline void mipi_dsi_panel_create_debugfs(struct msm_fb_data_type *mfd)
+{
+	/* empty */
+}
+#endif
+
 #ifdef CONFIG_FB_MSM_MDSS
 int mdss_panel_debugfs_init(struct mdss_panel_info *panel_info,
 		char const *panel_name);
