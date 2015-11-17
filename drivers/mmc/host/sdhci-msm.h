@@ -207,6 +207,7 @@ struct sdhci_msm_host {
 	bool use_14lpp_dll;
 	bool enhanced_strobe;
 	bool rclk_delay_fix;
+	bool tuning_in_progress;
 	u32 caps_0;
 	struct sdhci_msm_ice_data ice;
 	u32 ice_clk_rate;
