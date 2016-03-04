@@ -2933,6 +2933,8 @@ static int ipa_assign_policy(struct ipa_sys_connect_params *in,
 					sys->pyld_hdlr = ipa_wan_rx_pyld_hdlr;
 					sys->rx_pool_sz =
 						ipa_ctx->wan_rx_ring_size;
+					in->ipa_ep_cfg.aggr.aggr_sw_eof_active
+						= true;
 					sys->ep->wakelock_client =
 					IPA_WAKELOCK_REF_CLIENT_WAN_RX;
 					if (ipa_ctx->
