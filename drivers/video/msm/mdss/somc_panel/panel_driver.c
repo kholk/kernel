@@ -60,6 +60,15 @@ static u32 down_period;
 static struct fps_data vpsd, fpsd;
 struct mdss_mdp_vsync_handler vs_handle;
 
+static u32 rc_buf_thresh[] = {0x0e, 0x1c, 0x2a, 0x38, 0x46, 0x54, 0x62,
+	0x69, 0x70, 0x77, 0x79, 0x7b, 0x7d, 0x7e};
+static char rc_range_min_qp[] = {0, 0, 1, 1, 3, 3, 3, 3, 3, 3, 5, 5, 5, 7, 13};
+static char rc_range_max_qp[] = {4, 4, 5, 6, 7, 7, 7, 8, 9, 10, 11, 12,
+	13, 13, 15};
+static char rc_range_bpg_offset[] = {2, 0, 0, -2, -4, -6, -8, -8, -8, -10, -10,
+	-12, -12, -12, -12};
+
+
 static int mdss_dsi_panel_pcc_setup(struct mdss_panel_data *pdata);
 static int mdss_dsi_panel_picadj_setup(struct mdss_panel_data *pdata);
 static void vsync_handler(struct mdss_mdp_ctl *ctl, ktime_t t);
@@ -1420,6 +1429,42 @@ end:
 	return 0;
 }
 
+static int mdss_dsi_post_panel_on(struct mdss_panel_data *pdata)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+	struct mdss_panel_info *pinfo;
+	struct dsi_panel_cmds *on_cmds;
+
+	if (pdata == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
+
+	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+
+	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+
+	pinfo = &pdata->panel_info;
+	if (pinfo->dcs_cmd_by_left) {
+		if (ctrl->ndx != DSI_CTRL_LEFT)
+			goto end;
+	}
+
+	on_cmds = &ctrl->post_panel_on_cmds;
+
+	pr_debug("%s: ctrl=%p cmd_cnt=%d\n", __func__, ctrl, on_cmds->cmd_cnt);
+
+	if (on_cmds->cmd_cnt) {
+		msleep(50);	/* wait for 3 vsync passed */
+		mdss_dsi_panel_cmds_send(ctrl, on_cmds);
+	}
+
+end:
+	pr_debug("%s:-\n", __func__);
+	return 0;
+}
+
 static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
@@ -2587,6 +2632,295 @@ static int mdss_dsi_parse_fbc_params(struct device_node *np,
 	return 0;
 }
 
+void mdss_dsc_parameters_calc(struct mdss_panel_info *pinfo)
+{
+	struct dsc_desc *dsc;
+	int bpp, bpc;
+	int mux_words_size;
+	int groups_per_line, groups_total;
+	int min_rate_buffer_size;
+	int hrd_delay;
+	int pre_num_extra_mux_bits, num_extra_mux_bits;
+	int slice_bits;
+	int target_bpp_x16;
+	int data;
+	int final_value, final_scale;
+	int slice_per_line, bytes_in_slice, total_bytes;
+
+	dsc = &pinfo->dsc;
+	dsc->rc_model_size = 8192;	/* rate_buffer_size */
+	dsc->first_line_bpg_offset = 12;
+	dsc->min_qp_flatness = 3;
+	dsc->max_qp_flatness = 12;
+	dsc->line_buf_depth = 9;
+	dsc->max_qp_flatness = 12;
+	dsc->min_qp_flatness = 3;
+
+	dsc->pkt_per_line = 1;
+
+	dsc->edge_factor = 6;
+	dsc->quant_incr_limit0 = 11;
+	dsc->quant_incr_limit1 = 11;
+	dsc->tgt_offset_hi = 3;
+	dsc->tgt_offset_lo = 3;
+
+	dsc->buf_thresh = rc_buf_thresh;
+	dsc->range_min_qp = rc_range_min_qp;
+	dsc->range_max_qp = rc_range_max_qp;
+	dsc->range_bpg_offset = rc_range_bpg_offset;
+
+	dsc->slice_per_pkt = 1;
+	dsc->initial_lines = 2;
+
+	dsc->pic_width = pinfo->xres;
+	dsc->pic_height = pinfo->yres;
+
+	bpp = dsc->bpp;
+	bpc = dsc->bpc;
+
+	if (bpp == 8)
+		dsc->initial_offset = 6144;
+	else
+		dsc->initial_offset = 2048;	/* bpp = 12 */
+
+	if (bpc == 8)
+		mux_words_size = 48;
+	else
+		mux_words_size = 64;	/* bpc == 12 */
+
+	slice_per_line  = dsc->pic_width / dsc->slice_width;
+	bytes_in_slice = dsc->pic_width / slice_per_line;
+	if (dsc->pic_width % slice_per_line)
+		bytes_in_slice++;
+
+	data = 0;
+	bytes_in_slice *= dsc->bpp;	/* compressed */
+	if (bytes_in_slice % 8)
+		data++;
+
+	bytes_in_slice /= 8;
+	if (data)
+		bytes_in_slice++;
+
+	total_bytes = bytes_in_slice * slice_per_line;
+	dsc->eol_byte_num = total_bytes % 3;
+	dsc->pclk_per_line =  total_bytes / 3;
+	if (dsc->eol_byte_num)
+		dsc->pclk_per_line++;
+
+	dsc->slice_last_group_size = 3 - dsc->eol_byte_num;
+
+	pr_debug("%s: pclk_per_line=%d total_bytes=%d eol_byte_num=%d\n",
+		__func__, dsc->pclk_per_line, total_bytes, dsc->eol_byte_num);
+
+	dsc->bytes_per_pkt = bytes_in_slice * dsc->slice_per_pkt;
+
+	dsc->det_thresh_flatness = 7 + (bpc - 8);
+
+	dsc->initial_xmit_delay = dsc->rc_model_size / (2 * bpp);
+
+	groups_per_line = dsc->slice_width / 3;
+	if (dsc->slice_width % 3)
+		groups_per_line++;
+
+	dsc->chunk_size = dsc->slice_width * bpp / 8;
+	if ((dsc->slice_width * bpp) % 8)
+		dsc->chunk_size++;
+
+	dsc->pkt_per_line = dsc->pic_width / dsc->slice_width;
+	if (dsc->pic_width % dsc->slice_width)
+		dsc->pkt_per_line++;
+
+	/* rbs-min */
+	min_rate_buffer_size =  dsc->rc_model_size - dsc->initial_offset +
+			dsc->initial_xmit_delay * bpp +
+			groups_per_line * dsc->first_line_bpg_offset;
+
+	hrd_delay = min_rate_buffer_size  / bpp;
+	if (min_rate_buffer_size % bpp)
+		hrd_delay++;
+
+	dsc->initial_dec_delay = hrd_delay - dsc->initial_xmit_delay;
+
+	dsc->initial_scale_value = 8 * dsc->rc_model_size /
+			(dsc->rc_model_size - dsc->initial_offset);
+
+	slice_bits = 8 * dsc->chunk_size * dsc->slice_height;
+
+	groups_total = groups_per_line * dsc->slice_height;
+
+	data = dsc->first_line_bpg_offset * 2048;
+
+	dsc->nfl_bpg_offset = data / (dsc->slice_height - 1);
+	if (data % (dsc->slice_height - 1))
+		dsc->nfl_bpg_offset++;
+
+	pre_num_extra_mux_bits = 3 * (mux_words_size + (4 * bpc + 4) - 2);
+
+	num_extra_mux_bits = pre_num_extra_mux_bits - (mux_words_size -
+		((slice_bits - pre_num_extra_mux_bits) % mux_words_size));
+
+	data = 2048 * (dsc->rc_model_size - dsc->initial_offset
+		+ num_extra_mux_bits);
+	dsc->slice_bpg_offset = data / groups_total;
+	if (data % groups_total)
+		dsc->slice_bpg_offset++;
+
+	/* bpp * 16 + 0.5 */
+	data = bpp * 16;
+	data *= 2;
+	data++;
+	data /= 2;
+	target_bpp_x16 = data;
+
+	data = (dsc->initial_xmit_delay * target_bpp_x16) / 16;
+	final_value =  dsc->rc_model_size - data + num_extra_mux_bits;
+
+	final_scale = 8 * dsc->rc_model_size /
+		(dsc->rc_model_size - final_value);
+
+	dsc->final_offset = final_value;
+
+	data = (final_scale - 9) * (dsc->nfl_bpg_offset +
+		dsc->slice_bpg_offset);
+	dsc->scale_increment_interval = (2048 * dsc->final_offset) / data;
+
+	dsc->scale_decrement_interval = groups_per_line /
+		(dsc->initial_scale_value - 8);
+
+	pr_debug("%s: initial_xmit_delay=%d\n", __func__,
+		dsc->initial_xmit_delay);
+
+	pr_debug("%s: bpg_offset, nfl=%d slice=%d\n", __func__,
+		dsc->nfl_bpg_offset, dsc->slice_bpg_offset);
+
+	pr_debug("%s: groups_per_line=%d chunk_size=%d\n", __func__,
+		groups_per_line, dsc->chunk_size);
+	pr_debug("%s:min_rate_buffer_size=%d hrd_delay=%d\n", __func__,
+		min_rate_buffer_size, hrd_delay);
+	pr_debug("%s:initial_dec_delay=%d initial_scale_value=%d\n", __func__,
+		dsc->initial_dec_delay, dsc->initial_scale_value);
+	pr_debug("%s:slice_bits=%d, groups_total=%d\n", __func__,
+		slice_bits, groups_total);
+	pr_debug("%s: first_line_bgp_offset=%d slice_height=%d\n", __func__,
+		dsc->first_line_bpg_offset, dsc->slice_height);
+	pr_debug("%s:final_value=%d final_scale=%d\n", __func__,
+		final_value, final_scale);
+	pr_debug("%s: sacle_increment_interval=%d scale_decrement_interval=%d\n",
+		__func__, dsc->scale_increment_interval,
+		dsc->scale_decrement_interval);
+}
+
+static int mdss_dsi_parse_dsc_params(struct device_node *np,
+				struct mdss_panel_info *pinfo)
+{
+	struct dsc_desc *dsc;
+	u32 data;
+	const char *cp;
+	int rc;
+
+	dsc = &pinfo->dsc;
+	rc = of_property_read_u32(np, "qcom,mdss-dsc-slice-height", &data);
+	if (rc)
+		return rc;
+	dsc->slice_height = data;
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsc-slice-width", &data);
+	if (rc)
+		return rc;
+	dsc->slice_width = data;
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsc-slice-per-pkt", &data);
+	if (rc)
+		return rc;
+	dsc->slice_per_pkt = data;
+
+	pr_debug("%s: slice h=%d w=%d s_pkt=%d\n", __func__,
+		dsc->slice_height, dsc->slice_width, dsc->slice_per_pkt);
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsc-bit-per-component", &data);
+	if (rc)
+		return rc;
+	dsc->bpc = data;
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsc-bit-per-pixel", &data);
+	if (rc)
+		return rc;
+	dsc->bpp = data;
+
+	pr_debug("%s: bpc=%d bpp=%d\n", __func__,
+		dsc->bpc, dsc->bpp);
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsc-ich-reset-value", &data);
+	if (rc)
+		return rc;
+	dsc->ich_reset_value = data;
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsc-ich-reset-override",
+		&data);
+	if (rc)
+		return rc;
+	dsc->ich_reset_override = data;
+
+	dsc->data_path_model = DSC_PATH_1P1D;	/* default */
+	cp = of_get_property(np, "qcom,mdss-dsc-data-path-mode", NULL);
+	if (cp && !strcmp(cp, "merge_1p1d"))
+		dsc->data_path_model = DSC_PATH_MERGE_1P1D;
+	else if (cp && !strcmp(cp, "split_1p2d"))
+		dsc->data_path_model = DSC_PATH_SPLIT_1P2D;
+
+	dsc->block_pred_enable = of_property_read_bool(np,
+			"qcom,mdss-dsc-block-prediction-enable");
+
+	dsc->enable_422 = 0;
+	dsc->convert_rgb = 1;
+
+	dsc->config_by_manufacture_cmd = of_property_read_bool(np,
+		"qcom,mdss-dsc-config-by-manufacture-cmd");
+
+	mdss_dsc_parameters_calc(pinfo);
+
+	pinfo->compression_mode = COMPRESSION_DSC;
+
+	return 0;
+}
+
+#if 0 /* THIS IS WORK IN PROGRESS */
+static int mdss_dsi_parse_compression_params(struct device_node *np,
+				struct mdss_panel_info *pinfo)
+{
+	const char *data;
+
+	pinfo->fbc.enabled = 0;
+	pinfo->fbc.target_bpp = pinfo->bpp;
+
+	data = of_get_property(np, "qcom,mdss-dsi-compression", NULL);
+
+	if (data) {
+		if (!strcmp(data, "dsc"))
+			mdss_dsi_parse_dsc_params(np, pinfo);
+		else if (!strcmp(data, "fbc"))
+			mdss_dsi_parse_fbc_params(np, pinfo);
+	}
+
+	return 0;
+#else
+static int mdss_dsi_parse_compression_params(struct device_node *np,
+				struct mdss_panel_info *pinfo)
+{
+	const char *data;
+
+	data = of_get_property(np, "qcom,mdss-dsi-compression", NULL);
+	if (data) {
+		if (!strcmp(data, "fbc")) {
+			mdss_dsi_parse_fbc_params(np, fbc);
+		}
+	}
+
+	return 0;
+}
+#endif
+
 static void mdss_panel_parse_te_params(struct device_node *np,
 			u32 sim_panel_mode, struct mdss_panel_timing *timing)
 {
@@ -3296,6 +3630,7 @@ static void  mdss_dsi_panel_config_res_properties(struct device_node *np,
 	mdss_dsi_parse_dcs_cmds(np, &pt->on_cmds,
 			"qcom,mdss-dsi-on-command",
 			"qcom,mdss-dsi-on-command-state");
+
 	mdss_dsi_parse_dcs_cmds(np, &pt->switch_cmds,
 			"qcom,mdss-dsi-timing-switch-command",
 			"qcom,mdss-dsi-timing-switch-command-state");
@@ -3952,6 +4287,9 @@ int mdss_panel_parse_dt(struct device_node *np,
 		pr_err("%s: Failed to parse polling configuration!!\n",
 							__func__);
 
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->post_panel_on_cmds,
+		"qcom,mdss-dsi-post-panel-on-command", NULL);
+
 	spec_pdata->postpwron_no_reset_quirk = of_property_read_bool(
 			parent, "somc,postpwron-no-reset-quirk");
 
@@ -4018,6 +4356,33 @@ static int mdss_dsi_panel_create_fs(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 error:
 	device_unregister(&virtdev);
 	return rc;
+}
+
+static void mdss_dsi_set_prim_panel(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+{
+	struct mdss_dsi_ctrl_pdata *octrl = NULL;
+	struct mdss_panel_info *pinfo;
+
+	pinfo = &ctrl_pdata->panel_data.panel_info;
+
+	/*
+	 * for Split and Single DSI case default is always primary
+	 * and for Dual dsi case below assumptions are made.
+	 *	1. DSI controller with bridge chip is always secondary
+	 *	2. When there is no brigde chip, DSI1 is secondary
+	 */
+	pinfo->is_prim_panel = true;
+	if (mdss_dsi_is_hw_config_dual(ctrl_pdata->shared_data)) {
+		if (pinfo->is_dba_panel) {
+			pinfo->is_prim_panel = false;
+		} else if (mdss_dsi_is_right_ctrl(ctrl_pdata)) {
+			octrl = mdss_dsi_get_other_ctrl(ctrl_pdata);
+			if (octrl && octrl->panel_data.panel_info.is_prim_panel)
+				pinfo->is_prim_panel = false;
+			else
+				pinfo->is_prim_panel = true;
+		}
+	}
 }
 
 int mdss_dsi_panel_init(struct device_node *node,
@@ -4163,6 +4528,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 		}
 	}
 
+	mdss_dsi_set_prim_panel(ctrl_pdata);
 	pinfo->dynamic_switch_pending = false;
 	pinfo->is_lpm_mode = false;
 	pinfo->esd_rdy = false;
@@ -4174,6 +4540,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 	spec_pdata->update_fps = mdss_dsi_panel_fps_data_update;
 
 	ctrl_pdata->on = mdss_dsi_panel_on;
+	ctrl_pdata->post_panel_on = mdss_dsi_post_panel_on;
 	ctrl_pdata->off = mdss_dsi_panel_off;
 	ctrl_pdata->low_power_config = mdss_dsi_panel_low_power_config;
 	ctrl_pdata->panel_data.set_backlight = mdss_dsi_panel_bl_ctrl;
