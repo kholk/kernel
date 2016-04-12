@@ -1248,7 +1248,7 @@ static void mdss_dsi_reset_dual_display(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
 	struct mdss_dsi_ctrl_pdata *mctrl_pdata = NULL;
 
-	if (!mdss_dsi_split_display_enabled()) {
+	if (mdss_dsi_res->shared_data->hw_config != SPLIT_DSI) {
 		if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
 			pr_debug("reset enable: pinctrl not enabled\n");
 		mdss_dsi_panel_reset(&(ctrl_pdata->panel_data), 1);
@@ -1561,7 +1561,6 @@ error:
 	pr_debug("%s-:\n", __func__);
 
 	return ret;
-#endif
 }
 
 static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)

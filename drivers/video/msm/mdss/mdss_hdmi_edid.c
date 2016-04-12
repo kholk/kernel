@@ -1129,7 +1129,7 @@ static void hdmi_edid_add_sink_video_format(struct hdmi_edid_ctrl *edid_ctrl,
 
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 	ret = hdmi_get_supported_mode(&timing,
-				edid_ctrl->init_data.ds_data,
+				&edid_ctrl->init_data.ds_data,
 				video_format);
 	supported = timing.supported;
 #endif

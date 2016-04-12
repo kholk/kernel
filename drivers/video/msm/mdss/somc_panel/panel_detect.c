@@ -280,8 +280,6 @@ static int postdetect_update_panel(struct mdss_panel_data *pdata)
 		((mipi->mode == DSI_VIDEO_MODE)
 			? MIPI_VIDEO_PANEL : MIPI_CMD_PANEL);
 
-	pll_divider_config.clk_rate = pinfo->clk_rate;
-
 	rc = mdss_dsi_clk_div_config(pinfo, mipi->frame_rate);
 	if (rc) {
 		pr_err("%s: unable to initialize the clk dividers\n",
