@@ -1544,7 +1544,7 @@ static int hdmi_tx_read_edid(struct hdmi_tx_ctrl *hdmi_ctrl)
 			goto end;
 		}
 
-		hdmi_edid_block_dump(block, edid_buf);
+		hdmi_edid_block_dump(block, ebuf);
 
 		/* verify checksum to validate edid block */
 		check_sum = 0;

@@ -5351,12 +5351,13 @@ static int is_enable_tx_possible(struct iris_device *radio)
 }
 
 static bool is_initialized = false;
+int radio_hci_smd_init(void);
 static int iris_v4l2_open(struct file *file)
 {
 	int ret;
 
 	if (!is_initialized) {
-		ret = hci_fm_smd_register();
+		ret = radio_hci_smd_init();
 		if (ret) {
 			FMDERR(": hci_fm_smd_register failed\n");
 			return ret;
