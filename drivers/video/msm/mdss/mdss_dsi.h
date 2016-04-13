@@ -328,6 +328,10 @@ struct dsi_panel_timing {
 	/* DSI_CLKOUT_TIMING_CTRL */
 	char t_clk_post;
 	char t_clk_pre;
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	struct dsi_panel_cmds einit_cmds;
+	struct dsi_panel_cmds init_cmds;
+#endif
 	struct dsi_panel_cmds on_cmds;
 	struct dsi_panel_cmds switch_cmds;
 };
