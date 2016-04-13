@@ -2184,7 +2184,7 @@ int mdss_dsi_clk_refresh(struct mdss_panel_data *pdata)
 		__func__, ctrl_pdata->byte_clk_rate, ctrl_pdata->pclk_rate);
 
 	/* phy panel timing calaculation */
-	mdss_dsi_get_phy_revision(ctrl_pdata);
+	//mdss_dsi_get_phy_revision(ctrl_pdata);
 	rc = mdss_dsi_phy_calc_timing_param(pinfo,
 		ctrl_pdata->shared_data->phy_rev, pinfo->mipi.frame_rate);
 	if (rc) {

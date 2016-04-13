@@ -520,9 +520,10 @@ int mdss_dsi_core_clk_init(struct platform_device *pdev,
 	dev = &pdev->dev;
 
 	/* Mandatory Clocks */
-	sdata->mdp_core_clk = devm_clk_get(dev, "mdp_core_clk");
+	sdata->mdp_core_clk = clk_get(dev, "mdp_core_clk");
 	if (IS_ERR(sdata->mdp_core_clk)) {
 		rc = PTR_ERR(sdata->mdp_core_clk);
+dev_err(dev, "Unable to get MDP core clk blahblah\n");
 		pr_err("%s: Unable to get mdp core clk. rc=%d\n",
 			__func__, rc);
 		goto error;
