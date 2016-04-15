@@ -60,15 +60,6 @@ static u32 down_period;
 static struct fps_data vpsd, fpsd;
 struct mdss_mdp_vsync_handler vs_handle;
 
-static u32 rc_buf_thresh[] = {0x0e, 0x1c, 0x2a, 0x38, 0x46, 0x54, 0x62,
-	0x69, 0x70, 0x77, 0x79, 0x7b, 0x7d, 0x7e};
-static char rc_range_min_qp[] = {0, 0, 1, 1, 3, 3, 3, 3, 3, 3, 5, 5, 5, 7, 13};
-static char rc_range_max_qp[] = {4, 4, 5, 6, 7, 7, 7, 8, 9, 10, 11, 12,
-	13, 13, 15};
-static char rc_range_bpg_offset[] = {2, 0, 0, -2, -4, -6, -8, -8, -8, -10, -10,
-	-12, -12, -12, -12};
-
-
 static int mdss_dsi_panel_pcc_setup(struct mdss_panel_data *pdata);
 static int mdss_dsi_panel_picadj_setup(struct mdss_panel_data *pdata);
 static void vsync_handler(struct mdss_mdp_ctl *ctl, ktime_t t);
@@ -1637,7 +1628,7 @@ static inline int mdss_dsi_panel_power_off_ex(struct mdss_panel_data *pdata)
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_panel_specific_pdata *spec_pdata = NULL;
 	static int skip_first_off = 1;
-	int i, ret;
+	int ret;
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -1719,7 +1710,7 @@ static inline int mdss_dsi_panel_power_on_ex(struct mdss_panel_data *pdata)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_panel_specific_pdata *spec_pdata = NULL;
-	int i, ret;
+	int ret;
 
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
@@ -1823,7 +1814,6 @@ static int mdss_dsi_panel_power_ctrl_ex(struct mdss_panel_data *pdata, int enabl
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_panel_specific_pdata *spec_pdata = NULL;
 	struct mdss_panel_info *pinfo = NULL;
-	int i;
 
 	pr_debug("%s: enable=%d\n", __func__, enable);
 	if (pdata == NULL) {
@@ -2531,9 +2521,9 @@ int mdss_panel_get_dst_fmt(u32 bpp, char mipi_mode, u32 pixel_packing,
 static int mdss_dsi_parse_fbc_params(struct device_node *np,
 			struct mdss_panel_timing *timing)
 {
-	struct fbc_panel_info *fbc = &timing->fbc;
 	int rc, fbc_enabled = 0;
 	u32 tmp;
+	struct fbc_panel_info *fbc = &timing->fbc;
 
 	fbc_enabled = of_property_read_bool(np,	"qcom,mdss-dsi-fbc-enable");
 	if (fbc_enabled) {
@@ -2594,6 +2584,35 @@ static int mdss_dsi_parse_fbc_params(struct device_node *np,
 		fbc->target_bpp = 24;
 	}
 	return 0;
+}
+
+#ifdef KERN318_FEATURESET
+void mdss_dsi_panel_dsc_pps_send(struct mdss_dsi_ctrl_pdata *ctrl,
+				struct mdss_panel_info *pinfo)
+{
+	struct dsi_panel_cmds pcmds;
+	struct dsi_cmd_desc cmd;
+
+	if (!pinfo || (pinfo->compression_mode != COMPRESSION_DSC))
+		return;
+
+	memset(&pcmds, 0, sizeof(pcmds));
+	memset(&cmd, 0, sizeof(cmd));
+
+	cmd.dchdr.dlen = mdss_panel_dsc_prepare_pps_buf(&pinfo->dsc,
+				ctrl->pps_buf, 0 , 1, 0);
+	cmd.dchdr.dtype = DTYPE_PPS;
+	cmd.dchdr.last = 1;
+	cmd.dchdr.wait = 10;
+	cmd.dchdr.vc = 0;
+	cmd.dchdr.ack = 0;
+	cmd.payload = ctrl->pps_buf;
+
+	pcmds.cmd_cnt = 1;
+	pcmds.cmds = &cmd;
+	pcmds.link_state = DSI_LP_MODE;
+
+	mdss_dsi_panel_cmds_send(ctrl, &pcmds, CMD_REQ_COMMIT);
 }
 
 static int mdss_dsi_parse_dsc_params(struct device_node *np,
@@ -2694,7 +2713,6 @@ static int mdss_dsi_parse_dsc_params(struct device_node *np,
 
 	dsc->enable_422 = 0;
 	dsc->convert_rgb = 1;
-#ifdef KERN318_FEATURESET
 	dsc->vbr_enable = 0;
 
 	dsc->config_by_manufacture_cmd = of_property_read_bool(np,
@@ -2705,15 +2723,86 @@ static int mdss_dsi_parse_dsc_params(struct device_node *np,
 
 	timing->dsc.full_frame_slices =
 		DIV_ROUND_UP(intf_width, timing->dsc.slice_width);
-#endif
+
 	timing->compression_mode = COMPRESSION_DSC;
 
 end:
 	return rc;
 }
 
+static int mdss_dsi_parse_topology_config(struct device_node *np,
+	struct dsi_panel_timing *pt, struct mdss_panel_data *panel_data)
+{
+	int rc = 0;
+	bool is_split_display = panel_data->panel_info.is_split_display;
+	const char *data;
+	struct mdss_panel_timing *timing = &pt->timing;
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+	struct mdss_panel_info *pinfo;
+	struct device_node *cfg_np;
+
+	ctrl_pdata = container_of(panel_data, struct mdss_dsi_ctrl_pdata,
+							panel_data);
+	cfg_np = ctrl_pdata->panel_data.cfg_np;
+	pinfo = &ctrl_pdata->panel_data.panel_info;
+
+	if (!cfg_np && of_find_property(np, "qcom,config-select", NULL)) {
+		cfg_np = of_parse_phandle(np, "qcom,config-select", 0);
+		if (!cfg_np)
+			pr_err("%s:err parsing qcom,config-select\n", __func__);
+		ctrl_pdata->panel_data.cfg_np = cfg_np;
+	}
+
+	if (cfg_np) {
+		if (!of_property_read_u32_array(cfg_np, "qcom,lm-split",
+		    timing->lm_widths, 2)) {
+			if (mdss_dsi_is_hw_config_split(ctrl_pdata->shared_data)
+			    && (timing->lm_widths[1] != 0)) {
+				pr_err("%s: lm-split not allowed with split display\n",
+					__func__);
+				rc = -EINVAL;
+				goto end;
+			}
+		}
+		rc = of_property_read_string(cfg_np, "qcom,split-mode", &data);
+		if (!rc && !strcmp(data, "pingpong-split"))
+			pinfo->use_pingpong_split = true;
+
+		if (((timing->lm_widths[0]) || (timing->lm_widths[1])) &&
+		    pinfo->use_pingpong_split) {
+			pr_err("%s: pingpong_split cannot be used when lm-split[%d,%d] is specified\n",
+				__func__,
+				timing->lm_widths[0], timing->lm_widths[1]);
+			return -EINVAL;
+		}
+
+		pr_info("%s: cfg_node name %s lm_split:%dx%d pp_split:%s\n",
+			__func__, cfg_np->name,
+			timing->lm_widths[0], timing->lm_widths[1],
+			pinfo->use_pingpong_split ? "yes" : "no");
+	}
+
+	if (!pinfo->use_pingpong_split &&
+	    (timing->lm_widths[0] == 0) && (timing->lm_widths[1] == 0))
+		timing->lm_widths[0] = pt->timing.xres;
+
+	data = of_get_property(np, "qcom,compression-mode", NULL);
+	if (data) {
+		if (cfg_np && !strcmp(data, "dsc"))
+			rc = mdss_dsi_parse_dsc_params(cfg_np, &pt->timing,
+					is_split_display);
+		else if (!strcmp(data, "fbc"))
+			rc = mdss_dsi_parse_fbc_params(np, &pt->timing);
+	}
+
+end:
+	of_node_put(cfg_np);
+	return rc;
+}
+#endif
+
 static void mdss_panel_parse_te_params(struct device_node *np,
-			u32 sim_panel_mode, struct mdss_panel_timing *timing)
+			struct mdss_panel_timing *timing)
 {
 	struct mdss_mdp_pp_tear_check *te = &timing->te;
 	u32 tmp;
@@ -2727,6 +2816,12 @@ static void mdss_panel_parse_te_params(struct device_node *np,
 	te->tear_check_en =
 		!of_property_read_bool(np, "qcom,mdss-tear-check-disable");
 	rc = of_property_read_u32
+		(np, "qcom,mdss-tear-check-sync-cfg-height", &tmp);
+	te->sync_cfg_height = (!rc ? tmp : 0xfff0);
+	rc = of_property_read_u32
+		(np, "qcom,mdss-tear-check-sync-init-val", &tmp);
+	te->vsync_init_val = (!rc ? tmp : timing->yres);
+	rc = of_property_read_u32
 		(np, "qcom,mdss-tear-check-sync-threshold-start", &tmp);
 	te->sync_threshold_start = (!rc ? tmp : 4);
 	rc = of_property_read_u32
@@ -2734,32 +2829,11 @@ static void mdss_panel_parse_te_params(struct device_node *np,
 	te->sync_threshold_continue = (!rc ? tmp : 4);
 	rc = of_property_read_u32(np, "qcom,mdss-tear-check-frame-rate", &tmp);
 	te->refx100 = (!rc ? tmp : 6000);
-
-	/* override te parameters if panel is in sw te mode */
-	if (sim_panel_mode == SIM_SW_TE_MODE) {
-		te->sync_cfg_height = timing->yres
-				+ timing->v_front_porch
-				+ timing->v_back_porch;
-		te->vsync_init_val = 0;
-		te->start_pos = 5;
-		te->rd_ptr_irq = 1;
-		pr_debug("SW TE override: read_ptr:%d,start_pos:%d,height:%d,init_val:%d\n",
-			te->rd_ptr_irq, te->start_pos, te->sync_cfg_height,
-			te->vsync_init_val);
-	} else {
-		rc = of_property_read_u32
-			(np, "qcom,mdss-tear-check-sync-cfg-height", &tmp);
-		te->sync_cfg_height = (!rc ? tmp : 0xfff0);
-		rc = of_property_read_u32
-			(np, "qcom,mdss-tear-check-sync-init-val", &tmp);
-		te->vsync_init_val = (!rc ? tmp : timing->yres);
-		rc = of_property_read_u32(np, "qcom,mdss-tear-check-start-pos",
-				&tmp);
-		te->start_pos = (!rc ? tmp : te->vsync_init_val);
-		rc = of_property_read_u32
-			(np, "qcom,mdss-tear-check-rd-ptr-trigger-intr", &tmp);
-		te->rd_ptr_irq = (!rc ? tmp : te->vsync_init_val + 1);
-	}
+	rc = of_property_read_u32(np, "qcom,mdss-tear-check-start-pos", &tmp);
+	te->start_pos = (!rc ? tmp : te->vsync_init_val);
+	rc = of_property_read_u32
+		(np, "qcom,mdss-tear-check-rd-ptr-trigger-intr", &tmp);
+	te->rd_ptr_irq = (!rc ? tmp : te->vsync_init_val + 1);
 }
 
 
@@ -3006,9 +3080,6 @@ static int mdss_dsi_parse_panel_features(struct device_node *np,
 
 	pinfo = &ctrl->panel_data.panel_info;
 
-//	pinfo->cont_splash_enabled = of_property_read_bool(np,
-//		"qcom,cont-splash-enabled");
-
 	pinfo->partial_update_supported = of_property_read_bool(np,
 		"qcom,partial-update-enabled");
 	if (pinfo->mipi.mode == DSI_CMD_MODE) {
@@ -3021,10 +3092,11 @@ static int mdss_dsi_parse_panel_features(struct device_node *np,
 					of_property_read_bool(np,
 					"qcom,partial-update-roi-merge");
 		}
-
-		pinfo->dcs_cmd_by_left = of_property_read_bool(np,
-						"qcom,dcs-cmd-by-left");
 	}
+
+
+	pinfo->dcs_cmd_by_left = of_property_read_bool(np,
+					"qcom,dcs-cmd-by-left");
 
 	pinfo->ulps_feature_enabled = of_property_read_bool(np,
 		"qcom,ulps-enabled");
@@ -3401,18 +3473,32 @@ int mdss_dsi_panel_timing_switch(struct mdss_dsi_ctrl_pdata *ctrl,
 	ctrl->panel_data.current_timing = timing;
 	if (!timing->clk_rate)
 		ctrl->refresh_clk_rate = true;
+
+#ifdef KERN318_FEATURESET
+	mdss_dsi_clk_refresh(&ctrl->panel_data, ctrl->update_phy_timing);
+#else
 	mdss_dsi_clk_refresh(&ctrl->panel_data);
+#endif
 
 	return 0;
 }
 
 static int mdss_dsi_panel_timing_from_dt(struct device_node *np,
-	struct dsi_panel_timing *pt)
+		struct dsi_panel_timing *pt,
+		struct mdss_panel_data *panel_data)
 {
 	u32 tmp;
 	u64 tmp64;
 	int rc, i, len;
 	const char *data;
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata;
+	struct mdss_panel_info *pinfo;
+	bool phy_timings_present;
+
+	pinfo = &panel_data->panel_info;
+
+	ctrl_pdata = container_of(panel_data, struct mdss_dsi_ctrl_pdata,
+				panel_data);
 
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-width", &tmp);
 	if (rc) {
@@ -3445,14 +3531,22 @@ static int mdss_dsi_panel_timing_from_dt(struct device_node *np,
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-v-pulse-width", &tmp);
 	pt->timing.v_pulse_width = (!rc ? tmp : 2);
 
-	rc = of_property_read_u32(np, "qcom,mdss-dsi-h-left-border", &tmp);
-	pt->timing.border_left = !rc ? tmp : 0;
-	rc = of_property_read_u32(np, "qcom,mdss-dsi-h-right-border", &tmp);
-	pt->timing.border_right = !rc ? tmp : 0;
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-v-top-border", &tmp);
 	pt->timing.border_top = !rc ? tmp : 0;
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-v-bottom-border", &tmp);
 	pt->timing.border_bottom = !rc ? tmp : 0;
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-h-left-border", &tmp);
+	pt->timing.border_left = !rc ? tmp : 0;
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-h-right-border", &tmp);
+	pt->timing.border_right = !rc ? tmp : 0;
+
+	/* overriding left/right borders for split display cases */
+	if (mdss_dsi_is_hw_config_split(ctrl_pdata->shared_data)) {
+		if (panel_data->next)
+			pt->timing.border_right = 0;
+		else
+			pt->timing.border_left = 0;
+	}
 
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-framerate", &tmp);
 	pt->timing.frame_rate = !rc ? tmp : DEFAULT_FRAME_RATE;
@@ -3468,9 +3562,25 @@ static int mdss_dsi_panel_timing_from_dt(struct device_node *np,
 		pr_err("%s:%d, Unable to read Phy timing settings",
 		       __func__, __LINE__);
 		return -EINVAL;
+	} else {
+		for (i = 0; i < len; i++)
+			pt->phy_timing[i] = data[i];
+		phy_timings_present = true;
 	}
-	for (i = 0; i < len; i++)
-		pt->phy_timing[i] = data[i];
+
+#ifdef KERN318_FEATURESET
+	data = of_get_property(np, "qcom,mdss-dsi-panel-timings-8996", &len);
+	if ((!data) || (len != 40)) {
+		pr_debug("%s:%d, Unable to read 8996 Phy lane timing settings",
+		       __func__, __LINE__);
+	} else {
+		for (i = 0; i < len; i++)
+			pt->phy_timing_8996[i] = data[i];
+		phy_timings_present = true;
+	}
+#endif
+	if (!phy_timings_present)
+		pr_err("%s: phy timing settings not present\n", __func__);
 
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-t-clk-pre", &tmp);
 	pt->t_clk_pre = (!rc ? tmp : 0x24);
@@ -3486,9 +3596,12 @@ static int mdss_dsi_panel_timing_from_dt(struct device_node *np,
 	return 0;
 }
 
-static void  mdss_dsi_panel_config_res_properties(struct device_node *np,
-		u32 sim_panel_mode, struct dsi_panel_timing *pt)
+static int  mdss_dsi_panel_config_res_properties(struct device_node *np,
+		struct dsi_panel_timing *pt,
+		struct mdss_panel_data *panel_data)
 {
+	int rc = 0;
+
 	mdss_dsi_parse_dcs_cmds(np, &pt->einit_cmds,
 		"somc,mdss-dsi-early-init-command", NULL);
 
@@ -3502,11 +3615,24 @@ static void  mdss_dsi_panel_config_res_properties(struct device_node *np,
 	mdss_dsi_parse_dcs_cmds(np, &pt->switch_cmds,
 			"qcom,mdss-dsi-timing-switch-command",
 			"qcom,mdss-dsi-timing-switch-command-state");
-	mdss_dsi_parse_fbc_params(np, &pt->timing);
-	mdss_panel_parse_te_params(np, sim_panel_mode, &pt->timing);
+
+#ifdef KERN318_FEATURESET
+	rc = mdss_dsi_parse_topology_config(np, pt, panel_data);
+	if (rc) {
+		pr_err("%s: parsing compression params failed. rc:%d\n",
+			__func__, rc);
+		return rc;
+	}
+#else
+	rc = mdss_dsi_parse_fbc_params(np, &pt->timing);
+#endif
+
+	mdss_panel_parse_te_params(np, &pt->timing);
+
+	return rc;
 }
 
-static int mdss_dsi_panel_parse_display_timings(struct device_node *np,
+static int mdss_panel_parse_display_timings(struct device_node *np,
 		struct mdss_panel_data *panel_data)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl;
@@ -3530,10 +3656,10 @@ static int mdss_dsi_panel_parse_display_timings(struct device_node *np,
 		 * timings directly from root node instead
 		 */
 		pr_debug("reading display-timings from panel node\n");
-		rc = mdss_dsi_panel_timing_from_dt(np, &pt);
+		rc = mdss_dsi_panel_timing_from_dt(np, &pt, panel_data);
 		if (!rc) {
 			mdss_dsi_panel_config_res_properties(np,
-				panel_data->panel_info.sim_panel_mode, &pt);
+				&pt, panel_data);
 			rc = mdss_dsi_panel_timing_switch(ctrl, &pt.timing);
 		}
 		return rc;
@@ -3554,14 +3680,15 @@ static int mdss_dsi_panel_parse_display_timings(struct device_node *np,
 	}
 
 	for_each_child_of_node(timings_np, entry) {
-		rc = mdss_dsi_panel_timing_from_dt(entry, modedb + i);
+		rc = mdss_dsi_panel_timing_from_dt(entry, (modedb + i),
+				panel_data);
 		if (rc) {
 			kfree(modedb);
 			goto exit;
 		}
 
 		mdss_dsi_panel_config_res_properties(entry,
-			panel_data->panel_info.sim_panel_mode, (modedb + i));
+			(modedb + i), panel_data);
 
 		/* if default is set, use it otherwise use first as default */
 		if (of_property_read_bool(entry,
@@ -3645,7 +3772,7 @@ int mdss_panel_parse_dt(struct device_node *np,
 		pr_debug("%s: qcom,config-select is not present\n", __func__);
 	}
 
-	rc = mdss_dsi_panel_parse_display_timings(np,
+	rc = mdss_panel_parse_display_timings(np,
 					&ctrl_pdata->panel_data);
 	if (rc)
 		return rc;
@@ -4118,6 +4245,9 @@ int mdss_panel_parse_dt(struct device_node *np,
 	mdss_dsi_parse_panel_horizontal_line_idle(np, ctrl_pdata);
 
 	mdss_dsi_parse_dfps_config(np, ctrl_pdata);
+
+	pinfo->is_dba_panel = of_property_read_bool(np,
+			"qcom,dba-panel");
 
 	pinfo->lcdc.chg_fps.enable = of_property_read_bool(np,
 					"somc,change-fps-enable");
