@@ -25,6 +25,7 @@
 	dsi_novatek_jdi_1080_cmd: somc,novatek_jdi_1080p_cmd_panel {
 		qcom,mdss-dsi-panel-name = "7";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -370,6 +371,7 @@
 	dsi_novatek_auo_1080_cmd: somc,novatek_auo_1080p_cmd_panel {
 		qcom,mdss-dsi-panel-name = "4";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -711,6 +713,7 @@
 	dsi_novatek_lgd_1080_cmd: somc,novatek_lgd_1080p_cmd_panel {
 		qcom,mdss-dsi-panel-name = "2";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -1056,6 +1059,7 @@
 	dsi_novatek_sharp_1080_cmd: somc,novatek_sharp_1080p_cmd_panel {
 		qcom,mdss-dsi-panel-name = "9";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -1164,6 +1168,7 @@
 	dsi_default_gpio_0: somc,default_panel_0 {
 		qcom,mdss-dsi-panel-name = "default";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -1262,6 +1267,7 @@
 	dsi_default_gpio_1: somc,default_panel_1 {
 		qcom,mdss-dsi-panel-name = "default";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;

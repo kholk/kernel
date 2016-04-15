@@ -50,24 +50,6 @@
 		qcom,ce-opp-freq = <171430000>;
 	};
 
-	mdss_dsi0: qcom,mdss_dsi@fd998000 {
-		qcom,panel-supply-entries {
-			qcom,panel-supply-entry@0 {
-				qcom,supply-min-voltage = <1850000>;
-				qcom,supply-max-voltage = <1850000>;
-			};
-		};
-	};
-
-	mdss_dsi1: qcom,mdss_dsi@fd9a0000 {
-		qcom,panel-supply-entries {
-			qcom,panel-supply-entry@0 {
-				qcom,supply-min-voltage = <1850000>;
-				qcom,supply-max-voltage = <1850000>;
-			};
-		};
-	};
-
 	/* I2C : BLSP6 */
 	i2c@f9928000 {
 		synaptics_clearpad@2c {
@@ -256,6 +238,26 @@
 			bias-disable;
 			output-low;
 		};
+	};
+};
+
+&labibb {
+	qpnp-labibb-mode = "lcd";
+	qcom,qpnp-ibb-discharge-resistor = <32>;
+};
+
+&lab_regulator {
+	qcom,qpnp-lab-limit-maximum-current = <400>;
+};
+
+&ibb_regulator {
+	qcom,qpnp-ibb-limit-maximum-current = <900>;
+};
+
+&kitakami_panel_power_supply {
+	qcom,panel-supply-entry@0 {
+		qcom,supply-min-voltage = <1850000>;
+		qcom,supply-max-voltage = <1850000>;
 	};
 };
 

@@ -103,6 +103,26 @@
 	status = "disabled";
 };
 
+&labibb {
+	qpnp-labibb-mode = "lcd";
+	qcom,qpnp-ibb-discharge-resistor = <32>;
+};
+
+&lab_regulator {
+	qcom,qpnp-lab-limit-maximum-current = <200>;
+};
+
+&ibb_regulator {
+	qcom,qpnp-ibb-limit-maximum-current = <800>;
+};
+
+&kitakami_panel_power_supply {
+	qcom,panel-supply-entry@0 {
+		qcom,supply-min-voltage = <2000000>;
+		qcom,supply-max-voltage = <2000000>;
+	};
+};
+
 &sdhc_3 {
 	vdd-io-supply = <&pm8994_s4>;
 	qcom,vdd-io-voltage-level = <1800000 1800000>;
@@ -245,21 +265,6 @@
 
 &mdss_dsi0 {
 	/delete-property/ qcom,platform-enable-gpio;
-	qcom,panel-supply-entries {
-		qcom,panel-supply-entry@0 {
-			qcom,supply-min-voltage = <2000000>;
-			qcom,supply-max-voltage = <2000000>;
-		};
-	};
-};
-
-&mdss_dsi1 {
-	qcom,panel-supply-entries {
-		qcom,panel-supply-entry@0 {
-			qcom,supply-min-voltage = <2000000>;
-			qcom,supply-max-voltage = <2000000>;
-		};
-	};
 };
 
 /{

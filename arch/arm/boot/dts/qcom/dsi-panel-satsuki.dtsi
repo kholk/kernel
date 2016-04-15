@@ -25,6 +25,7 @@
 	dsi_dual_0_jdi_novatek_4k2k_cut1_cmd: somc,dual_0_jdi_novatek_4k2k_cut1_cmd_panel {
 		qcom,mdss-dsi-panel-name = "5";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -187,6 +188,7 @@
 	dsi_dual_1_jdi_novatek_4k2k_cut1_cmd: somc,dual_1_jdi_novatek_4k2k_cut1_cmd_panel {
 		qcom,mdss-dsi-panel-name = "5";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_2";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -274,6 +276,7 @@
 	dsi_dual_0_jdi_novatek_4k2k_cut2_cmd: somc,dual_0_jdi_novatek_4k2k_cut2_cmd_panel {
 		qcom,mdss-dsi-panel-name = "4";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -434,6 +437,7 @@
 	dsi_dual_1_jdi_novatek_4k2k_cut2_cmd: somc,dual_1_jdi_novatek_4k2k_cut2_cmd_panel {
 		qcom,mdss-dsi-panel-name = "4";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_2";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -521,6 +525,7 @@
 	dsi_dual_0_sharp_novatek_4k2k_cut1_cmd: somc,dual_0_sharp_novatek_4k2k_cut1_cmd_panel {
 		qcom,mdss-dsi-panel-name = "8";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-bpp = <24>;
@@ -1036,6 +1041,7 @@
 	dsi_dual_1_sharp_novatek_4k2k_cut1_cmd: somc,dual_1_sharp_novatek_4k2k_cut1_cmd_panel {
 		qcom,mdss-dsi-panel-name = "8";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_2";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-bpp = <24>;
@@ -1154,6 +1160,7 @@
 	dsi_dual_0_sharp_novatek_4k2k_cut2_cmd_ID7: somc,dual_0_sharp_novatek_4k2k_cut2_cmd_panel_ID7 {
 		qcom,mdss-dsi-panel-name = "7";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-bpp = <24>;
@@ -1409,6 +1416,7 @@
 	dsi_dual_1_sharp_novatek_4k2k_cut2_cmd_ID7: somc,dual_1_sharp_novatek_4k2k_cut2_cmd_panel_ID7 {
 		qcom,mdss-dsi-panel-name = "7";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_2";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-bpp = <24>;
@@ -1527,6 +1535,7 @@
 	dsi_dual_0_sharp_novatek_4k2k_cut2_cmd_ID3: somc,dual_0_sharp_novatek_4k2k_cut2_cmd_panel_ID3 {
 		qcom,mdss-dsi-panel-name = "3";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-bpp = <24>;
@@ -2014,6 +2023,7 @@
 	dsi_dual_1_sharp_novatek_4k2k_cut2_cmd_ID3: somc,dual_1_sharp_novatek_4k2k_cut2_cmd_panel_ID3 {
 		qcom,mdss-dsi-panel-name = "3";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_2";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-bpp = <24>;
@@ -2132,6 +2142,7 @@
 	dsi_dual_0_auo_novatek_4k2k_cut1_cmd: somc,dual_0_auo_novatek_4k2k_cut1_cmd_panel {
 		qcom,mdss-dsi-panel-name = "9";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-bpp = <24>;
@@ -2598,6 +2609,7 @@
 	dsi_dual_1_auo_novatek_4k2k_cut1_cmd: somc,dual_1_auo_novatek_4k2k_cut1_cmd_panel {
 		qcom,mdss-dsi-panel-name = "9";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_2";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-bpp = <24>;
@@ -2716,6 +2728,7 @@
 	dsi_dual_0_auo_novatek_4k2k_cut2_cmd: somc,dual_0_auo_novatek_4k2k_cut2_cmd_panel {
 		qcom,mdss-dsi-panel-name = "6";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-bpp = <24>;
@@ -3156,6 +3169,7 @@
 	dsi_dual_1_auo_novatek_4k2k_cut2_cmd: somc,dual_1_auo_novatek_4k2k_cut2_cmd_panel {
 		qcom,mdss-dsi-panel-name = "6";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_2";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-bpp = <24>;
@@ -3274,6 +3288,7 @@
 	dsi_dual_0_default_gpio_0: somc,dual_0_default_panel_0 {
 		qcom,mdss-dsi-panel-name = "default";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -3391,6 +3406,7 @@
 	dsi_dual_1_default_gpio_0: somc,dual_1_default_panel_0 {
 		qcom,mdss-dsi-panel-name = "default";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_2";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -3478,6 +3494,7 @@
 	dsi_dual_0_default_gpio_1: somc,dual_0_default_panel_1 {
 		qcom,mdss-dsi-panel-name = "default";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -3595,6 +3612,7 @@
 	dsi_dual_1_default_gpio_1: somc,dual_1_default_panel_1 {
 		qcom,mdss-dsi-panel-name = "default";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_2";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;

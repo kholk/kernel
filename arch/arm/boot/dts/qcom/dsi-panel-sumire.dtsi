@@ -25,6 +25,7 @@
 	dsi_jdi_novatek_fullhd_cmd: somc,jdi_novatek_fullhd_cmd_panel {
 		qcom,mdss-dsi-panel-name = "7";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -380,6 +381,7 @@
 	dsi_lgd_novatek_fullhd_cmd_ID9: somc,lgd_novatek_fullhd_cmd_panel_ID9 {
 		qcom,mdss-dsi-panel-name = "9";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -736,6 +738,7 @@
 	dsi_lgd_novatek_fullhd_cmd_ID2: somc,lgd_novatek_fullhd_cmd_panel_ID2 {
 		qcom,mdss-dsi-panel-name = "2";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -1079,6 +1082,7 @@
 	dsi_sharp_novatek_fullhd_cmd: somc,sharp_novatek_fullhd_cmd_panel {
 		qcom,mdss-dsi-panel-name = "3";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -1803,6 +1807,7 @@
 	dsi_auo_novatek_fullhd_cmd: somc,auo_novatek_fullhd_cmd_panel {
 		qcom,mdss-dsi-panel-name = "4";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -2160,6 +2165,7 @@
 	dsi_default_gpio_0: somc,default_cmd_panel_0 {
 		qcom,mdss-dsi-panel-name = "default";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;
@@ -2258,6 +2264,7 @@
 	dsi_default_gpio_1: somc,default_cmd_panel_1 {
 		qcom,mdss-dsi-panel-name = "default";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&kitakami_panel_power_supply>;
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-width = <1080>;

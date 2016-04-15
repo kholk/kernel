@@ -471,9 +471,43 @@
 	qcom,cpp@fda04000 {
 		qcom,min-clock-rate = <200000000>;
 	};
+
         msm_gpu: qcom,kgsl-3d0@fdb00000 {
                 qcom,initial-pwrlevel = <3>;
-                };
+	};
+
+	kitakami_panel_power_supply: dsi_panel_pwr_supply {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vdd";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+			qcom,supply-post-on-sleep = <5>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "lab";
+			qcom,supply-min-voltage = <5100000>;
+			qcom,supply-max-voltage = <5100000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+		};
+
+		qcom,panel-supply-entry@2 {
+			reg = <2>;
+			qcom,supply-name = "ibb";
+			qcom,supply-min-voltage = <5100000>;
+			qcom,supply-max-voltage = <5100000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+			qcom,supply-post-on-sleep = <20>;
+		};
+	};
 
 	led_flash0: qcom,camera-flash {
 		cell-index = <0>;
