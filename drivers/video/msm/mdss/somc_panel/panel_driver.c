@@ -1701,16 +1701,12 @@ static inline int mdss_dsi_panel_power_off_ex(struct mdss_panel_data *pdata)
 	if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
 		pr_info("reset disable: pinctrl not enabled\n");
 
-	for (i = 0; !ret && (i < DSI_MAX_PM); i++) {
-		if (DSI_CORE_PM == i)
-			continue;
-		ret = msm_dss_enable_vreg(
-			ctrl_pdata->power_data[i].vreg_config,
-			ctrl_pdata->power_data[i].num_vreg, 0);
-		if (ret)
-			pr_err("%s: Failed to disable vregs.ret=%d\n",
-				__func__, ret);
-	}
+	ret = msm_dss_enable_vreg(
+		ctrl_pdata->panel_power_data.vreg_config,
+		ctrl_pdata->panel_power_data.num_vreg, 0);
+	if (ret)
+		pr_err("%s: failed to disable vregs for %s\n",
+			__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
 
 	if (spec_pdata->down_period)
 		down_period = (u32)ktime_to_ms(ktime_get());
@@ -1755,17 +1751,13 @@ static inline int mdss_dsi_panel_power_on_ex(struct mdss_panel_data *pdata)
 				1000 + 100);
 	}
 
-	for (i = 0; !ret && (i < DSI_MAX_PM); i++) {
-		if (DSI_CORE_PM == i)
-			continue;
-		ret = msm_dss_enable_vreg(
-			ctrl_pdata->power_data[i].vreg_config,
-			ctrl_pdata->power_data[i].num_vreg, 1);
-		if (ret) {
-			pr_err("%s: Failed to enable vregs.ret=%d\n",
-				__func__, ret);
-			goto vreg_error;
-		}
+	ret = msm_dss_enable_vreg(
+		ctrl_pdata->panel_power_data.vreg_config,
+		ctrl_pdata->panel_power_data.num_vreg, 1);
+	if (ret) {
+		pr_err("%s: failed to enable vregs for %s\n",
+			__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
+		goto vreg_error;
 	}
 
 	if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
@@ -1810,11 +1802,9 @@ static inline int mdss_dsi_panel_power_on_ex(struct mdss_panel_data *pdata)
 
 vreg_error:
 	if (ret) {
-		i--;
-		for (; i >= 0; i--)
-			msm_dss_enable_vreg(
-				ctrl_pdata->power_data[i].vreg_config,
-				ctrl_pdata->power_data[i].num_vreg, 0);
+		msm_dss_enable_vreg(
+			ctrl_pdata->panel_power_data.vreg_config,
+			ctrl_pdata->panel_power_data.num_vreg, 0);
 	}
 
 	return ret;
@@ -1879,10 +1869,9 @@ static int mdss_dsi_panel_power_ctrl_ex(struct mdss_panel_data *pdata, int enabl
 	}
 
 	if (ret) {
-		for (; i >= 0; i--)
-			msm_dss_enable_vreg(
-				ctrl_pdata->power_data[i].vreg_config,
-				ctrl_pdata->power_data[i].num_vreg, 0);
+		msm_dss_enable_vreg(
+			ctrl_pdata->panel_power_data.vreg_config,
+			ctrl_pdata->panel_power_data.num_vreg, 0);
 	}
 
 	pinfo->panel_power_state = enable;
