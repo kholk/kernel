@@ -18,6 +18,7 @@
 	panel_detection: somc,panel_detection {
 		qcom,mdss-dsi-panel-name = "Dummy video mode panel for detection";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-pan-enable-dynamic-fps;
 		qcom,mdss-dsi-pan-fps-update = "dfps_suspend_resume_mode";
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;
@@ -113,6 +114,7 @@
 	dsi_renesas_sharp: somc,renesas_sharp_panel {
 		qcom,mdss-dsi-panel-name = "R63306 720p video mode dsi panel";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;
 		qcom,platform-te-gpio = <&msmgpio 24 0>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
@@ -199,6 +201,7 @@
 	dsi_novatek_jdi: somc,novatek_jdi_panel {
 		qcom,mdss-dsi-panel-name = "NT35596J-JDI 720p video mode panel";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-pan-enable-dynamic-fps;
 		qcom,mdss-dsi-pan-fps-update = "dfps_suspend_resume_mode";
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;
@@ -309,6 +312,7 @@
 	novatek_720p_video_tianma: somc,novatek_tianma_panel {
 		qcom,mdss-dsi-panel-name = "NT35592-Tianma 720p video mode panel";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-pan-enable-dynamic-fps;
 		qcom,mdss-dsi-pan-fps-update = "dfps_suspend_resume_mode";
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;
@@ -399,6 +403,7 @@
 	renesas_720p_video_lgd: somc,renesas_LG_panel {
 		qcom,mdss-dsi-panel-name = "R63313 LG 720p video mode panel";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-pan-enable-dynamic-fps;
 		qcom,mdss-dsi-pan-fps-update = "dfps_suspend_resume_mode";
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;

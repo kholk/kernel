@@ -21,6 +21,7 @@
 		compatible = "qcom,mdss-dsi-panel-jdi";
 		qcom,mdss-dsi-panel-name = "nt35521 720p video mode dsi non panel jdi";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -242,6 +243,7 @@
 		compatible = "qcom,mdss-dsi-panel-jdi";
 		qcom,mdss-dsi-panel-name = "nt35521 720p video mode dsi panel jdi";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -327,6 +329,7 @@
 		compatible = "qcom,mdss-dsi-panel-truly";
 		qcom,mdss-dsi-panel-name = "nt35521 720p video mode dsi panel truly";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -564,6 +567,7 @@
 		compatible = "qcom,mdss-dsi-panel-truly";
 		qcom,mdss-dsi-panel-name = "nt35521 720p video mode dsi otp panel truly";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -638,6 +642,7 @@
 		compatible = "qcom,mdss-dsi-panel-innolux";
 		qcom,mdss-dsi-panel-name = "nt35521 720p video mode dsi panel innolux";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -852,6 +857,7 @@
 		compatible = "qcom,mdss-dsi-panel-innolux";
 		qcom,mdss-dsi-panel-name = "nt35521 720p video mode dsi otp panel innolux";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -926,6 +932,7 @@
 		compatible = "qcom,mdss-dsi-panel-innolux_otm";
 		qcom,mdss-dsi-panel-name = "otm1284a 720p video mode dsi panel innolux";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -1118,6 +1125,7 @@
 		compatible = "qcom,mdss-dsi-panel-innolux_otm";
 		qcom,mdss-dsi-panel-name = "otm1284a 720p video mode dsi panel innolux";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -1198,6 +1206,7 @@
 		compatible = "qcom,mdss-dsi-panel-truly_otm";
 		qcom,mdss-dsi-panel-name = "otm1284a 720p video mode dsi panel truly";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -1406,6 +1415,7 @@
 		compatible = "qcom,mdss-dsi-panel-truly_otm";
 		qcom,mdss-dsi-panel-name = "otm1284a 720p video mode dsi panel truly";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;

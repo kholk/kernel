@@ -15,6 +15,7 @@
 		compatible = "qcom,mdss-dsi-panel";
 		qcom,mdss-dsi-panel-name = "truly hx8379c fwvga video mode dsi panel";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		somc,driver-ic = <0>;
 		somc,panel-id = [FF];
@@ -120,6 +121,7 @@
 		compatible = "qcom,mdss-dsi-panel";
 		qcom,mdss-dsi-panel-name = "O-film hx8379c fwvga video mode dsi panel";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		somc,driver-ic = <1>;
 		somc,panel-id = [FF];
@@ -216,6 +218,7 @@
 		compatible = "qcom,mdss-dsi-panel";
 		qcom,mdss-dsi-panel-name = "tcl hx8379c fwvga video mode dsi panel";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		somc,driver-ic = <0>;
 		somc,panel-id = [FF];

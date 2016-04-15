@@ -19,6 +19,7 @@
 	dsi_innolux_qhd_vid: qcom,mdss_dsi_innolux_qhd_video {
 		qcom,mdss-dsi-panel-name = "innolux QHD video mode dsi panel for speed up";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-frame-rate = <60>;
@@ -145,6 +146,7 @@
 	dsi_truly_qhd_vid: qcom,mdss_dsi_truly_qhd_video {
 		qcom,mdss-dsi-panel-name = "truly QHD video mode dsi panel,speed up, 0423-V2-Gamma ,0318 power saving";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
