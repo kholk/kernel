@@ -15,6 +15,7 @@
 	dsi_novatek_jdi_720_vid: somc,novatek_jdi_720p_video_panel {
 		qcom,mdss-dsi-panel-name = "jdi novatek 720p vid";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -339,6 +340,7 @@
 	dsi_novatek_sharp_720_vid: somc,novatek_sharp_720p_video_panel {
 		qcom,mdss-dsi-panel-name = "sharp novatek 720p vid";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -670,6 +672,7 @@
 	dsi_default_gpio_0: somc,novatek_default_panel_0 {
 		qcom,mdss-dsi-panel-name = "default novatek 720p vid 0";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -762,6 +765,7 @@
 	dsi_default_gpio_1: somc,novatek_default_panel_1 {
 		qcom,mdss-dsi-panel-name = "default novatek 720p vid 1";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;

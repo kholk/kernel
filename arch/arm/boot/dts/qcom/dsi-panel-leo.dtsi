@@ -15,6 +15,7 @@
 	dsi_novatek_sharp_1080_vid: somc,novatek_sharp_1080p_video_panel {
 		qcom,mdss-dsi-panel-name = "sharp novatek 1080p video";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -328,6 +329,7 @@
 	dsi_novatek_sharp_1080_video: somc,novatek_sharp_1080p_vid_panel {
 		qcom,mdss-dsi-panel-name = "sharp novatek 1080p vid";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -641,6 +643,7 @@
 	dsi_novatek_jdi_1080_vid: somc,novatek_jdi_1080p_video_panel {
 		qcom,mdss-dsi-panel-name = "jdi novatek 1080p video";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -953,6 +956,7 @@
 	dsi_novatek_jdi_1080_video: somc,novatek_jdi_1080p_vid_panel {
 		qcom,mdss-dsi-panel-name = "jdi novatek 1080p video";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -1265,6 +1269,7 @@
 	dsi_novatek_auo_1080_vid: somc,novatek_auo_1080p_video_panel {
 		qcom,mdss-dsi-panel-name = "auo novatek 1080p vid";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -1590,6 +1595,7 @@
 	dsi_default_gpio_0: somc,default_panel_0 {
 		qcom,mdss-dsi-panel-name = "default video 0";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -1671,6 +1677,7 @@
 	dsi_default_gpio_1: somc,default_panel_1 {
 		qcom,mdss-dsi-panel-name = "default video 1";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&shinano_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
