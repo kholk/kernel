@@ -17,6 +17,7 @@
 
 		qcom,mdss-dsi-panel-name = "default renesas 1080p video";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&rhine_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -116,6 +117,7 @@
 
 		qcom,mdss-dsi-panel-name = "sharp renesas 1080p video";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&rhine_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -296,6 +298,7 @@
 
 		qcom,mdss-dsi-panel-name = "jdc renesas 1080p video";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&rhine_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -471,6 +474,7 @@
 
 		qcom,mdss-dsi-panel-name = "default novatek 1080p video";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&rhine_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
@@ -960,6 +964,7 @@
 
 		qcom,mdss-dsi-panel-name = "jdc novatek 1080p video";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&rhine_panel_power_supply>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
 		qcom,mdss-dsi-panel-framerate = <60>;
