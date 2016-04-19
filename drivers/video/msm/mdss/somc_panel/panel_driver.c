@@ -4418,6 +4418,8 @@ int mdss_dsi_panel_init(struct device_node *node,
 	parent = of_get_parent(node);
 	ctrl_pdev = of_find_device_by_node(dsi_ctrl_np);
 
+	somc_panel_regulators_init(ctrl_pdata);
+
 	vsn_gpio = of_get_named_gpio(parent, "somc,vsn-gpio", 0);
 	if (gpio_is_valid(vsn_gpio)) {
 		rc = gpio_request(vsn_gpio, "lcd_vsn");

@@ -242,6 +242,10 @@ static int mdss_dsi_regulator_init(struct platform_device *pdev,
 		struct dsi_shared_data *sdata)
 {
 	int rc = 0, i = 0, j = 0;
+#if defined (CONFIG_REGULATOR_QPNP_LABIBB_SOMC) && \
+    defined (CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL)
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+#endif
 
 	if (!pdev || !sdata) {
 		pr_err("%s: invalid input\n", __func__);
@@ -262,6 +266,16 @@ static int mdss_dsi_regulator_init(struct platform_device *pdev,
 			}
 		}
 	}
+
+#if defined (CONFIG_REGULATOR_QPNP_LABIBB_SOMC) && \
+    defined (CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL)
+	ctrl = platform_get_drvdata(pdev);
+	if (!ctrl) {
+		pr_err("%s: FATAL: NULL ctrl pdata!!\n", __func__);
+		return -EINVAL;
+	}
+	ctrl->spec_pdata->vreg_init(ctrl);
+#endif
 
 	return rc;
 }
@@ -1449,55 +1463,6 @@ static int mdss_dsi_pinctrl_init(struct platform_device *pdev)
 				MDSS_PINCTRL_STATE_SLEEP);
 	if (IS_ERR_OR_NULL(ctrl_pdata->pin_res.gpio_state_suspend))
 		pr_warn("%s: can not get sleep pinstate\n", __func__);
-
-#if defined (CONFIG_REGULATOR_QPNP_LABIBB_SOMC) && \
-    defined (CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL)
-	spec_pdata = ctrl->spec_pdata;
-	if (!spec_pdata) {
-		pr_err("%s: Invalid panel data\n", __func__);
-		return -EINVAL;
-	}
-
-	/*
-	 * Set lab/ibb voltage.
-	 */
-	min_uV = spec_pdata->lab_output_voltage;
-	max_uV = min_uV;
-	rc = regulator_set_voltage(ctrl->lab, min_uV, max_uV);
-	if (rc) {
-		pr_err("%s: Unable to configure of lab voltage.\n", __func__);
-		return rc;
-	}
-	min_uV = spec_pdata->ibb_output_voltage;
-	max_uV = min_uV;
-	rc = regulator_set_voltage(ctrl->ibb, min_uV, max_uV);
-	if (rc) {
-		pr_err("%s: Unable to configure of ibb voltage.\n", __func__);
-		return rc;
-	}
-
-	/**
-	 * Set lab/ibb current max
-	 */
-	if (spec_pdata->lab_current_max_enable) {
-		rc = qpnp_lab_set_current_max(ctrl->lab,
-				spec_pdata->lab_current_max);
-		if (rc) {
-			pr_err("%s: Unable to configure of lab current_max.\n",
-								__func__);
-			return rc;
-		}
-	}
-	if (spec_pdata->ibb_current_max_enable) {
-		rc = qpnp_ibb_set_current_max(ctrl->ibb,
-				spec_pdata->ibb_current_max);
-		if (rc) {
-			pr_err("%s: Unable to configure of ibb current_max.\n",
-								__func__);
-			return rc;
-		}
-	}
-#endif /* CONFIG_REGULATOR_QPNP_LABIBB_SOMC */
 
 	return 0;
 }

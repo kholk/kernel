@@ -149,6 +149,7 @@ struct mdss_panel_specific_pdata {
 	u32 ibb_current_max;
 	bool lab_current_max_enable;
 	bool ibb_current_max_enable;
+	int (*vreg_init) (struct mdss_dsi_ctrl_pdata *ctrl);
 	int (*vreg_ctrl) (struct mdss_dsi_ctrl_pdata *ctrl, int enable);
 
 	struct poll_ctrl polling;

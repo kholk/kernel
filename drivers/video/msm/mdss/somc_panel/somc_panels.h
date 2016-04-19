@@ -98,4 +98,11 @@ void poll_worker_schedule(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 void poll_worker_cancel(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 int  panel_polling_init(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 
+/* Regulators */
+#ifdef CONFIG_SOMC_PANEL_LABIBB
+int somc_panel_regulators_init(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
+#else
+#define somc_panel_regulators_init(x) 0
+#endif
+
 #endif
