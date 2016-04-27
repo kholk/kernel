@@ -4183,34 +4183,9 @@ int mdss_panel_parse_dt(struct device_node *np,
 	rc = of_property_read_u32(np, "somc,pw-down-period", &tmp);
 	spec_pdata->down_period = !rc ? tmp : 0;
 
-	spec_pdata->lab_output_voltage = QPNP_REGULATOR_VSP_V_5P4V;
-	rc = of_property_read_u32(np, "somc,lab-output-voltage", &tmp);
-	if (!rc)
-		spec_pdata->lab_output_voltage = tmp;
-
-	spec_pdata->ibb_output_voltage = QPNP_REGULATOR_VSN_V_M5P4V;
-	rc = of_property_read_u32(np, "somc,ibb-output-voltage", &tmp);
-	if (!rc)
-		spec_pdata->ibb_output_voltage = tmp;
-
-	spec_pdata->lab_current_max_enable = of_find_property(np,
-			"qcom,qpnp-lab-limit-maximum-current", &tmp);
-
-	if (spec_pdata->lab_current_max_enable) {
-		rc = of_property_read_u32(np,
-			"qcom,qpnp-lab-limit-maximum-current", &tmp);
-		if (!rc)
-			spec_pdata->lab_current_max = tmp;
-	}
-
-	spec_pdata->ibb_current_max_enable = of_find_property(np,
-			"qcom,qpnp-ibb-limit-maximum-current", &tmp);
-	if (spec_pdata->ibb_current_max_enable) {
-		rc = of_property_read_u32(np,
-			"qcom,qpnp-ibb-limit-maximum-current", &tmp);
-		if (!rc)
-			spec_pdata->ibb_current_max = tmp;
-	}
+	rc = somc_panel_vregs_dt(np, ctrl_pdata);
+	if (rc)
+		pr_err("%s: Failed to parse lab/ibb vregs DT!!\n", __func__);
 
 	rc = of_property_read_u32_array(np,
 		"somc,mdss-dsi-u-rev", res, 2);
@@ -4418,8 +4393,6 @@ int mdss_dsi_panel_init(struct device_node *node,
 	parent = of_get_parent(node);
 	ctrl_pdev = of_find_device_by_node(dsi_ctrl_np);
 
-	somc_panel_regulators_init(ctrl_pdata);
-
 	vsn_gpio = of_get_named_gpio(parent, "somc,vsn-gpio", 0);
 	if (gpio_is_valid(vsn_gpio)) {
 		rc = gpio_request(vsn_gpio, "lcd_vsn");
@@ -4469,6 +4442,9 @@ int mdss_dsi_panel_init(struct device_node *node,
 		pr_err("%s: CRITICAL: DT parsing failed!!!\n", __func__);
 		goto error;
 	}
+
+	if (spec_pdata->vreg_init)
+		spec_pdata->vreg_init(ctrl_pdata);
 
 	polling = &spec_pdata->polling;
 	if (pinfo->dsi_master == pinfo->pdest) {

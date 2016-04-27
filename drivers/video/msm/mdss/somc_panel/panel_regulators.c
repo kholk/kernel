@@ -35,6 +35,11 @@ static int somc_panel_vregs_init(struct mdss_dsi_ctrl_pdata *ctrl)
 	struct mdss_panel_specific_pdata *spec_pdata = NULL;
 	int min_uV, max_uV = 0;
 
+	if (!ctrl->panel_bias_vreg || !ctrl->lab || !ctrl->ibb) {
+		pr_err("%s: LAB/IBB regulators not supported.\n", __func__);
+		return -EINVAL;
+	}
+
 	spec_pdata = ctrl->spec_pdata;
 	if (!spec_pdata) {
 		pr_err("%s: FATAL: NULL SoMC panel data!!\n", __func__);
@@ -125,8 +130,48 @@ static int somc_panel_vreg_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, int enable)
 	return 0;
 }
 
-int somc_panel_regulators_init(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+int somc_panel_vregs_dt(struct device_node *np,
+			struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
+	struct mdss_panel_specific_pdata *spec_pdata = NULL;
+	int rc = 0;
+	u32 tmp;
+
+	spec_pdata = ctrl_pdata->spec_pdata;
+	if (!spec_pdata) {
+		pr_err("%s: FATAL: NULL SoMC panel data!!\n", __func__);
+		return -EINVAL;
+	}
+
+	spec_pdata->lab_output_voltage = QPNP_REGULATOR_VSP_V_5P4V;
+	rc = of_property_read_u32(np, "somc,lab-output-voltage", &tmp);
+	if (!rc)
+		spec_pdata->lab_output_voltage = tmp;
+
+	spec_pdata->ibb_output_voltage = QPNP_REGULATOR_VSN_V_M5P4V;
+	rc = of_property_read_u32(np, "somc,ibb-output-voltage", &tmp);
+	if (!rc)
+		spec_pdata->ibb_output_voltage = tmp;
+
+	spec_pdata->lab_current_max_enable = of_find_property(np,
+			"qcom,qpnp-lab-limit-maximum-current", &tmp);
+
+	if (spec_pdata->lab_current_max_enable) {
+		rc = of_property_read_u32(np,
+			"qcom,qpnp-lab-limit-maximum-current", &tmp);
+		if (!rc)
+			spec_pdata->lab_current_max = tmp;
+	}
+
+	spec_pdata->ibb_current_max_enable = of_find_property(np,
+			"qcom,qpnp-ibb-limit-maximum-current", &tmp);
+	if (spec_pdata->ibb_current_max_enable) {
+		rc = of_property_read_u32(np,
+			"qcom,qpnp-ibb-limit-maximum-current", &tmp);
+		if (!rc)
+			spec_pdata->ibb_current_max = tmp;
+	}
+
 	ctrl_pdata->spec_pdata->vreg_init = somc_panel_vregs_init;
 	ctrl_pdata->spec_pdata->vreg_ctrl = somc_panel_vregs_ctrl;
 

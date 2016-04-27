@@ -267,16 +267,6 @@ static int mdss_dsi_regulator_init(struct platform_device *pdev,
 		}
 	}
 
-#if defined (CONFIG_REGULATOR_QPNP_LABIBB_SOMC) && \
-    defined (CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL)
-	ctrl = platform_get_drvdata(pdev);
-	if (!ctrl) {
-		pr_err("%s: FATAL: NULL ctrl pdata!!\n", __func__);
-		return -EINVAL;
-	}
-	ctrl->spec_pdata->vreg_init(ctrl);
-#endif
-
 	return rc;
 }
 
