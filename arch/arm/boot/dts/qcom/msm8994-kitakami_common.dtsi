@@ -345,17 +345,17 @@
 
 	qcom,sensor-information {
 		/* msm_therm */
-		sensor_information17: qcom,sensor-information@17 {
+		qcom,sensor-information@17 {
 			qcom,scaling-factor = <10>;
 		};
 
 		/* emmc_therm */
-		sensor_information18: qcom,sensor-information@18 {
+		qcom,sensor-information@18 {
 			qcom,scaling-factor = <10>;
 		};
 
 		/* quiet_therm */
-		sensor_information21: qcom,sensor-information@21 {
+		qcom,sensor-information@21 {
 			qcom,alias-name = "bl_therm";
 		};
 
@@ -488,7 +488,7 @@
 			qcom,supply-disable-load = <100>;
 			qcom,supply-post-on-sleep = <5>;
 		};
-
+/*
 		qcom,panel-supply-entry@1 {
 			reg = <1>;
 			qcom,supply-name = "lab";
@@ -506,7 +506,7 @@
 			qcom,supply-enable-load = <100000>;
 			qcom,supply-disable-load = <100>;
 			qcom,supply-post-on-sleep = <20>;
-		};
+		};*/
 	};
 
 	led_flash0: qcom,camera-flash {
@@ -1177,6 +1177,14 @@
 
 &mdss_fb0 {
 	linux,contiguous-region = <&fb_mem>;
+
+	/* Kernel splash configuration */
+	qcom,memblock-reserve = <0x03401000 0x2200000>;
+	qcom,memory-reservation-size = <0x1000000>; /* size: 16MB */
+	qcom,mdss-fb-splash-logo-enabled;
+	qcom,cont-splash-memory {
+		linux,contiguous-region = <&cont_splash_mem>;
+	};
 };
 
 &mdss_mdp {
