@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,6 +9,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
  */
 
 #include <linux/kernel.h>
@@ -772,7 +777,7 @@ static struct rcg_clk camss_gp1_clk_src = {
 };
 
 static struct clk_freq_tbl ftbl_jpeg0_clk_src[] = {
-	F( 133330000,          gpll0,    6,    0,     0),
+	F( 133333333,          gpll0,    6,    0,     0),
 	F( 200000000,          gpll0,    4,    0,     0),
 	F( 266666667,          gpll0,    3,    0,     0),
 	F( 300000000,      gpll4_out,    4,    0,     0),
@@ -797,6 +802,9 @@ static struct rcg_clk jpeg0_clk_src = {
 };
 
 static struct clk_freq_tbl ftbl_mclk_clk_src[] = {
+#if defined(CONFIG_SONY_CAM_V4L2)
+	F(8000000, gpll0, 1, 1, 100),
+#endif
 	F(  24000000,      gpll6_out,    1,    1,    45),
 	F(  66670000,          gpll0,   12,    0,     0),
 	F_END
@@ -1428,7 +1436,9 @@ static struct clk_freq_tbl ftbl_sdcc2_4_apps_clk_src[] = {
 	F(    400000,             xo,   12,    1,     4),
 	F(  20000000,          gpll0,   10,    1,     4),
 	F(  25000000,          gpll0,   16,    1,     2),
+	F(  40000000,          gpll0,   10,    1,     2),
 	F(  50000000,          gpll0,   16,    0,     0),
+	F(  80000000,          gpll0,   10,    0,     0),
 	F( 100000000,          gpll0,    8,    0,     0),
 	F( 177777778,          gpll0,  4.5,    0,     0),
 	F( 200000000,          gpll0,    4,    0,     0),
@@ -1504,7 +1514,7 @@ static struct rcg_clk usb_fs_system_clk_src = {
 static struct clk_freq_tbl ftbl_usb_hs_system_clk_src[] = {
 	F(  57140000,          gpll0,   14,    0,     0),
 	F( 100000000,          gpll0,    8,    0,     0),
-	F( 133330000,          gpll0,    6,    0,     0),
+	F( 133333333,          gpll0,    6,    0,     0),
 	F( 177780000,          gpll0,  4.5,    0,     0),
 	F_END
 };

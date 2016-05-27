@@ -10,6 +10,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #include <linux/jiffies.h>
 #include <linux/sched.h>
@@ -81,11 +86,6 @@ static inline bool is_thumbnail_session(struct msm_vidc_inst *inst)
 	return !!(inst->flags & VIDC_THUMBNAIL);
 }
 
-static inline bool is_realtime_session(struct msm_vidc_inst *inst)
-{
-	return !!(inst->flags & VIDC_REALTIME);
-}
-
 int msm_comm_g_ctrl(struct msm_vidc_inst *inst, int id)
 {
 	int rc = 0;
@@ -95,6 +95,16 @@ int msm_comm_g_ctrl(struct msm_vidc_inst *inst, int id)
 
 	rc = v4l2_g_ctrl(&inst->ctrl_handler, &ctrl);
 	return rc ?: ctrl.value;
+}
+
+static inline bool is_non_realtime_session(struct msm_vidc_inst *inst)
+{
+	int rc = 0;
+	struct v4l2_control ctrl = {
+		.id = V4L2_CID_MPEG_VIDC_VIDEO_PRIORITY
+	};
+	rc = v4l2_g_ctrl(&inst->ctrl_handler, &ctrl);
+	return (!rc && ctrl.value);
 }
 
 enum multi_stream msm_comm_get_stream_output_mode(struct msm_vidc_inst *inst)
@@ -114,25 +124,21 @@ enum multi_stream msm_comm_get_stream_output_mode(struct msm_vidc_inst *inst)
 static int msm_comm_get_mbs_per_sec(struct msm_vidc_inst *inst)
 {
 	int output_port_mbs, capture_port_mbs;
-	int fps;
+	int fps, rc;
+	struct v4l2_control ctrl;
 
 	output_port_mbs = NUM_MBS_PER_FRAME(inst->prop.width[OUTPUT_PORT],
 		inst->prop.height[OUTPUT_PORT]);
 	capture_port_mbs = NUM_MBS_PER_FRAME(inst->prop.width[CAPTURE_PORT],
 		inst->prop.height[CAPTURE_PORT]);
 
-	if (inst->operating_rate) {
-		fps = (inst->operating_rate >> 16) ?
-			inst->operating_rate >> 16 : 1;
-		/*
-		 * Check if operating rate is less than fps.
-		 * If Yes, then use fps to scale the clocks
-		*/
-		fps = fps > inst->prop.fps ? fps : inst->prop.fps;
+	ctrl.id = V4L2_CID_MPEG_VIDC_VIDEO_OPERATING_RATE;
+	rc = v4l2_g_ctrl(&inst->ctrl_handler, &ctrl);
+	if (!rc && ctrl.value) {
+		fps = (ctrl.value >> 16)? ctrl.value >> 16: 1;
 		return max(output_port_mbs, capture_port_mbs) * fps;
-	} else {
+	} else
 		return max(output_port_mbs, capture_port_mbs) * inst->prop.fps;
-	}
 }
 
 int msm_comm_get_inst_load(struct msm_vidc_inst *inst,
@@ -156,7 +162,7 @@ int msm_comm_get_inst_load(struct msm_vidc_inst *inst,
 			load = inst->core->resources.max_load;
 	}
 
-	if (!is_thumbnail_session(inst) && !is_realtime_session(inst) &&
+	if (!is_thumbnail_session(inst) && is_non_realtime_session(inst) &&
 		(quirks & LOAD_CALC_IGNORE_NON_REALTIME_LOAD)) {
 		if (!inst->prop.fps) {
 			dprintk(VIDC_INFO, "%s: instance:%p prop->fps is set 0\n", __func__, inst);
@@ -165,13 +171,6 @@ int msm_comm_get_inst_load(struct msm_vidc_inst *inst,
 			load = msm_comm_get_mbs_per_sec(inst) / inst->prop.fps;
 		}
 	}
-
-	dprintk(VIDC_DBG,
-		"inst[%p]: load %d, wxh %dx%d, fps %d, operating_rate %d, flags 0x%x, quirks 0x%x\n",
-		inst, load, inst->prop.width[OUTPUT_PORT],
-		inst->prop.height[OUTPUT_PORT], inst->prop.fps,
-		inst->operating_rate >> 16, inst->flags, quirks);
-
 	return load;
 }
 
@@ -1257,6 +1256,11 @@ static void handle_sys_error(enum command_response cmd, void *data)
 
 	dprintk(VIDC_WARN, "SYS_ERROR %d received for core %p\n", cmd, core);
 	msm_comm_clean_notify_client(core);
+
+#ifdef SYSTEM_RESET_WITH_VENUS_CRASH
+	panic("internal panic for Venus SSR\n");
+#endif
+
 	hdev = core->device;
 	mutex_lock(&core->lock);
 	if (core->state == VIDC_CORE_INVALID) {
@@ -1976,6 +1980,7 @@ static int msm_comm_session_abort(struct msm_vidc_inst *inst)
 {
 	int rc = 0, abort_completion = 0;
 	struct hfi_device *hdev;
+	char crash_reason[SUBSYS_CRASH_REASON_LEN];
 
 	if (!inst || !inst->core || !inst->core->device) {
 		dprintk(VIDC_ERR, "%s invalid params\n", __func__);
@@ -1998,6 +2003,10 @@ static int msm_comm_session_abort(struct msm_vidc_inst *inst)
 		dprintk(VIDC_ERR,
 				"%s: Wait interrupted or timed out [%p]: %d\n",
 				__func__, inst, abort_completion);
+		snprintf(crash_reason, sizeof(crash_reason),
+			  "%s: Wait interrupted or timed out [%p]: %d",
+			  __func__, inst, abort_completion);
+		subsystem_crash_reason("venus", crash_reason);
 		rc = -EBUSY;
 	} else {
 		rc = 0;

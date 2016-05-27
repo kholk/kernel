@@ -10,6 +10,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #include "skeleton64.dtsi"
 #include <dt-bindings/clock/msm-clocks-8976.h>
@@ -22,7 +27,7 @@
 	interrupt-parent = <&intc>;
 
 	chosen {
-		bootargs = "sched_enable_hmp=1";
+		bootargs = "sched_enable_hmp=1 sched_enable_power_aware=1";
 	};
 
 	aliases {
@@ -1820,8 +1825,8 @@
 		qcom,dcvs-min-mbperframe = <32400>; /* 3840 x 2160 */
 
 		qcom,load-freq-tbl =
-			<979200 466000000 0x55555555>, /* TURBO, UHD30E   */
 			<979200 400000000 0xffffffff>, /* NOM+ , UHD30D   */
+			<979200 466000000 0x55555555>, /* TURBO, UHD30E   */
 			<734400 360000000 0xffffffff>, /* NOM  , 1080p90D */
 			<734400 400000000 0x55555555>, /* NOM+ , 1080p90E */
 			<489600 228570000 0xffffffff>, /* SVS  , 1080p60D */
@@ -2164,8 +2169,6 @@
 		qcom,proxy-clock-names = "xo";
 		qcom,active-clock-names = "iface_clk", "bus_clk", "mem_clk";
 
-		qcom,pas-id = <5>;
-		qcom,pil-mss-memsetup;
 		qcom,firmware-name = "modem";
 		qcom,pil-self-auth;
 		qcom,sysmon-id = <0>;
@@ -2593,7 +2596,7 @@
 		qcom,msm-auxpcm-interface = "primary";
 	};
 
-	dai_sec_auxpcm: qcom,msm-pri-auxpcm {
+	dai_sec_auxpcm: qcom,msm-sec-auxpcm {
 		compatible = "qcom,msm-auxpcm-dev";
 		qcom,msm-cpudai-auxpcm-mode = <0>, <0>;
 		qcom,msm-cpudai-auxpcm-sync = <1>, <1>;
