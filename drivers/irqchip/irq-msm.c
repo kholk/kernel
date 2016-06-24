@@ -68,5 +68,6 @@ IRQCHIP_DECLARE(gold_pinctrl, "qcom,msmgold-pinctrl", pinctrl_irq_dummy);
 IRQCHIP_DECLARE(8952_pinctrl, "qcom,msm8952-pinctrl", pinctrl_irq_dummy);
 IRQCHIP_DECLARE(8937_pinctrl, "qcom,msm8937-pinctrl", pinctrl_irq_dummy);
 IRQCHIP_DECLARE(8916_pinctrl, "qcom,msm8916-pinctrl", pinctrl_irq_dummy);
+IRQCHIP_DECLARE(8994_pinctrl, "qcom,msm8994-pinctrl", pinctrl_irq_dummy);
 IRQCHIP_DECLARE(titanium_pinctrl, "qcom,msmtitanium-pinctrl",
 						pinctrl_irq_dummy);
