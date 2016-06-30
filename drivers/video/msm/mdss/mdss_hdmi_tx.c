@@ -1409,7 +1409,7 @@ end:
 	mutex_unlock(&hdmi_ctrl->tx_lock);
 	return ret;
 }
-
+#if 0
 static ssize_t hdmi_tx_sysfs_rda_aksv(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1473,7 +1473,7 @@ static ssize_t hdmi_tx_sysfs_rda_tmds(struct device *dev,
 
 	return ret;
 } /* hdmi_tx_sysfs_rda_tmds */
-
+#endif
 static ssize_t hdmi_tx_sysfs_rda_power_on(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1509,8 +1509,8 @@ static DEVICE_ATTR(product_description, S_IRUGO | S_IWUSR,
 	hdmi_tx_sysfs_wta_product_description);
 static DEVICE_ATTR(avi_itc, S_IWUSR, NULL, hdmi_tx_sysfs_wta_avi_itc);
 static DEVICE_ATTR(avi_cn0_1, S_IWUSR, NULL, hdmi_tx_sysfs_wta_avi_cn_bits);
-static DEVICE_ATTR(aksv, S_IRUGO, hdmi_tx_sysfs_rda_aksv, NULL);
-static DEVICE_ATTR(tmds, S_IRUGO, hdmi_tx_sysfs_rda_tmds, NULL);
+//static DEVICE_ATTR(aksv, S_IRUGO, hdmi_tx_sysfs_rda_aksv, NULL);
+//static DEVICE_ATTR(tmds, S_IRUGO, hdmi_tx_sysfs_rda_tmds, NULL);
 static DEVICE_ATTR(hdmi_panel_power_on, S_IRUGO, hdmi_tx_sysfs_rda_power_on,
 	NULL);
 static DEVICE_ATTR(s3d_mode, S_IRUGO | S_IWUSR, hdmi_tx_sysfs_rda_s3d_mode,
@@ -1529,8 +1529,8 @@ static struct attribute *hdmi_tx_fs_attrs[] = {
 	&dev_attr_product_description.attr,
 	&dev_attr_avi_itc.attr,
 	&dev_attr_avi_cn0_1.attr,
-	&dev_attr_aksv.attr,
-	&dev_attr_tmds.attr,
+//	&dev_attr_aksv.attr,
+//	&dev_attr_tmds.attr,
 	&dev_attr_hdmi_panel_power_on.attr,
 	&dev_attr_s3d_mode.attr,
 	&dev_attr_5v.attr,
@@ -4013,9 +4013,9 @@ static int hdmi_tx_start(struct hdmi_tx_ctrl *hdmi_ctrl)
 			hdmi_tx_config_avmute(hdmi_ctrl, false);
 		}
 
-		mutex_lock(&hdmi_ctrl->lut_lock);
+		//mutex_lock(&hdmi_ctrl->lut_lock);
 		hdmi_tx_set_avi_infoframe(hdmi_ctrl);
-		mutex_unlock(&hdmi_ctrl->lut_lock);
+		//mutex_unlock(&hdmi_ctrl->lut_lock);
 		hdmi_tx_set_vendor_specific_infoframe(hdmi_ctrl);
 		hdmi_tx_set_spd_infoframe(hdmi_ctrl);
 	}

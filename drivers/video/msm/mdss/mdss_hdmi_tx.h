@@ -177,7 +177,7 @@ struct hdmi_tx_ctrl {
 	u32 enc_lvl;
 
 	u8 aksv[5];
-	enum hdmi_hdcp_state hdcp_status;
+	//enum hdmi_hdcp_state hdcp_status;
 
 	u8 spd_vendor_name[9];
 	u8 spd_product_description[17];
