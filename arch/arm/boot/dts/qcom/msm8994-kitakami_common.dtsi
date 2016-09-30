@@ -160,7 +160,7 @@
 
 	/* I2C : BLSP6 */
 	i2c@f9928000 {
-		qcom,clk-freq-out = <355000>;
+		qcom,clk-freq-out = <400000>; //355000>;
 		pinctrl-0 = <&msm_gpio_27_act &msm_gpio_28_act>;
 		pinctrl-1 = <&msm_gpio_27_sus &msm_gpio_28_sus>;
 		status = "ok";
