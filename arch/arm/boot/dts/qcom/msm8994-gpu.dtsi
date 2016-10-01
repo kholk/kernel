@@ -57,7 +57,7 @@
 
 		qcom,initial-pwrlevel = <2>;
 
-		qcom,idle-timeout = <80>; //msecs
+		qcom,idle-timeout = <8>; //<HZ/12>
 		qcom,strtstp-sleepwake;
 
 		qcom,pm-qos-active-latency = <501>;
@@ -178,32 +178,4 @@
                                 <89 662 0 0>;
                 };
 	};
-
-	kgsl_msm_iommu: qcom,kgsl-iommu@fdb10000 {
-		compatible = "qcom,kgsl-smmu-v1";
-		reg = <0xfdb10000 0x10000>;
-		/*
-		* The gpu can only program a single context bank
-		* at this fixed offset.
-		*/
-		//REALLY WRONG qcom,protect = <0x40000 0x1000>; /* A530 */
-		//qcom,protect = <0x4000 0xE>;  //      static struct kgsl_protected_registers iommuv1_regs = { 0x4000, 14 };
-		qcom,protect = <0x10000 0x10000>; /* too much? */
-//		qcom,protect = <0x10000 0x2000>;		
-		qcom,micro-mmu-control = <0x12000>; //<0x2000>; /* 3.10 kernel dmesg says 0x4800 */
-
-		clocks = <&clock_mmss clk_oxili_gfx3d_clk>,
-			 <&clock_mmss clk_oxilicx_ahb_clk>;
-		clock-names = "core_clk", "iface_clk";
-
-		status = "ok";
-
-		gfx3d_user: gfx3d_user {
-			compatible = "qcom,smmu-kgsl-cb";
-			label = "gfx3d_user";
-			qcom,gpu-offset = <0x10000>;
-			//qcom,gpu-offset = <0x12000>;
-		};
-	};
-
 };
