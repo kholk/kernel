@@ -221,11 +221,6 @@ DEFINE_EVENT(kgsl_pwr_template, kgsl_rail,
 	TP_ARGS(device, on)
 );
 
-DEFINE_EVENT(kgsl_pwr_template, kgsl_retention_clk,
-	TP_PROTO(struct kgsl_device *device, int on),
-	TP_ARGS(device, on)
-);
-
 TRACE_EVENT(kgsl_clk,
 
 	TP_PROTO(struct kgsl_device *device, unsigned int on,
@@ -470,26 +465,29 @@ TRACE_EVENT(kgsl_mem_mmap,
 TRACE_EVENT(kgsl_mem_unmapped_area_collision,
 
 	TP_PROTO(struct kgsl_mem_entry *mem_entry,
-		 unsigned long addr,
-		 unsigned long len),
+		 unsigned long hint,
+		 uint64_t len,
+		 uint64_t addr),
 
-	TP_ARGS(mem_entry, addr, len),
+	TP_ARGS(mem_entry, hint, len, addr),
 
 	TP_STRUCT__entry(
 		__field(unsigned int, id)
-		__field(unsigned long, addr)
+		__field(unsigned long, hint)
 		__field(unsigned long, len)
+		__field(unsigned long, addr)
 	),
 
 	TP_fast_assign(
 		__entry->id = mem_entry->id;
-		__entry->len = len;
-		__entry->addr = addr;
+		__entry->hint  = hint;
+		__entry->len = (unsigned long) len;
+		__entry->addr = (unsigned long) addr;
 	),
 
 	TP_printk(
-		"id=%u len=%lu addr=0x%lx",
-		__entry->id, __entry->len, __entry->addr
+		"id=%u hint=0x%lx len=%lu addr=0x%lx",
+		__entry->id, __entry->hint, __entry->len, __entry->addr
 	)
 );
 
@@ -1017,17 +1015,17 @@ TRACE_EVENT(kgsl_active_count,
 );
 
 TRACE_EVENT(kgsl_pagetable_destroy,
-	TP_PROTO(u64 ptbase, unsigned int name),
+	TP_PROTO(phys_addr_t ptbase, unsigned int name),
 	TP_ARGS(ptbase, name),
 	TP_STRUCT__entry(
-		__field(u64, ptbase)
+		__field(phys_addr_t, ptbase)
 		__field(unsigned int, name)
 	),
 	TP_fast_assign(
 		__entry->ptbase = ptbase;
 		__entry->name = name;
 	),
-	TP_printk("ptbase=%llx name=%u", __entry->ptbase, __entry->name)
+	TP_printk("ptbase=%pa name=%u", &__entry->ptbase, __entry->name)
 );
 
 DECLARE_EVENT_CLASS(syncpoint_timestamp_template,

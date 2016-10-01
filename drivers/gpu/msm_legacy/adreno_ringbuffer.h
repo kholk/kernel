@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,14 +16,6 @@
 #include "kgsl_iommu.h"
 #include "adreno_dispatch.h"
 
-/* Given a ringbuffer, return the adreno device that owns it */
-
-#define _RB_OFFSET(_id) (offsetof(struct adreno_device, ringbuffers) + \
-		((_id) * sizeof(struct adreno_ringbuffer)))
-
-#define ADRENO_RB_DEVICE(_rb) \
-	((struct adreno_device *) (((void *) (_rb)) - _RB_OFFSET((_rb)->id)))
-
 /* Adreno ringbuffer size in bytes */
 #define KGSL_RB_SIZE (32 * 1024)
 
@@ -35,6 +27,17 @@
 
 struct kgsl_device;
 struct kgsl_device_private;
+
+/**
+ * union adreno_ttbr0 - Union describing the ttbr0 parameters used when
+ * switching pagetable in stream
+ * @ttbr0_lo: Lower 32 bits of ttbr0
+ * @ttbr0_hi: Higher 32 bits of ttbr0
+ */
+union adreno_ttbr0 {
+	unsigned int ttbr0_lo;
+	unsigned int ttbr0_hi;
+};
 
 /**
  * struct adreno_submit_time - utility structure to store the wall clock / GPU
@@ -60,20 +63,20 @@ struct adreno_submit_time {
  * switching of pagetable this value equals current_rb_ptname.
  * @switch_pt_enable: Flag used during pagetable switch to check if pt
  * switch can be skipped
- * @ttbr0: value to program into TTBR0 during pagetable switch.
- * @contextidr: value to program into CONTEXTIDR during pagetable switch.
+ * @adreno_ttbr0: Parameters used during pagetable switch, it contains the
+ * pagetable values that need to be programmmed into the TTBR0 registers
  */
 struct adreno_ringbuffer_pagetable_info {
 	int current_global_ptname;
 	int current_rb_ptname;
 	int incoming_ptname;
 	int switch_pt_enable;
-	uint64_t ttbr0;
-	unsigned int contextidr;
+	union adreno_ttbr0 ttbr0;
 };
 
 /**
  * struct adreno_ringbuffer - Definition for an adreno ringbuffer object
+ * @device: KGSL device that owns the ringbuffer object
  * @flags: Internal control flags for the ringbuffer
  * @buffer_desc: Pointer to the ringbuffer memory descriptor
  * @wptr: Local copy of the wptr offset
@@ -104,6 +107,7 @@ struct adreno_ringbuffer_pagetable_info {
  * @starve_timer_state: Indicates the state of the wait.
  */
 struct adreno_ringbuffer {
+	struct kgsl_device *device;
 	uint32_t flags;
 	struct kgsl_memdesc buffer_desc;
 	unsigned int sizedwords;
@@ -143,8 +147,6 @@ struct adreno_ringbuffer {
 #define KGSL_MEMSTORE_RB_OFFSET(rb, field)	\
 	KGSL_MEMSTORE_OFFSET((rb->id + KGSL_MEMSTORE_MAX), field)
 
-int cp_secure_mode(struct adreno_device *adreno_dev, uint *cmds, int set);
-
 int adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 				struct kgsl_context *context,
 				struct kgsl_cmdbatch *cmdbatch,
@@ -154,10 +156,11 @@ int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 		struct kgsl_cmdbatch *cmdbatch,
 		struct adreno_submit_time *time);
 
-int adreno_ringbuffer_init(struct adreno_device *adreno_dev, bool nopreempt);
+int adreno_ringbuffer_init(struct kgsl_device *device);
 
-int adreno_ringbuffer_start(struct adreno_device *adreno_dev,
-		unsigned int start_type);
+int adreno_ringbuffer_warm_start(struct adreno_device *adreno_dev);
+
+int adreno_ringbuffer_cold_start(struct adreno_device *adreno_dev);
 
 void adreno_ringbuffer_stop(struct adreno_device *adreno_dev);
 
@@ -170,9 +173,6 @@ int adreno_ringbuffer_issuecmds(struct adreno_ringbuffer *rb,
 
 void adreno_ringbuffer_submit(struct adreno_ringbuffer *rb,
 		struct adreno_submit_time *time);
-
-int adreno_ringbuffer_submit_spin(struct adreno_ringbuffer *rb,
-		struct adreno_submit_time *time, unsigned int timeout);
 
 void kgsl_cp_intrcallback(struct kgsl_device *device);
 
@@ -190,7 +190,7 @@ int adreno_ringbuffer_waittimestamp(struct adreno_ringbuffer *rb,
 					unsigned int timestamp,
 					unsigned int msecs);
 
-int adreno_rb_readtimestamp(struct adreno_device *adreno_dev,
+int adreno_rb_readtimestamp(struct kgsl_device *device,
 	void *priv, enum kgsl_timestamp_type type,
 	unsigned int *timestamp);
 
@@ -217,6 +217,16 @@ static inline unsigned int adreno_ringbuffer_dec_wrapped(unsigned int val,
 							unsigned int size)
 {
 	return (val + size - sizeof(unsigned int)) % size;
+}
+
+/* check if timestamp is greater than the current rb timestamp */
+static inline int adreno_ringbuffer_check_timestamp(
+			struct adreno_ringbuffer *rb,
+			unsigned int timestamp, int type)
+{
+	unsigned int ts;
+	adreno_rb_readtimestamp(rb->device, rb, type, &ts);
+	return (timestamp_cmp(ts, timestamp) >= 0);
 }
 
 #endif  /* __ADRENO_RINGBUFFER_H */

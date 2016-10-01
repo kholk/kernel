@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -117,8 +117,9 @@ static struct adreno_ib_object *adreno_ib_check_overlap(uint64_t gpuaddr,
 }
 
 /*
- * adreno_ib_add() - Add a gpuaddress range to list
+ * adreno_ib_add_range() - Add a gpuaddress range to list
  * @process: Process in which the gpuaddress is mapped
+ * @size: Size of the address range in concern
  * @type: The type of address range
  * @ib_obj_list: List of the address ranges in which the given range is to be
  * added
@@ -129,18 +130,18 @@ static struct adreno_ib_object *adreno_ib_check_overlap(uint64_t gpuaddr,
  *
  * Returns 0 on success else error code
  */
-static int adreno_ib_add(struct kgsl_process_private *process,
-				uint64_t gpuaddr, int type,
+static int adreno_ib_add_range(struct kgsl_process_private *process,
+				uint64_t gpuaddr,
+				uint64_t size, int type,
 				struct adreno_ib_object_list *ib_obj_list)
 {
-	uint64_t size;
 	struct adreno_ib_object *ib_obj;
 	struct kgsl_mem_entry *entry;
 
 	if (MAX_IB_OBJS <= ib_obj_list->num_objs)
 		return -E2BIG;
 
-	entry = kgsl_sharedmem_find(process, gpuaddr);
+	entry = kgsl_sharedmem_find_region(process, gpuaddr, size);
 	if (!entry)
 		/*
 		 * Do not fail if gpuaddr not found, we can continue
@@ -149,8 +150,10 @@ static int adreno_ib_add(struct kgsl_process_private *process,
 		 */
 		return 0;
 
-	size = entry->memdesc.size;
-	gpuaddr = entry->memdesc.gpuaddr;
+	if (!size) {
+		size = entry->memdesc.size;
+		gpuaddr = entry->memdesc.gpuaddr;
+	}
 
 	ib_obj = adreno_ib_check_overlap(gpuaddr, size, type, ib_obj_list);
 	if (ib_obj) {
@@ -193,30 +196,23 @@ static int ib_save_mip_addresses(unsigned int *pkt,
 		unitsize = load_state_unit_sizes[block][1];
 
 	if (3 == block && 1 == type) {
-		uint64_t gpuaddr = pkt[2] & 0xFFFFFFFC;
-		uint64_t size = (num_levels * unitsize) << 2;
-
-		ent = kgsl_sharedmem_find(process, gpuaddr);
-		if (ent == NULL)
+		ent = kgsl_sharedmem_find_region(process, pkt[2] & 0xFFFFFFFC,
+					(num_levels * unitsize) << 2);
+		if (!ent)
 			return 0;
 
-		if (!kgsl_gpuaddr_in_memdesc(&ent->memdesc,
-			gpuaddr, size)) {
+		hostptr = kgsl_gpuaddr_to_vaddr(&ent->memdesc,
+				pkt[2] & 0xFFFFFFFC);
+		if (!hostptr) {
 			kgsl_mem_entry_put(ent);
 			return 0;
 		}
-
-		hostptr = kgsl_gpuaddr_to_vaddr(&ent->memdesc, gpuaddr);
-		if (hostptr != NULL) {
-			for (i = 0; i < num_levels; i++) {
-				ret = adreno_ib_add(process, hostptr[i],
-					SNAPSHOT_GPU_OBJECT_GENERIC,
-					ib_obj_list);
-				if (ret)
-					break;
-			}
+		for (i = 0; i < num_levels; i++) {
+			ret = adreno_ib_add_range(process, hostptr[i],
+				0, SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+			if (ret)
+				break;
 		}
-
 		kgsl_memdesc_unmap(&ent->memdesc);
 		kgsl_mem_entry_put(ent);
 	}
@@ -260,7 +256,7 @@ static int ib_parse_load_state(unsigned int *pkt,
 	 * like memory
 	 */
 	for (i = 0; i <= (type3_pkt_size(pkt[0]) - 2); i++) {
-		ret |= adreno_ib_add(process, pkt[2 + i] & 0xFFFFFFFC,
+		ret |= adreno_ib_add_range(process, pkt[2 + i] & 0xFFFFFFFC, 0,
 				SNAPSHOT_GPU_OBJECT_GENERIC,
 				ib_obj_list);
 		if (ret)
@@ -288,13 +284,13 @@ static int ib_parse_set_bin_data(unsigned int *pkt,
 		return 0;
 
 	/* Visiblity stream buffer */
-	ret = adreno_ib_add(process, pkt[1],
+	ret = adreno_ib_add_range(process, pkt[1], 0,
 		SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 	if (ret)
 		return ret;
 
 	/* visiblity stream size buffer (fixed size 8 dwords) */
-	ret = adreno_ib_add(process, pkt[2],
+	ret = adreno_ib_add_range(process, pkt[2], 0,
 		SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 
 	return ret;
@@ -320,7 +316,7 @@ static int ib_parse_mem_write(unsigned int *pkt,
 	 * to get the whole thing. Pass a size of 0 tocapture the entire buffer.
 	 */
 
-	return adreno_ib_add(process, pkt[1] & 0xFFFFFFFC,
+	return adreno_ib_add_range(process, pkt[1] & 0xFFFFFFFC, 0,
 		SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 }
 
@@ -352,9 +348,9 @@ static int ib_add_type0_entries(struct kgsl_device *device,
 	for (i = ADRENO_CP_ADDR_VSC_PIPE_DATA_ADDRESS_0;
 		i < ADRENO_CP_ADDR_VSC_PIPE_DATA_LENGTH_7; i++) {
 		if (ib_parse_vars->cp_addr_regs[i]) {
-			ret = adreno_ib_add(process,
+			ret = adreno_ib_add_range(process,
 				ib_parse_vars->cp_addr_regs[i] & mask,
-				SNAPSHOT_GPU_OBJECT_GENERIC,
+				0, SNAPSHOT_GPU_OBJECT_GENERIC,
 				ib_obj_list);
 			if (ret)
 				return ret;
@@ -370,9 +366,9 @@ static int ib_add_type0_entries(struct kgsl_device *device,
 	for (i = ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_0;
 		i <= vfd_end; i++) {
 		if (ib_parse_vars->cp_addr_regs[i]) {
-			ret = adreno_ib_add(process,
+			ret = adreno_ib_add_range(process,
 				ib_parse_vars->cp_addr_regs[i],
-				SNAPSHOT_GPU_OBJECT_GENERIC,
+				0, SNAPSHOT_GPU_OBJECT_GENERIC,
 				ib_obj_list);
 			if (ret)
 				return ret;
@@ -381,10 +377,10 @@ static int ib_add_type0_entries(struct kgsl_device *device,
 	}
 
 	if (ib_parse_vars->cp_addr_regs[ADRENO_CP_ADDR_VSC_SIZE_ADDRESS]) {
-		ret = adreno_ib_add(process,
+		ret = adreno_ib_add_range(process,
 			ib_parse_vars->cp_addr_regs[
 				ADRENO_CP_ADDR_VSC_SIZE_ADDRESS] & mask,
-			SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+			0, SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 		if (ret)
 			return ret;
 		ib_parse_vars->cp_addr_regs[
@@ -393,9 +389,9 @@ static int ib_add_type0_entries(struct kgsl_device *device,
 	mask = 0xFFFFFFE0;
 	for (i = ADRENO_CP_ADDR_SP_VS_PVT_MEM_ADDR;
 		i <= ADRENO_CP_ADDR_SP_FS_OBJ_START_REG; i++) {
-		ret = adreno_ib_add(process,
+		ret = adreno_ib_add_range(process,
 			ib_parse_vars->cp_addr_regs[i] & mask,
-			SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+			0, SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 		if (ret)
 			return ret;
 		ib_parse_vars->cp_addr_regs[i] = 0;
@@ -421,47 +417,47 @@ static int ib_parse_draw_indx(struct kgsl_device *device, unsigned int *pkt,
 	switch (opcode) {
 	case CP_DRAW_INDX:
 		if (type3_pkt_size(pkt[0]) > 3) {
-			ret = adreno_ib_add(process,
-				pkt[4], SNAPSHOT_GPU_OBJECT_GENERIC,
-				ib_obj_list);
+			ret = adreno_ib_add_range(process,
+				pkt[4], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 		}
 		break;
 	case CP_DRAW_INDX_OFFSET:
 		if (type3_pkt_size(pkt[0]) == 6) {
-			ret = adreno_ib_add(process,
-				pkt[5], SNAPSHOT_GPU_OBJECT_GENERIC,
-				ib_obj_list);
+			ret = adreno_ib_add_range(process,
+				pkt[5], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 		}
 		break;
 	case CP_DRAW_INDIRECT:
 		if (type3_pkt_size(pkt[0]) == 2) {
-			ret = adreno_ib_add(process,
-				pkt[2], SNAPSHOT_GPU_OBJECT_GENERIC,
-				ib_obj_list);
+			ret = adreno_ib_add_range(process,
+				pkt[2], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 		}
 		break;
 	case CP_DRAW_INDX_INDIRECT:
 		if (type3_pkt_size(pkt[0]) == 4) {
-			ret = adreno_ib_add(process,
-				pkt[2], SNAPSHOT_GPU_OBJECT_GENERIC,
-				ib_obj_list);
+			ret = adreno_ib_add_range(process,
+				pkt[2], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 			if (ret)
 				break;
-			ret = adreno_ib_add(process,
-				pkt[4], SNAPSHOT_GPU_OBJECT_GENERIC,
-				ib_obj_list);
+			ret = adreno_ib_add_range(process,
+				pkt[4], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 		}
 		break;
 	case CP_DRAW_AUTO:
 		if (type3_pkt_size(pkt[0]) == 6) {
-			ret = adreno_ib_add(process,
-				 pkt[3], SNAPSHOT_GPU_OBJECT_GENERIC,
+			ret = adreno_ib_add_range(process,
+				 pkt[3], 0, SNAPSHOT_GPU_OBJECT_GENERIC,
 				ib_obj_list);
 			if (ret)
 				break;
-			ret = adreno_ib_add(process,
-				pkt[4], SNAPSHOT_GPU_OBJECT_GENERIC,
-				ib_obj_list);
+			ret = adreno_ib_add_range(process,
+				pkt[4], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 		}
 		break;
 	}
@@ -637,8 +633,8 @@ static int ib_parse_type0(struct kgsl_device *device, unsigned int *ptr,
 					ADRENO_CP_UCHE_INVALIDATE0)) ||
 				(offset == adreno_cp_parser_getreg(adreno_dev,
 					ADRENO_CP_UCHE_INVALIDATE1))) {
-					ret = adreno_ib_add(process,
-						ptr[i + 1] & 0xFFFFFFC0,
+					ret = adreno_ib_add_range(process,
+						ptr[i + 1] & 0xFFFFFFC0, 0,
 						SNAPSHOT_GPU_OBJECT_GENERIC,
 						ib_obj_list);
 					if (ret)
@@ -787,6 +783,7 @@ static int adreno_cp_parse_ib2(struct kgsl_device *device,
 			struct adreno_ib_object_list *ib_obj_list,
 			int ib_level)
 {
+	struct adreno_ib_object *ib_obj = NULL;
 	int i;
 	/*
 	 * We can only expect an IB2 in IB1, if we are
@@ -799,8 +796,9 @@ static int adreno_cp_parse_ib2(struct kgsl_device *device,
 	 * not been processed already
 	 */
 	for (i = 0; i < ib_obj_list->num_objs; i++) {
-		struct adreno_ib_object *ib_obj = &(ib_obj_list->obj_list[i]);
-		if ((SNAPSHOT_GPU_OBJECT_IB == ib_obj->snapshot_obj_type) &&
+		ib_obj = &(ib_obj_list->obj_list[i]);
+		if ((ib_obj != NULL) &&
+			(SNAPSHOT_GPU_OBJECT_IB == ib_obj->snapshot_obj_type) &&
 			(gpuaddr >= ib_obj->gpuaddr) &&
 			(gpuaddr + dwords * sizeof(unsigned int) <=
 			ib_obj->gpuaddr + ib_obj->size))
@@ -851,14 +849,10 @@ static int adreno_ib_find_objs(struct kgsl_device *device,
 			return 0;
 	}
 
-	entry = kgsl_sharedmem_find(process, gpuaddr);
+	entry = kgsl_sharedmem_find_region(process, gpuaddr,
+					(dwords << 2));
 	if (!entry)
 		return -EINVAL;
-
-	if (!kgsl_gpuaddr_in_memdesc(&entry->memdesc, gpuaddr, (dwords << 2))) {
-		kgsl_mem_entry_put(entry);
-		return -EINVAL;
-	}
 
 	src = kgsl_gpuaddr_to_vaddr(&entry->memdesc, gpuaddr);
 	if (!src) {
@@ -868,7 +862,8 @@ static int adreno_ib_find_objs(struct kgsl_device *device,
 
 	memset(&ib_parse_vars, 0, sizeof(struct ib_parser_variables));
 
-	ret = adreno_ib_add(process, gpuaddr, obj_type, ib_obj_list);
+	ret = adreno_ib_add_range(process, gpuaddr, dwords << 2,
+				obj_type, ib_obj_list);
 	if (ret)
 		goto done;
 

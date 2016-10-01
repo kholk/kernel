@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -31,12 +31,11 @@
  * @fault_policy: Internal policy describing how to handle this command in case
  * of a fault
  * @fault_recovery: recovery actions actually tried for this batch
+ * @expires: Point in time when the cmdbatch is considered to be hung
  * @refcount: kref structure to maintain the reference count
  * @cmdlist: List of IBs to issue
  * @memlist: List of all memory used in this command batch
- * @synclist: Array of context/timestamp tuples to wait for before issuing
- * @numsyncs: Number of sync entries in the array
- * @pending: Bitmask of sync events that are active
+ * @synclist: List of context/timestamp tuples to wait for before issuing
  * @timer: a timer used to track possible sync timeouts for this cmdbatch
  * @marker_timestamp: For markers, the timestamp of the last "real" command that
  * was queued
@@ -55,17 +54,17 @@
 struct kgsl_cmdbatch {
 	struct kgsl_device *device;
 	struct kgsl_context *context;
+	spinlock_t lock;
 	uint32_t timestamp;
 	uint32_t flags;
 	unsigned long priv;
 	unsigned long fault_policy;
 	unsigned long fault_recovery;
+	unsigned long expires;
 	struct kref refcount;
 	struct list_head cmdlist;
 	struct list_head memlist;
-	struct kgsl_cmdbatch_sync_event *synclist;
-	unsigned int numsyncs;
-	unsigned long pending;
+	struct list_head synclist;
 	struct timer_list timer;
 	unsigned int marker_timestamp;
 	struct kgsl_mem_entry *profiling_buf_entry;
@@ -78,22 +77,24 @@ struct kgsl_cmdbatch {
 
 /**
  * struct kgsl_cmdbatch_sync_event
- * @id: identifer (positiion within the pending bitmap)
  * @type: Syncpoint type
+ * @node: Local list node for the cmdbatch sync point list
  * @cmdbatch: Pointer to the cmdbatch that owns the sync event
  * @context: Pointer to the KGSL context that owns the cmdbatch
  * @timestamp: Pending timestamp for the event
  * @handle: Pointer to a sync fence handle
  * @device: Pointer to the KGSL device
+ * @refcount: Allow event to be destroyed asynchronously
  */
 struct kgsl_cmdbatch_sync_event {
-	unsigned int id;
 	int type;
+	struct list_head node;
 	struct kgsl_cmdbatch *cmdbatch;
 	struct kgsl_context *context;
 	unsigned int timestamp;
 	struct kgsl_sync_fence_waiter *handle;
 	struct kgsl_device *device;
+	struct kref refcount;
 };
 
 /**
@@ -150,19 +151,5 @@ void kgsl_dump_syncpoints(struct kgsl_device *device,
 void kgsl_cmdbatch_destroy(struct kgsl_cmdbatch *cmdbatch);
 
 void kgsl_cmdbatch_destroy_object(struct kref *kref);
-
-static inline bool kgsl_cmdbatch_events_pending(struct kgsl_cmdbatch *cmdbatch)
-{
-	return !bitmap_empty(&cmdbatch->pending, KGSL_MAX_SYNCPOINTS);
-}
-
-static inline bool kgsl_cmdbatch_event_pending(struct kgsl_cmdbatch *cmdbatch,
-		unsigned int bit)
-{
-	if (bit >= KGSL_MAX_SYNCPOINTS)
-		return false;
-
-	return test_bit(bit, &cmdbatch->pending);
-}
 
 #endif /* __KGSL_CMDBATCH_H */

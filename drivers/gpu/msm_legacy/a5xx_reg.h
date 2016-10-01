@@ -43,8 +43,8 @@
 #define A5XX_INT_UCHE_TRAP_INTR          25
 #define A5XX_INT_DEBBUS_INTR_0           26
 #define A5XX_INT_DEBBUS_INTR_1           27
-#define A5XX_INT_GPMU_VOLTAGE_DROOP      28
-#define A5XX_INT_GPMU_FIRMWARE           29
+#define A5XX_INT_GPMU_ERROR              28
+#define A5XX_INT_GPMU_THERMAL            29
 #define A5XX_INT_ISDB_CPU_IRQ            30
 #define A5XX_INT_ISDB_UNDER_DEBUG        31
 
@@ -66,9 +66,6 @@
 #define A5XX_CP_PFP_STAT_DATA            0x809
 #define A5XX_CP_DRAW_STATE_ADDR          0x80B
 #define A5XX_CP_DRAW_STATE_DATA          0x80C
-#define A5XX_CP_CRASH_SCRIPT_BASE_LO     0x817
-#define A5XX_CP_CRASH_SCRIPT_BASE_HI     0x818
-#define A5XX_CP_CRASH_DUMP_CNTL          0x819
 #define A5XX_CP_ME_STAT_ADDR             0x81A
 #define A5XX_CP_ROQ_THRESHOLDS_1         0x81F
 #define A5XX_CP_ROQ_THRESHOLDS_2         0x820
@@ -85,7 +82,6 @@
 #define A5XX_CP_PFP_UCODE_DBG_DATA       0x82B
 #define A5XX_CP_ME_UCODE_DBG_ADDR        0x82F
 #define A5XX_CP_ME_UCODE_DBG_DATA        0x830
-#define A5XX_CP_CNTL                     0x831
 #define A5XX_CP_ME_CNTL                  0x832
 #define A5XX_CP_CHICKEN_DBG              0x833
 #define A5XX_CP_PFP_INSTR_BASE_LO        0x835
@@ -99,7 +95,6 @@
 #define A5XX_CP_CONTEXT_SWITCH_SAVE_ADDR_HI   0x83F
 #define A5XX_CP_CONTEXT_SWITCH_SMMU_INFO_LO   0x840
 #define A5XX_CP_CONTEXT_SWITCH_SMMU_INFO_HI   0x841
-#define A5XX_CP_ADDR_MODE_CNTL           0x860
 #define A5XX_CP_ME_STAT_DATA             0xB14
 #define A5XX_CP_WFI_PEND_CTR             0xB15
 #define A5XX_CP_INTERRUPT_STATUS         0xB18
@@ -122,8 +117,6 @@
 #define A5XX_CP_PERFCTR_CP_SEL_5         0xBB5
 #define A5XX_CP_PERFCTR_CP_SEL_6         0xBB6
 #define A5XX_CP_PERFCTR_CP_SEL_7         0xBB7
-
-#define A5XX_VSC_ADDR_MODE_CNTL          0xBC1
 
 /* CP Power Counter Registers Select */
 #define A5XX_CP_POWERCTR_CP_SEL_0        0xBBA
@@ -290,9 +283,6 @@
 #define A5XX_RBBM_CLOCK_HYST3_TP1                0xB9
 #define A5XX_RBBM_CLOCK_HYST3_TP2                0xBA
 #define A5XX_RBBM_CLOCK_HYST3_TP3                0xBB
-#define A5XX_RBBM_CLOCK_CNTL_GPMU                0xC8
-#define A5XX_RBBM_CLOCK_DELAY_GPMU               0xC9
-#define A5XX_RBBM_CLOCK_HYST_GPMU                0xCA
 #define A5XX_RBBM_PERFCTR_CP_0_LO                0x3A0
 #define A5XX_RBBM_PERFCTR_CP_0_HI                0x3A1
 #define A5XX_RBBM_PERFCTR_CP_1_LO                0x3A2
@@ -496,7 +486,6 @@
 #define A5XX_RBBM_ALWAYSON_COUNTER_LO            0x4D2
 #define A5XX_RBBM_ALWAYSON_COUNTER_HI            0x4D3
 #define A5XX_RBBM_STATUS                         0x4F5
-#define A5XX_RBBM_STATUS3                        0x530
 #define A5XX_RBBM_INT_0_STATUS                   0x4E1
 #define A5XX_RBBM_AHB_ME_SPLIT_STATUS            0x4F0
 #define A5XX_RBBM_AHB_PFP_SPLIT_STATUS           0x4F1
@@ -546,8 +535,6 @@
 #define A5XX_VSC_PERFCTR_VSC_SEL_0          0xC60
 #define A5XX_VSC_PERFCTR_VSC_SEL_1          0xC61
 
-#define A5XX_GRAS_ADDR_MODE_CNTL            0xC81
-
 /* TSE registers */
 #define A5XX_GRAS_PERFCTR_TSE_SEL_0         0xC90
 #define A5XX_GRAS_PERFCTR_TSE_SEL_1         0xC91
@@ -568,7 +555,6 @@
 
 
 /* RB registers */
-#define A5XX_RB_ADDR_MODE_CNTL              0xCC5
 #define A5XX_RB_PERFCTR_RB_SEL_0            0xCD0
 #define A5XX_RB_PERFCTR_RB_SEL_1            0xCD1
 #define A5XX_RB_PERFCTR_RB_SEL_2            0xCD2
@@ -602,7 +588,6 @@
 
 /* PC registers */
 #define A5XX_PC_DBG_ECO_CNTL                0xD00
-#define A5XX_PC_ADDR_MODE_CNTL              0xD01
 #define A5XX_PC_PERFCTR_PC_SEL_0            0xD10
 #define A5XX_PC_PERFCTR_PC_SEL_1            0xD11
 #define A5XX_PC_PERFCTR_PC_SEL_2            0xD12
@@ -614,7 +599,6 @@
 
 /* HLSQ registers */
 #define A5XX_HLSQ_TIMEOUT_THRESHOLD         0xE00
-#define A5XX_HLSQ_ADDR_MODE_CNTL            0xE05
 #define A5XX_HLSQ_PERFCTR_HLSQ_SEL_0        0xE10
 #define A5XX_HLSQ_PERFCTR_HLSQ_SEL_1        0xE11
 #define A5XX_HLSQ_PERFCTR_HLSQ_SEL_2        0xE12
@@ -628,7 +612,6 @@
 #define A5XX_HLSQ_DBG_AHB_READ_APERTURE     0xA000
 
 /* VFD registers */
-#define A5XX_VFD_ADDR_MODE_CNTL             0xE41
 #define A5XX_VFD_PERFCTR_VFD_SEL_0          0xE50
 #define A5XX_VFD_PERFCTR_VFD_SEL_1          0xE51
 #define A5XX_VFD_PERFCTR_VFD_SEL_2          0xE52
@@ -639,15 +622,12 @@
 #define A5XX_VFD_PERFCTR_VFD_SEL_7          0xE57
 
 /* VPC registers */
-#define A5XX_VPC_ADDR_MODE_CNTL             0xE61
 #define A5XX_VPC_PERFCTR_VPC_SEL_0          0xE64
 #define A5XX_VPC_PERFCTR_VPC_SEL_1          0xE65
 #define A5XX_VPC_PERFCTR_VPC_SEL_2          0xE66
 #define A5XX_VPC_PERFCTR_VPC_SEL_3          0xE67
 
 /* UCHE registers */
-#define A5XX_UCHE_ADDR_MODE_CNTL            0xE80
-#define A5XX_UCHE_SVM_CNTL                  0xE82
 #define A5XX_UCHE_WRITE_THRU_BASE_LO        0xE87
 #define A5XX_UCHE_WRITE_THRU_BASE_HI        0xE88
 #define A5XX_UCHE_TRAP_BASE_LO              0xE89
@@ -675,7 +655,6 @@
 
 /* SP registers */
 #define A5XX_SP_DBG_ECO_CNTL                0xEC0
-#define A5XX_SP_ADDR_MODE_CNTL              0xEC1
 #define A5XX_SP_PERFCTR_SP_SEL_0            0xED0
 #define A5XX_SP_PERFCTR_SP_SEL_1            0xED1
 #define A5XX_SP_PERFCTR_SP_SEL_2            0xED2
@@ -696,7 +675,6 @@
 #define A5XX_SP_POWERCTR_SP_SEL_3           0xEDF
 
 /* TP registers */
-#define A5XX_TPL1_ADDR_MODE_CNTL            0xF01
 #define A5XX_TPL1_PERFCTR_TP_SEL_0          0xF10
 #define A5XX_TPL1_PERFCTR_TP_SEL_1          0xF11
 #define A5XX_TPL1_PERFCTR_TP_SEL_2          0xF12
@@ -783,9 +761,7 @@
 #define A5XX_GPMU_PWR_COL_INTER_FRAME_CTRL 0xA892
 #define A5XX_GPMU_PWR_COL_INTER_FRAME_HYST 0xA893
 #define A5XX_GPMU_PWR_COL_BINNING_CTRL     0xA894
-#define A5XX_GPMU_CLOCK_THROTTLE_CTRL      0xA8A3
 #define A5XX_GPMU_WFI_CONFIG               0xA8C1
-#define A5XX_GPMU_RBBM_INTR_INFO           0xA8D6
 #define A5XX_GPMU_CM3_SYSRESET             0xA8D8
 #define A5XX_GPMU_GENERAL_0                0xA8E0
 #define A5XX_GPMU_GENERAL_1                0xA8E1
@@ -889,8 +865,6 @@
 #define A5XX_GPMU_GPMU_VOLTAGE_INTR_STATUS	0xAC61
 #define A5XX_GPMU_GPMU_VOLTAGE_INTR_EN_MASK	0xAC62
 #define A5XX_GPMU_GPMU_PWR_THRESHOLD		0xAC80
-#define A5XX_GPMU_GPMU_LLM_GLM_SLEEP_CTRL	0xACC4
-#define A5XX_GPMU_GPMU_LLM_GLM_SLEEP_STATUS	0xACC5
 
 #define A5XX_GDPM_CONFIG1			0xB80C
 #define A5XX_GDPM_CONFIG2			0xB80D
@@ -898,11 +872,5 @@
 #define A5XX_GDPM_INT_MASK			0xB811
 #define A5XX_GPMU_BEC_ENABLE			0xB9A0
 
-#define A5XX_GPU_CS_SENSOR_GENERAL_STATUS	0xC41A
-#define A5XX_GPU_CS_AMP_CALIBRATION_STATUS1_0	0xC41D
-#define A5XX_GPU_CS_AMP_CALIBRATION_STATUS1_2	0xC41F
-#define A5XX_GPU_CS_AMP_CALIBRATION_STATUS1_4	0xC421
-#define A5XX_GPU_CS_ENABLE_REG			0xC520
-#define A5XX_GPU_CS_AMP_CALIBRATION_CONTROL1	0xC557
 #endif /* _A5XX_REG_H */
 

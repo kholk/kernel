@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,7 +17,6 @@
 #include "kgsl_snapshot.h"
 #include "a3xx_reg.h"
 #include "adreno_snapshot.h"
-#include "adreno_a3xx.h"
 
 /*
  * Set of registers to dump for A3XX on snapshot.
@@ -65,6 +64,8 @@ static const unsigned int a3xx_registers[] = {
 	0x303C, 0x303C, 0x305E, 0x305F,
 };
 
+static const unsigned int a3xx_registers_count = ARRAY_SIZE(a3xx_registers) / 2;
+
 /* Removed the following HLSQ register ranges from being read during
  * fault tolerance since reading the registers may cause the device to hang:
  */
@@ -74,11 +75,16 @@ static const unsigned int a3xx_hlsq_registers[] = {
 	0x2600, 0x2612, 0x2614, 0x2617, 0x261a, 0x261a,
 };
 
+static const unsigned int a3xx_hlsq_registers_count =
+			ARRAY_SIZE(a3xx_hlsq_registers) / 2;
+
 /* The set of additional registers to be dumped for A330 */
 
 static const unsigned int a330_registers[] = {
 	0x1d0, 0x1d0, 0x1d4, 0x1d4, 0x453, 0x453,
 };
+
+static const unsigned int a330_registers_count = ARRAY_SIZE(a330_registers) / 2;
 
 /* Shader memory size in words */
 #define SHADER_MEMORY_SIZE 0x4000
@@ -229,10 +235,11 @@ static void a3xx_snapshot_debugbus(struct kgsl_device *device,
 	}
 }
 
-static void _snapshot_hlsq_regs(struct kgsl_device *device,
-		struct kgsl_snapshot *snapshot)
+static void _snapshot_hlsq_regs(struct kgsl_snapshot_registers *regs,
+	struct kgsl_snapshot_registers_list *list,
+	struct adreno_device *adreno_dev)
 {
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+	struct kgsl_device *device = &adreno_dev->dev;
 
 	/*
 	 * Trying to read HLSQ registers when the HLSQ block is busy
@@ -281,7 +288,19 @@ static void _snapshot_hlsq_regs(struct kgsl_device *device,
 			return;
 	}
 
-	SNAPSHOT_REGISTERS(device, snapshot, a3xx_hlsq_registers);
+	regs[list->count].regs = (unsigned int *) a3xx_hlsq_registers;
+	regs[list->count].count = a3xx_hlsq_registers_count;
+	list->count++;
+}
+
+static void _snapshot_a330_regs(struct kgsl_snapshot_registers *regs,
+	struct kgsl_snapshot_registers_list *list)
+{
+	/* For A330, append the additional list of new registers to grab */
+	regs[list->count].regs = (unsigned int *) a330_registers;
+	regs[list->count].count = a330_registers_count;
+	regs[list->count].dump = 1;
+	list->count++;
 }
 
 /*
@@ -296,20 +315,29 @@ static void _snapshot_hlsq_regs(struct kgsl_device *device,
 void a3xx_snapshot(struct adreno_device *adreno_dev,
 		struct kgsl_snapshot *snapshot)
 {
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	struct kgsl_device *device = &adreno_dev->dev;
 	struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+	struct kgsl_snapshot_registers_list list;
+	struct kgsl_snapshot_registers regs[5];
 	struct adreno_snapshot_data *snap_data = gpudev->snapshot_data;
 	unsigned int reg;
+
+	list.registers = regs;
+	list.count = 0;
 
 	/* Disable Clock gating temporarily for the debug bus to work */
 	adreno_writereg(adreno_dev, ADRENO_REG_RBBM_CLOCK_CTL, 0x00);
 
-	SNAPSHOT_REGISTERS(device, snapshot, a3xx_registers);
-
-	_snapshot_hlsq_regs(device, snapshot);
-
+	/* Store relevant registers in list to snapshot */
+	adreno_snapshot_regs(regs, &list, a3xx_registers,
+			a3xx_registers_count, 1);
+	_snapshot_hlsq_regs(regs, &list, adreno_dev);
 	if (adreno_is_a330(adreno_dev) || adreno_is_a305b(adreno_dev))
-		SNAPSHOT_REGISTERS(device, snapshot, a330_registers);
+		_snapshot_a330_regs(regs, &list);
+
+	/* Master set of (non debug) registers */
+	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_REGS,
+		snapshot, kgsl_snapshot_dump_regs, &list);
 
 	kgsl_snapshot_indexed_registers(device, snapshot,
 		A3XX_CP_STATE_DEBUG_INDEX, A3XX_CP_STATE_DEBUG_DATA,

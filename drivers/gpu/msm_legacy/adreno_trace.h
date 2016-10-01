@@ -511,12 +511,6 @@ DEFINE_EVENT(adreno_hw_preempt_template, adreno_hw_preempt_trig_to_comp,
 	TP_ARGS(cur_rb, new_rb)
 );
 
-DEFINE_EVENT(adreno_hw_preempt_template, adreno_hw_preempt_trig_to_comp_int,
-	TP_PROTO(struct adreno_ringbuffer *cur_rb,
-		struct adreno_ringbuffer *new_rb),
-	TP_ARGS(cur_rb, new_rb)
-);
-
 TRACE_EVENT(adreno_hw_preempt_comp_to_clear,
 	TP_PROTO(struct adreno_ringbuffer *cur_rb,
 		struct adreno_ringbuffer *new_rb),
@@ -669,10 +663,10 @@ TRACE_EVENT(kgsl_a5xx_irq_status,
 				"DEBBUS_INTR_0" },
 			{ 1 << A5XX_INT_DEBBUS_INTR_1,
 				"DEBBUS_INTR_1" },
-			{ 1 << A5XX_INT_GPMU_VOLTAGE_DROOP,
-				"GPMU_VOLTAGE_DROOP" },
-			{ 1 << A5XX_INT_GPMU_FIRMWARE,
-				"GPMU_FIRMWARE" },
+			{ 1 << A5XX_INT_GPMU_ERROR,
+				"GPMU_ERROR" },
+			{ 1 << A5XX_INT_GPMU_THERMAL,
+				"GPMU_THERMAL" },
 			{ 1 << A5XX_INT_ISDB_CPU_IRQ,
 				"ISDB_CPU_IRQ" },
 			{ 1 << A5XX_INT_ISDB_UNDER_DEBUG,

@@ -26,7 +26,6 @@
 #include <linux/mm.h>
 #include <linux/dma-attrs.h>
 #include <linux/uaccess.h>
-#include <asm/cacheflush.h>
 
 /* The number of memstore arrays limits the number of contexts allowed.
  * If more contexts are needed, update multiple for MEMSTORE_SIZE
@@ -40,76 +39,66 @@
 /* Timestamp window used to detect rollovers (half of integer range) */
 #define KGSL_TIMESTAMP_WINDOW 0x80000000
 
+/* The SVM upper bound is the same as the TASK_SIZE in arm32 */
+#define KGSL_SVM_UPPER_BOUND (0xC0000000 - SZ_16M)
+
+/*
+ * Defines the lowest possible addresses for SVM map. The VA space below
+ * has been reserved for GMEM and SP Memory regions.
+ */
+#define KGSL_SVM_LOWER_BOUND 0x300000
+
 /* A macro for memory statistics - add the new size to the stat and if
    the statisic is greater then _max, set _max
 */
 
-static inline void KGSL_STATS_ADD(uint64_t size, atomic_long_t *stat,
-		atomic_long_t *max)
-{
-	uint64_t ret = atomic_long_add_return(size, stat);
-
-	if (ret > atomic_long_read(max))
-		atomic_long_set(max, ret);
-}
+#define KGSL_STATS_ADD(_size, _stat, _max) \
+	do { _stat += (_size); if (_stat > _max) _max = _stat; } while (0)
 
 #define KGSL_MAX_NUMIBS 100000
-#define KGSL_MAX_SYNCPOINTS 32
 
 struct kgsl_device;
 struct kgsl_context;
 
-/**
- * struct kgsl_driver - main container for global KGSL things
- * @cdev: Character device struct
- * @major: Major ID for the KGSL device
- * @class: Pointer to the class struct for the core KGSL sysfs entries
- * @virtdev: Virtual device for managing the core
- * @ptkobj: kobject for storing the pagetable statistics
- * @prockobj: kobject for storing the process statistics
- * @devp: Array of pointers to the individual KGSL device structs
- * @process_list: List of open processes
- * @pagetable_list: LIst of open pagetables
- * @ptlock: Lock for accessing the pagetable list
- * @process_mutex: Mutex for accessing the process list
- * @devlock: Mutex protecting the device list
- * @stats: Struct containing atomic memory statistics
- * @full_cache_threshold: the threshold that triggers a full cache flush
- * @workqueue: Pointer to a single threaded workqueue
- * @mem_workqueue: Pointer to a workqueue for deferring memory entries
- */
 struct kgsl_driver {
 	struct cdev cdev;
 	dev_t major;
 	struct class *class;
+	/* Virtual device for managing the core */
 	struct device virtdev;
+	/* Kobjects for storing pagetable and process statistics */
 	struct kobject *ptkobj;
 	struct kobject *prockobj;
 	struct kgsl_device *devp[KGSL_DEVICE_MAX];
+
+	/* Global lilst of open processes */
 	struct list_head process_list;
+	/* Global list of pagetables */
 	struct list_head pagetable_list;
+	/* Spinlock for accessing the pagetable list */
 	spinlock_t ptlock;
+	/* Mutex for accessing the process list */
 	struct mutex process_mutex;
+
+	/* Mutex for protecting the device list */
 	struct mutex devlock;
+
 	struct {
-		atomic_long_t vmalloc;
-		atomic_long_t vmalloc_max;
-		atomic_long_t page_alloc;
-		atomic_long_t page_alloc_max;
-		atomic_long_t coherent;
-		atomic_long_t coherent_max;
-		atomic_long_t secure;
-		atomic_long_t secure_max;
-		atomic_long_t mapped;
-		atomic_long_t mapped_max;
+		uint64_t vmalloc;
+		uint64_t vmalloc_max;
+		uint64_t page_alloc;
+		uint64_t page_alloc_max;
+		uint64_t coherent;
+		uint64_t coherent_max;
+		uint64_t secure;
+		uint64_t secure_max;
+		uint64_t mapped;
+		uint64_t mapped_max;
 	} stats;
 	unsigned int full_cache_threshold;
-	struct workqueue_struct *workqueue;
-	struct workqueue_struct *mem_workqueue;
 };
 
 extern struct kgsl_driver kgsl_driver;
-extern struct mutex kgsl_mmu_sync;
 
 struct kgsl_pagetable;
 struct kgsl_memdesc;
@@ -133,6 +122,8 @@ struct kgsl_memdesc_ops {
 #define KGSL_MEMDESC_MAPPED BIT(3)
 /* The memdesc is secured for content protection */
 #define KGSL_MEMDESC_SECURE BIT(4)
+/* The memdesc is private for use during pagetable switch only */
+#define KGSL_MEMDESC_PRIVATE BIT(5)
 /* Memory is accessible in privileged mode */
 #define KGSL_MEMDESC_PRIVILEGED BIT(6)
 /* The memdesc is TZ locked content protection */
@@ -147,6 +138,7 @@ struct kgsl_memdesc_ops {
  * @gpuaddr: GPU virtual address
  * @physaddr: Physical address of the memory object
  * @size: Size of the memory object
+ * @mmapsize: Total size of the object in VM (including guard)
  * @priv: Internal flags and settings
  * @sgt: Scatter gather table for allocated pages
  * @ops: Function hooks for the memdesc memory type
@@ -163,6 +155,7 @@ struct kgsl_memdesc {
 	uint64_t gpuaddr;
 	phys_addr_t physaddr;
 	uint64_t size;
+	uint64_t mmapsize;
 	unsigned int priv;
 	struct sg_table *sgt;
 	struct kgsl_memdesc_ops *ops;
@@ -200,8 +193,6 @@ struct kgsl_memdesc {
  * @pending_free: if !0, userspace requested that his memory be freed, but there
  *  are still references to it.
  * @dev_priv: back pointer to the device file that created this entry.
- * @metadata: String containing user specified metadata for the entry
- * @work: Work struct used to schedule a kgsl_mem_entry_put in atomic contexts
  */
 struct kgsl_mem_entry {
 	struct kref refcount;
@@ -211,8 +202,6 @@ struct kgsl_mem_entry {
 	unsigned int id;
 	struct kgsl_process_private *priv;
 	int pending_free;
-	char metadata[KGSL_GPUOBJ_ALLOC_METADATA_MAX + 1];
-	struct work_struct work;
 };
 
 struct kgsl_device_private;
@@ -270,16 +259,6 @@ struct kgsl_event_group {
 	char name[64];
 	readtimestamp_func readtimestamp;
 	void *priv;
-};
-
-/**
- * struct kgsl_protected_registers - Protected register range
- * @base: Offset of the range to be protected
- * @range: Range (# of registers = 2 ** range)
- */
-struct kgsl_protected_registers {
-	unsigned int base;
-	int range;
 };
 
 long kgsl_ioctl_device_getproperty(struct kgsl_device_private *dev_priv,
@@ -341,16 +320,17 @@ long kgsl_ioctl_gpuobj_sync(struct kgsl_device_private *dev_priv,
 					unsigned int cmd, void *data);
 long kgsl_ioctl_gpu_command(struct kgsl_device_private *dev_priv,
 				unsigned int cmd, void *data);
-long kgsl_ioctl_gpuobj_set_info(struct kgsl_device_private *dev_priv,
-				unsigned int cmd, void *data);
 
 void kgsl_mem_entry_destroy(struct kref *kref);
 
-struct kgsl_mem_entry * __must_check
-kgsl_sharedmem_find(struct kgsl_process_private *private, uint64_t gpuaddr);
+struct kgsl_mem_entry *kgsl_sharedmem_find_region(
+	struct kgsl_process_private *private, uint64_t gpuaddr,
+	uint64_t size);
 
 struct kgsl_mem_entry * __must_check
 kgsl_sharedmem_find_id(struct kgsl_process_private *process, unsigned int id);
+
+void kgsl_get_memory_usage(char *str, size_t len, uint64_t memflags);
 
 extern const struct dev_pm_ops kgsl_pm_ops;
 
@@ -365,7 +345,7 @@ static inline int kgsl_gpuaddr_in_memdesc(const struct kgsl_memdesc *memdesc,
 		size = 1;
 
 	/* don't overflow */
-	if (size > U64_MAX - gpuaddr)
+	if (size > UINT_MAX - gpuaddr)
 		return 0;
 
 	if (gpuaddr >= memdesc->gpuaddr &&
@@ -421,43 +401,16 @@ static inline int timestamp_cmp(unsigned int a, unsigned int b)
 	return ((a > b) && (a - b <= KGSL_TIMESTAMP_WINDOW)) ? 1 : -1;
 }
 
-/**
- * kgsl_schedule_work() - Schedule a work item on the KGSL workqueue
- * @work: work item to schedule
- */
-static inline void kgsl_schedule_work(struct work_struct *work)
-{
-	queue_work(kgsl_driver.workqueue, work);
-}
-
 static inline int
 kgsl_mem_entry_get(struct kgsl_mem_entry *entry)
 {
-	if (entry)
-		return kref_get_unless_zero(&entry->refcount);
-	return 0;
+	return kref_get_unless_zero(&entry->refcount);
 }
 
 static inline void
 kgsl_mem_entry_put(struct kgsl_mem_entry *entry)
 {
-	if (entry)
-		kref_put(&entry->refcount, kgsl_mem_entry_destroy);
-}
-
-/**
- * kgsl_mem_entry_put_deferred() - Schedule a task to put the memory entry
- * @entry: Mem entry to put
- *
- * This function is for atomic contexts where a normal kgsl_mem_entry_put()
- * would result in the memory entry getting destroyed and possibly taking
- * mutexes along the way.  Schedule the work to happen outside of the atomic
- * context.
- */
-static inline void kgsl_mem_entry_put_deferred(struct kgsl_mem_entry *entry)
-{
-	if (entry != NULL)
-		queue_work(kgsl_driver.mem_workqueue, &entry->work);
+	kref_put(&entry->refcount, kgsl_mem_entry_destroy);
 }
 
 /*
@@ -473,7 +426,7 @@ static inline void kgsl_mem_entry_put_deferred(struct kgsl_mem_entry *entry)
 static inline bool kgsl_addr_range_overlap(uint64_t gpuaddr1,
 		uint64_t size1, uint64_t gpuaddr2, uint64_t size2)
 {
-	if ((size1 > (U64_MAX - gpuaddr1)) || (size2 > (U64_MAX - gpuaddr2)))
+	if ((size1 > (UINT_MAX - gpuaddr1)) || (size2 > (UINT_MAX - gpuaddr2)))
 		return false;
 	return !(((gpuaddr1 + size1) <= gpuaddr2) ||
 		(gpuaddr1 >= (gpuaddr2 + size2)));

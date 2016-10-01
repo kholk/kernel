@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2008-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2008-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,13 +17,12 @@
 #include "kgsl.h"
 #include "kgsl_device.h"
 #include "kgsl_sharedmem.h"
-#include "kgsl_debugfs.h"
 
 /*default log levels is error for everything*/
 #define KGSL_LOG_LEVEL_MAX     7
 
 struct dentry *kgsl_debugfs_dir;
-static struct dentry *proc_d_debugfs;
+struct dentry *proc_d_debugfs;
 
 static inline int kgsl_log_set(unsigned int *log_val, void *data, u64 val)
 {
@@ -51,20 +50,6 @@ KGSL_DEBUGFS_LOG(cmd_log);
 KGSL_DEBUGFS_LOG(ctxt_log);
 KGSL_DEBUGFS_LOG(mem_log);
 KGSL_DEBUGFS_LOG(pwr_log);
-
-static int _strict_set(void *data, u64 val)
-{
-	kgsl_sharedmem_set_noretry(val ? true : false);
-	return 0;
-}
-
-static int _strict_get(void *data, u64 *val)
-{
-	*val = kgsl_sharedmem_get_noretry();
-	return 0;
-}
-
-DEFINE_SIMPLE_ATTRIBUTE(_strict_fops, _strict_get, _strict_set, "%llu\n");
 
 void kgsl_device_debugfs_init(struct kgsl_device *device)
 {
@@ -124,12 +109,9 @@ static char get_cacheflag(const struct kgsl_memdesc *m)
 	return table[kgsl_memdesc_get_cachemode(m)];
 }
 
-
-static int print_mem_entry(int id, void *ptr, void *data)
+static void print_mem_entry(struct seq_file *s, struct kgsl_mem_entry *entry)
 {
-	struct seq_file *s = data;
-	struct kgsl_mem_entry *entry = ptr;
-	char flags[9];
+	char flags[8];
 	char usage[16];
 	struct kgsl_memdesc *m = &entry->memdesc;
 
@@ -140,36 +122,47 @@ static int print_mem_entry(int id, void *ptr, void *data)
 	flags[4] = get_cacheflag(m);
 	flags[5] = kgsl_memdesc_use_cpu_map(m) ? 'p' : '-';
 	flags[6] = (m->useraddr) ? 'Y' : 'N';
-	flags[7] = kgsl_memdesc_is_secured(m) ?  's' : '-';
-	flags[8] = '\0';
+	flags[7] = '\0';
 
 	kgsl_get_memory_usage(usage, sizeof(usage), m->flags);
 
-	seq_printf(s, "%pK %pK %16llu %5d %9s %10s %16s %5d %16llu",
+	seq_printf(s, "%pK %pK %16llu %5d %8s %10s %16s %5d\n",
 			(uint64_t *)(uintptr_t) m->gpuaddr,
 			(unsigned long *) m->useraddr,
 			m->size, entry->id, flags,
 			memtype_str(kgsl_memdesc_usermem_type(m)),
-			usage, (m->sgt ? m->sgt->nents : 0), m->mapsize);
-
-	if (entry->metadata[0] != 0)
-		seq_printf(s, " %s", entry->metadata);
-
-	seq_putc(s, '\n');
-
-	return 0;
+			usage, m->sgt->nents);
 }
 
 static int process_mem_print(struct seq_file *s, void *unused)
 {
+	struct kgsl_mem_entry *entry;
+	struct rb_node *node;
 	struct kgsl_process_private *private = s->private;
+	int next = 0;
 
-	seq_printf(s, "%16s %16s %16s %5s %9s %10s %16s %5s %16s\n",
+	seq_printf(s, "%8s %8s %8s %5s %8s %10s %16s %5s\n",
 		   "gpuaddr", "useraddr", "size", "id", "flags", "type",
-		   "usage", "sglen", "mapsize");
+		   "usage", "sglen");
 
+	/* print all entries with a GPU address */
 	spin_lock(&private->mem_lock);
-	idr_for_each(&private->mem_idr, print_mem_entry, s);
+
+	for (node = rb_first(&private->mem_rb); node; node = rb_next(node)) {
+		entry = rb_entry(node, struct kgsl_mem_entry, node);
+		print_mem_entry(s, entry);
+	}
+
+
+	/* now print all the unbound entries */
+	while (1) {
+		entry = idr_get_next(&private->mem_idr, &next);
+		if (entry == NULL)
+			break;
+		if (entry->memdesc.gpuaddr == 0)
+			print_mem_entry(s, entry);
+		next++;
+	}
 	spin_unlock(&private->mem_lock);
 
 	return 0;
@@ -255,15 +248,7 @@ void kgsl_process_init_debugfs(struct kgsl_process_private *private)
 
 void kgsl_core_debugfs_init(void)
 {
-	struct dentry *debug_dir;
-
 	kgsl_debugfs_dir = debugfs_create_dir("kgsl", NULL);
-
-	debug_dir = debugfs_create_dir("debug", kgsl_debugfs_dir);
-
-	debugfs_create_file("strict_memory", 0644, debug_dir, NULL,
-		&_strict_fops);
-
 	proc_d_debugfs = debugfs_create_dir("proc", kgsl_debugfs_dir);
 }
 
