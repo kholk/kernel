@@ -36,6 +36,12 @@ static struct clk_ops shadow_pixel_clk_src_ops;
 static struct clk_ops shadow_byte_clk_src_ops;
 static struct clk_ops clk_ops_gen_mux_dsi;
 
+enum {
+	DSI_PLL_0,
+	DSI_PLL_1,
+	DSI_PLL_NUM
+};
+
 static int vco_set_rate_20nm(struct clk *c, unsigned long rate)
 {
 	int rc;
@@ -843,33 +849,7 @@ int dsi_pll_clock_register_20nm(struct platform_device *pdev,
 	 * This needs to be done only for PLL0 since, that is the one in
 	 * use.
 	 **/
-	if (!pll_res->index) {
-		dsi0pll_byte_clk_src.priv = pll_res;
-		dsi0pll_pixel_clk_src.priv = pll_res;
-		dsi0pll_bypass_lp_div_mux.priv = pll_res;
-		dsi0pll_indirect_path_div2_clk.priv = pll_res;
-		dsi0pll_ndiv_clk.priv = pll_res;
-		dsi0pll_fixed_hr_oclk2_div_clk.priv = pll_res;
-		dsi0pll_hr_oclk3_div_clk.priv = pll_res;
-		dsi0pll_vco_clk.priv = pll_res;
-
-		dsi0pll_shadow_byte_clk_src.priv = pll_res;
-		dsi0pll_shadow_pixel_clk_src.priv = pll_res;
-		dsi0pll_shadow_bypass_lp_div_mux.priv = pll_res;
-		dsi0pll_shadow_indirect_path_div2_clk.priv = pll_res;
-		dsi0pll_shadow_ndiv_clk.priv = pll_res;
-		dsi0pll_shadow_fixed_hr_oclk2_div_clk.priv = pll_res;
-		dsi0pll_shadow_hr_oclk3_div_clk.priv = pll_res;
-		dsi0pll_shadow_dsi_vco_clk.priv = pll_res;
-
-		if (pll_res->pll_en_90_phase) {
-			dsi0pll_vco_clk.min_rate = 1000000000;
-			dsi0pll_vco_clk.max_rate = 2000000000;
-			dsi0pll_shadow_dsi_vco_clk.min_rate = 1000000000;
-			dsi0pll_shadow_dsi_vco_clk.max_rate = 2000000000;
-			pr_debug("%s:Update VCO range: 1GHz-2Ghz", __func__);
-		}
-	} else {
+	if (pll_res->index == DSI_PLL_1) {
 		dsi1pll_byte_clk_src.priv = pll_res;
 		dsi1pll_pixel_clk_src.priv = pll_res;
 		dsi1pll_bypass_lp_div_mux.priv = pll_res;
@@ -895,6 +875,32 @@ int dsi_pll_clock_register_20nm(struct platform_device *pdev,
 			dsi1pll_vco_clk.max_rate = 2000000000;
 			dsi1pll_shadow_dsi_vco_clk.min_rate = 1000000000;
 			dsi1pll_shadow_dsi_vco_clk.max_rate = 2000000000;
+			pr_debug("%s:Update VCO range: 1GHz-2Ghz", __func__);
+		}
+	} else {
+		dsi0pll_byte_clk_src.priv = pll_res;
+		dsi0pll_pixel_clk_src.priv = pll_res;
+		dsi0pll_bypass_lp_div_mux.priv = pll_res;
+		dsi0pll_indirect_path_div2_clk.priv = pll_res;
+		dsi0pll_ndiv_clk.priv = pll_res;
+		dsi0pll_fixed_hr_oclk2_div_clk.priv = pll_res;
+		dsi0pll_hr_oclk3_div_clk.priv = pll_res;
+		dsi0pll_vco_clk.priv = pll_res;
+
+		dsi0pll_shadow_byte_clk_src.priv = pll_res;
+		dsi0pll_shadow_pixel_clk_src.priv = pll_res;
+		dsi0pll_shadow_bypass_lp_div_mux.priv = pll_res;
+		dsi0pll_shadow_indirect_path_div2_clk.priv = pll_res;
+		dsi0pll_shadow_ndiv_clk.priv = pll_res;
+		dsi0pll_shadow_fixed_hr_oclk2_div_clk.priv = pll_res;
+		dsi0pll_shadow_hr_oclk3_div_clk.priv = pll_res;
+		dsi0pll_shadow_dsi_vco_clk.priv = pll_res;
+
+		if (pll_res->pll_en_90_phase) {
+			dsi0pll_vco_clk.min_rate = 1000000000;
+			dsi0pll_vco_clk.max_rate = 2000000000;
+			dsi0pll_shadow_dsi_vco_clk.min_rate = 1000000000;
+			dsi0pll_shadow_dsi_vco_clk.max_rate = 2000000000;
 			pr_debug("%s:Update VCO range: 1GHz-2Ghz", __func__);
 		}
 	}
