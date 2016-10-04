@@ -34,6 +34,7 @@
 		qcom,mdss-clk-factor = <105 100>;	/* 1.05 times */
 
 		qcom,max-mixer-width = <2048>;
+		qcom,max-pipe-width = <2048>;
 
 		/* VBIF QoS remapper settings*/
 		qcom,mdss-vbif-qos-rt-setting = <1 2 2 2>;
@@ -244,7 +245,7 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		qcom,mdss-fb-map-prim = <&mdss_fb0>;
-		qcom,mdss-fb-map-sec = <&mdss_fb3>;
+		//qcom,mdss-fb-map-sec = <&mdss_fb3>;
 		gdsc-supply = <&gdsc_mdss>;
 		vddio-supply = <&pm8994_l12>;
 		vdda-supply = <&pm8994_l2>;
@@ -426,6 +427,8 @@
 				02 a0 00 40 20 00 00 01 46
 				02 a0 00 40 00 00 00 01 46
 				00 a0 00 80 00 00 00 01 46];
+
+			status = "disable";
 		};
 	};
 
