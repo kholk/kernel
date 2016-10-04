@@ -435,7 +435,7 @@ int mdss_dsi_phy_pll_reset_status(struct mdss_dsi_ctrl_pdata *ctrl)
 	u32 val;
 	u32 const sleep_us = 10, timeout_us = 100;
 
-	pr_debug("%s: polling for RESETSM_READY_STATUS.CORE_READY\n",
+	pr_err("%s: polling for RESETSM_READY_STATUS.CORE_READY\n",
 		__func__);
 	rc = readl_poll_timeout(ctrl->phy_io.base + 0x4cc, val,
 		(val & 0x1), sleep_us, timeout_us);
@@ -517,7 +517,7 @@ void mdss_dsi_phy_sw_reset(struct mdss_dsi_ctrl_pdata *ctrl)
 		if ((mdss_dsi_is_hw_config_split(sdata) ||
 			mdss_dsi_is_pll_src_pll0(sdata)) &&
 			ctrl->vco_dummy_clk) {
-			pr_debug("Turn off unused PLL1 registers\n");
+			pr_err("Turn off unused PLL1 registers\n");
 			clk_set_rate(ctrl->vco_dummy_clk, 1);
 		}
 	}
@@ -951,7 +951,7 @@ static void mdss_dsi_phy_power_off(
 
 	if ((ctrl->shared_data->phy_rev != DSI_PHY_REV_20) ||
 		!pinfo->allow_phy_power_off) {
-		pr_debug("%s: ctrl%d phy rev:%d panel support for phy off:%d\n",
+		pr_err("%s: ctrl%d phy rev:%d panel support for phy off:%d\n",
 			__func__, ctrl->ndx, ctrl->shared_data->phy_rev,
 			pinfo->allow_phy_power_off);
 		return;
@@ -1262,7 +1262,7 @@ int mdss_dsi_clk_refresh(struct mdss_panel_data *pdata, bool update_phy)
 
 	if (update_phy) {
 		pinfo->mipi.frame_rate = mdss_panel_calc_frame_rate(pinfo);
-		pr_debug("%s: new frame rate %d\n",
+		pr_err("%s: new frame rate %d\n",
 				__func__, pinfo->mipi.frame_rate);
 	}
 
@@ -1276,7 +1276,7 @@ int mdss_dsi_clk_refresh(struct mdss_panel_data *pdata, bool update_phy)
 	ctrl_pdata->refresh_clk_rate = false;
 	ctrl_pdata->pclk_rate = pdata->panel_info.mipi.dsi_pclk_rate;
 	ctrl_pdata->byte_clk_rate = pdata->panel_info.clk_rate / 8;
-	pr_debug("%s ctrl_pdata->byte_clk_rate=%d ctrl_pdata->pclk_rate=%d\n",
+	pr_err("%s ctrl_pdata->byte_clk_rate=%d ctrl_pdata->pclk_rate=%d\n",
 		__func__, ctrl_pdata->byte_clk_rate, ctrl_pdata->pclk_rate);
 
 	rc = mdss_dsi_clk_set_link_rate(ctrl_pdata->dsi_clk_handle,
@@ -1353,28 +1353,28 @@ int mdss_dsi_core_clk_init(struct platform_device *pdev,
 	/* Optional Clocks */
 	sdata->ext_byte0_clk = devm_clk_get(dev, "ext_byte0_clk");
 	if (IS_ERR(sdata->ext_byte0_clk)) {
-		pr_debug("%s: unable to get byte0 clk rcg. rc=%d\n",
+		pr_err("%s: unable to get byte0 clk rcg. rc=%d\n",
 			__func__, rc);
 		sdata->ext_byte0_clk = NULL;
 	}
 
 	sdata->ext_pixel0_clk = devm_clk_get(dev, "ext_pixel0_clk");
 	if (IS_ERR(sdata->ext_pixel0_clk)) {
-		pr_debug("%s: unable to get pixel0 clk rcg. rc=%d\n",
+		pr_err("%s: unable to get pixel0 clk rcg. rc=%d\n",
 			__func__, rc);
 		sdata->ext_pixel0_clk = NULL;
 	}
 
 	sdata->ext_byte1_clk = devm_clk_get(dev, "ext_byte1_clk");
 	if (IS_ERR(sdata->ext_byte1_clk)) {
-		pr_debug("%s: unable to get byte1 clk rcg. rc=%d\n",
+		pr_err("%s: unable to get byte1 clk rcg. rc=%d\n",
 			__func__, rc);
 		sdata->ext_byte1_clk = NULL;
 	}
 
 	sdata->ext_pixel1_clk = devm_clk_get(dev, "ext_pixel1_clk");
 	if (IS_ERR(sdata->ext_pixel1_clk)) {
-		pr_debug("%s: unable to get pixel1 clk rcg. rc=%d\n",
+		pr_err("%s: unable to get pixel1 clk rcg. rc=%d\n",
 			__func__, rc);
 		sdata->ext_pixel1_clk = NULL;
 	}
@@ -1382,7 +1382,7 @@ int mdss_dsi_core_clk_init(struct platform_device *pdev,
 	sdata->mmss_misc_ahb_clk = devm_clk_get(dev, "core_mmss_clk");
 	if (IS_ERR(sdata->mmss_misc_ahb_clk)) {
 		sdata->mmss_misc_ahb_clk = NULL;
-		pr_debug("%s: Unable to get mmss misc ahb clk\n",
+		pr_err("%s: Unable to get mmss misc ahb clk\n",
 			__func__);
 	}
 
@@ -1453,19 +1453,19 @@ int mdss_dsi_link_clk_init(struct platform_device *pdev,
 	/* Optional Clocks */
 	ctrl->byte_clk_rcg = devm_clk_get(dev, "byte_clk_rcg");
 	if (IS_ERR(ctrl->byte_clk_rcg)) {
-		pr_debug("%s: can't find byte clk rcg. rc=%d\n", __func__, rc);
+		pr_err("%s: can't find byte clk rcg. rc=%d\n", __func__, rc);
 		ctrl->byte_clk_rcg = NULL;
 	}
 
 	ctrl->pixel_clk_rcg = devm_clk_get(dev, "pixel_clk_rcg");
 	if (IS_ERR(ctrl->pixel_clk_rcg)) {
-		pr_debug("%s: can't find pixel clk rcg. rc=%d\n", __func__, rc);
+		pr_err("%s: can't find pixel clk rcg. rc=%d\n", __func__, rc);
 		ctrl->pixel_clk_rcg = NULL;
 	}
 
 	ctrl->vco_dummy_clk = devm_clk_get(dev, "pll_vco_dummy_clk");
 	if (IS_ERR(ctrl->vco_dummy_clk)) {
-		pr_debug("%s: can't find vco dummy clk. rc=%d\n", __func__, rc);
+		pr_err("%s: can't find vco dummy clk. rc=%d\n", __func__, rc);
 		ctrl->vco_dummy_clk = NULL;
 	}
 
@@ -1645,12 +1645,12 @@ static bool mdss_dsi_is_ulps_req_valid(struct mdss_dsi_ctrl_pdata *ctrl,
 	struct mdss_panel_data *pdata = &ctrl->panel_data;
 	struct mdss_panel_info *pinfo = &pdata->panel_info;
 
-	pr_debug("%s: checking ulps req validity for ctrl%d\n",
+	pr_err("%s: checking ulps req validity for ctrl%d\n",
 		__func__, ctrl->ndx);
 
 	if (!mdss_dsi_ulps_feature_enabled(pdata) &&
 			!pinfo->ulps_suspend_enabled) {
-		pr_debug("%s: ULPS feature is not enabled\n", __func__);
+		pr_err("%s: ULPS feature is not enabled\n", __func__);
 		return false;
 	}
 
@@ -1660,7 +1660,7 @@ static bool mdss_dsi_is_ulps_req_valid(struct mdss_dsi_ctrl_pdata *ctrl,
 	 * right back on.
 	 */
 	if (enable && pinfo->cont_splash_enabled) {
-		pr_debug("%s: skip ULPS config with splash screen enabled\n",
+		pr_err("%s: skip ULPS config with splash screen enabled\n",
 			__func__);
 		return false;
 	}
@@ -1677,7 +1677,7 @@ static bool mdss_dsi_is_ulps_req_valid(struct mdss_dsi_ctrl_pdata *ctrl,
 	if (enable && !ctrl->mmss_clamp &&
 		!(ctrl->ctrl_state & CTRL_STATE_PANEL_INIT) &&
 		!pdata->panel_info.ulps_suspend_enabled) {
-		pr_debug("%s: panel not yet initialized\n", __func__);
+		pr_err("%s: panel not yet initialized\n", __func__);
 		return false;
 	}
 
@@ -1690,7 +1690,7 @@ static bool mdss_dsi_is_ulps_req_valid(struct mdss_dsi_ctrl_pdata *ctrl,
 		if (enable && !ctrl->mmss_clamp && octrl &&
 			!(octrl->ctrl_state & CTRL_STATE_PANEL_INIT) &&
 			!pdata->panel_info.ulps_suspend_enabled) {
-			pr_debug("%s: split-DSI, other ctrl not ready yet\n",
+			pr_err("%s: split-DSI, other ctrl not ready yet\n",
 				__func__);
 			return false;
 		}
@@ -1732,7 +1732,7 @@ static int mdss_dsi_ulps_config(struct mdss_dsi_ctrl_pdata *ctrl,
 	mipi = &pinfo->mipi;
 
 	if (!mdss_dsi_is_ulps_req_valid(ctrl, enable)) {
-		pr_debug("%s: skiping ULPS config for ctrl%d, enable=%d\n",
+		pr_err("%s: skiping ULPS config for ctrl%d, enable=%d\n",
 			__func__, ctrl->ndx, enable);
 		return 0;
 	}
@@ -1752,7 +1752,7 @@ static int mdss_dsi_ulps_config(struct mdss_dsi_ctrl_pdata *ctrl,
 	if (mipi->data_lane3)
 		active_lanes |= BIT(3);
 
-	pr_debug("%s: configuring ulps (%s) for ctrl%d, active lanes=0x%08x,clamps=%s\n",
+	pr_err("%s: configuring ulps (%s) for ctrl%d, active lanes=0x%08x,clamps=%s\n",
 		__func__, (enable ? "on" : "off"), ctrl->ndx,
 		active_lanes, ctrl->mmss_clamp ? "enabled" : "disabled");
 
@@ -1829,12 +1829,12 @@ static int mdss_dsi_ulps_config(struct mdss_dsi_ctrl_pdata *ctrl,
 		lane_status = MIPI_INP(ctrl->ctrl_base + 0xA8);
 		ctrl->ulps = false;
 	} else {
-		pr_debug("%s: No change requested: %s -> %s\n", __func__,
+		pr_err("%s: No change requested: %s -> %s\n", __func__,
 			ctrl->ulps ? "enabled" : "disabled",
 			enable ? "enabled" : "disabled");
 	}
 
-	pr_debug("%s: DSI lane status = 0x%08x. Ulps %s\n", __func__,
+	pr_err("%s: DSI lane status = 0x%08x. Ulps %s\n", __func__,
 		lane_status, enable ? "enabled" : "disabled");
 
 error:
@@ -1898,7 +1898,7 @@ static int mdss_dsi_clamp_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, int enable)
 		if (ctrl->ulps)
 			clamp_reg |= BIT(0);
 	}
-	pr_debug("%s: called for ctrl%d, enable=%d, clamp_reg=0x%08x\n",
+	pr_err("%s: called for ctrl%d, enable=%d, clamp_reg=0x%08x\n",
 		__func__, ctrl->ndx, enable, clamp_reg);
 	if (enable && !ctrl->mmss_clamp) {
 		regval = MIPI_INP(ctrl->mmss_misc_io.base + clamp_reg_off);
@@ -1967,7 +1967,7 @@ static int mdss_dsi_clamp_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, int enable)
 		wmb();
 		ctrl->mmss_clamp = false;
 	} else {
-		pr_debug("%s: No change requested: %s -> %s\n", __func__,
+		pr_err("%s: No change requested: %s -> %s\n", __func__,
 			ctrl->mmss_clamp ? "enabled" : "disabled",
 			enable ? "enabled" : "disabled");
 	}
@@ -2037,7 +2037,7 @@ int mdss_dsi_clk_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, void *clk_handle,
 	 * the state change for slave, the ON votes will be removed depending on
 	 * the new state.
 	 */
-	pr_debug("%s: DSI_%d: clk = %d, state = %d, caller = %pS, mctrl=%d\n",
+	pr_err("%s: DSI_%d: clk = %d, state = %d, caller = %pS, mctrl=%d\n",
 		 __func__, ctrl->ndx, clk_type, clk_state,
 		 __builtin_return_address(0), mctrl ? 1 : 0);
 	if (mctrl && (clk_type & MDSS_DSI_LINK_CLK)) {
@@ -2102,7 +2102,7 @@ int mdss_dsi_clk_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, void *clk_handle,
 			}
 		}
 		(*vote_cnt) -= i;
-		pr_debug("%s: ctrl=%d, vote_cnt=%d dsi_vote_cnt=%d mdp_vote_cnt:%d\n",
+		pr_err("%s: ctrl=%d, vote_cnt=%d dsi_vote_cnt=%d mdp_vote_cnt:%d\n",
 			__func__, ctrl->ndx, *vote_cnt, mctrl->m_dsi_vote_cnt,
 			mctrl->m_mdp_vote_cnt);
 	}
@@ -2307,7 +2307,7 @@ int mdss_dsi_pre_clkon_cb(void *priv,
 		 *     only during unblank/blank. Their state should
 		 *     not be changed during static screen.
 		 */
-		pr_debug("%s: Enable DSI core power\n", __func__);
+		pr_err("%s: Enable DSI core power\n", __func__);
 		for (i = DSI_CORE_PM; i < DSI_MAX_PM; i++) {
 			if ((ctrl->ctrl_state & CTRL_STATE_DSI_ACTIVE) &&
 				(!pdata->panel_info.cont_splash_enabled) &&

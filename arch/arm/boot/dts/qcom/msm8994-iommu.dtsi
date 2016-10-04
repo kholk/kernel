@@ -122,7 +122,7 @@
 			compatible = "qcom,msm-smmu-v1-ctx";
 			reg = <0xfd9d6000 0x1000>;
 			interrupts = <0 47 0>, <0 46 0>;
-			qcom,iommu-ctx-sids = <>;
+			qcom,iommu-ctx-sids = <2>;
 			label = "mdp_2";
 			qcom,secure-context;
 		};

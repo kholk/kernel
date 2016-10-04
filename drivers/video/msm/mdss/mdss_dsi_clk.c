@@ -105,7 +105,7 @@ static int dsi_core_clk_start(struct dsi_core_clks *c_clks)
 		goto disable_mmss_misc_clk;
 	}
 
-	pr_debug("%s:CORE CLOCK IS ON\n", mngr->name);
+	pr_err("%s:CORE CLOCK IS ON\n", mngr->name);
 	return rc;
 
 disable_mmss_misc_clk:
@@ -118,7 +118,7 @@ disable_ahb_clk:
 disable_core_clk:
 	clk_disable_unprepare(c_clks->clks.mdp_core_clk);
 error:
-	pr_debug("%s: EXIT, rc = %d\n", mngr->name, rc);
+	pr_err("%s: EXIT, rc = %d\n", mngr->name, rc);
 	return rc;
 }
 
@@ -136,7 +136,7 @@ static int dsi_core_clk_stop(struct dsi_core_clks *c_clks)
 	clk_disable_unprepare(c_clks->clks.ahb_clk);
 	clk_disable_unprepare(c_clks->clks.mdp_core_clk);
 
-	pr_debug("%s: CORE CLOCK IS OFF\n", mngr->name);
+	pr_err("%s: CORE CLOCK IS OFF\n", mngr->name);
 	return rc;
 }
 
@@ -294,7 +294,7 @@ static int dsi_link_clk_start(struct dsi_link_clks *l_clks)
 		goto error_unprepare;
 	}
 
-	pr_debug("%s: LINK CLOCK IS ON\n", mngr->name);
+	pr_err("%s: LINK CLOCK IS ON\n", mngr->name);
 	return rc;
 error_unprepare:
 	dsi_link_clk_unprepare(l_clks);
@@ -312,7 +312,7 @@ static int dsi_link_clk_stop(struct dsi_link_clks *l_clks)
 	(void)dsi_link_clk_disable(l_clks);
 
 	(void)dsi_link_clk_unprepare(l_clks);
-	pr_debug("%s: LINK CLOCK IS OFF\n", mngr->name);
+	pr_err("%s: LINK CLOCK IS OFF\n", mngr->name);
 
 	return rc;
 }
@@ -337,7 +337,7 @@ static int dsi_update_clk_state(struct dsi_core_clks *c_clks, u32 c_state,
 	if (!mngr)
 		return -EINVAL;
 
-	pr_debug("%s: c_state = %d, l_state = %d\n", mngr ? mngr->name : "NA",
+	pr_err("%s: c_state = %d, l_state = %d\n", mngr ? mngr->name : "NA",
 		 c_clks ? c_state : -1, l_clks ? l_state : -1);
 	/*
 	 * Clock toggle order:
@@ -424,7 +424,7 @@ static int dsi_update_clk_state(struct dsi_core_clks *c_clks, u32 c_state,
 					goto error;
 				}
 				l_c_on = true;
-				pr_debug("ECG: core and Link_on\n");
+				pr_err("ECG: core and Link_on\n");
 			}
 
 			if (mngr->pre_clkoff_cb) {
@@ -469,9 +469,9 @@ static int dsi_update_clk_state(struct dsi_core_clks *c_clks, u32 c_state,
 				}
 
 				l_c_on = false;
-				pr_debug("ECG: core off\n");
+				pr_err("ECG: core off\n");
 			} else
-				pr_debug("ECG: core off skip\n");
+				pr_err("ECG: core off skip\n");
 		}
 
 		l_clks->current_clk_state = l_state;
@@ -496,9 +496,9 @@ static int dsi_update_clk_state(struct dsi_core_clks *c_clks, u32 c_state,
 				pr_err("core clks did not start\n");
 				goto error;
 			}
-			pr_debug("ECG: core on\n");
+			pr_err("ECG: core on\n");
 		} else
-			pr_debug("ECG: core on skip\n");
+			pr_err("ECG: core on skip\n");
 
 		if (mngr->pre_clkoff_cb) {
 			rc = mngr->pre_clkoff_cb(mngr->priv_data,
@@ -579,9 +579,9 @@ static int dsi_recheck_clk_state(struct mdss_dsi_clk_mngr *mngr)
 	old_c_clk_state = mngr->core_clks.current_clk_state;
 	old_l_clk_state = mngr->link_clks.current_clk_state;
 
-	pr_debug("%s: c_clk_state (%d -> %d)\n", mngr->name,
+	pr_err("%s: c_clk_state (%d -> %d)\n", mngr->name,
 		 old_c_clk_state, new_core_clk_state);
-	pr_debug("%s: l_clk_state (%d -> %d)\n", mngr->name,
+	pr_err("%s: l_clk_state (%d -> %d)\n", mngr->name,
 		 old_l_clk_state, new_link_clk_state);
 
 	MDSS_XLOG(old_c_clk_state, new_core_clk_state, old_l_clk_state,
@@ -604,7 +604,7 @@ static int dsi_set_clk_rate(struct mdss_dsi_clk_mngr *mngr, int clk, u32 rate,
 {
 	int rc = 0;
 
-	pr_debug("%s: clk = %d, rate = %d, flags = %d\n", mngr->name,
+	pr_err("%s: clk = %d, rate = %d, flags = %d\n", mngr->name,
 		 clk, rate, flags);
 
 	MDSS_XLOG(clk, rate, flags);
@@ -656,7 +656,7 @@ void *mdss_dsi_clk_register(void *clk_mngr, struct mdss_dsi_clk_client *client)
 		return ERR_PTR(-EINVAL);
 	}
 
-	pr_debug("%s: ENTER\n", mngr->name);
+	pr_err("%s: ENTER\n", mngr->name);
 
 	mutex_lock(&mngr->clk_mutex);
 
@@ -671,11 +671,11 @@ void *mdss_dsi_clk_register(void *clk_mngr, struct mdss_dsi_clk_client *client)
 
 	list_add(&c->list, &mngr->client_list);
 
-	pr_debug("%s: Added new client (%s)\n", mngr->name, c->name);
+	pr_err("%s: Added new client (%s)\n", mngr->name, c->name);
 	handle = c;
 error:
 	mutex_unlock(&mngr->clk_mutex);
-	pr_debug("%s: EXIT, rc = %ld\n", mngr->name, PTR_ERR(handle));
+	pr_err("%s: EXIT, rc = %ld\n", mngr->name, PTR_ERR(handle));
 	return handle;
 }
 
@@ -694,7 +694,7 @@ int mdss_dsi_clk_deregister(void *client)
 	}
 
 	mngr = c->mngr;
-	pr_debug("%s: ENTER\n", mngr->name);
+	pr_err("%s: ENTER\n", mngr->name);
 	mutex_lock(&mngr->clk_mutex);
 	c->core_clk_state = MDSS_DSI_CLK_OFF;
 	c->link_clk_state = MDSS_DSI_CLK_OFF;
@@ -710,7 +710,7 @@ int mdss_dsi_clk_deregister(void *client)
 				  list);
 		if (node == c) {
 			list_del(&node->list);
-			pr_debug("Removed device (%s)\n", node->name);
+			pr_err("Removed device (%s)\n", node->name);
 			kfree(node);
 			break;
 		}
@@ -718,7 +718,7 @@ int mdss_dsi_clk_deregister(void *client)
 
 error:
 	mutex_unlock(&mngr->clk_mutex);
-	pr_debug("%s: EXIT, rc = %d\n", mngr->name, rc);
+	pr_err("%s: EXIT, rc = %d\n", mngr->name, rc);
 	return rc;
 }
 
@@ -762,7 +762,7 @@ int mdss_dsi_clk_req_state(void *client, enum mdss_dsi_clk_type clk,
 	mngr = c->mngr;
 	mutex_lock(&mngr->clk_mutex);
 
-	pr_debug("[%s]%s: CLK=%d, new_state=%d, core=%d, linkl=%d\n",
+	pr_err("[%s]%s: CLK=%d, new_state=%d, core=%d, linkl=%d\n",
 	       c->name, mngr->name, clk, state, c->core_clk_state,
 	       c->link_clk_state);
 
@@ -829,7 +829,7 @@ int mdss_dsi_clk_req_state(void *client, enum mdss_dsi_clk_type clk,
 			}
 		}
 	}
-	pr_debug("[%s]%s: change=%d, Core (ref=%d, state=%d), Link (ref=%d, state=%d)\n",
+	pr_err("[%s]%s: change=%d, Core (ref=%d, state=%d), Link (ref=%d, state=%d)\n",
 		 c->name, mngr->name, changed, c->core_refcount,
 		 c->core_clk_state, c->link_refcount, c->link_clk_state);
 	MDSS_XLOG(index, clk, state, c->core_clk_state, c->link_clk_state);
@@ -857,7 +857,7 @@ int mdss_dsi_clk_set_link_rate(void *client, enum mdss_dsi_link_clk_type clk,
 	}
 
 	mngr = c->mngr;
-	pr_debug("%s: ENTER\n", mngr->name);
+	pr_err("%s: ENTER\n", mngr->name);
 	mutex_lock(&mngr->clk_mutex);
 
 	rc = dsi_set_clk_rate(mngr, clk, rate, flags);
@@ -866,7 +866,7 @@ int mdss_dsi_clk_set_link_rate(void *client, enum mdss_dsi_link_clk_type clk,
 		       clk, rate, rc);
 
 	mutex_unlock(&mngr->clk_mutex);
-	pr_debug("%s: EXIT, rc = %d\n", mngr->name, rc);
+	pr_err("%s: EXIT, rc = %d\n", mngr->name, rc);
 	return rc;
 }
 
@@ -878,7 +878,7 @@ void *mdss_dsi_clk_init(struct mdss_dsi_clk_info *info)
 		pr_err("Invalid params\n");
 		return ERR_PTR(-EINVAL);
 	}
-	pr_debug("ENTER %s\n", info->name);
+	pr_err("ENTER %s\n", info->name);
 	mngr = kzalloc(sizeof(*mngr), GFP_KERNEL);
 	if (!mngr) {
 		mngr = ERR_PTR(-ENOMEM);
@@ -906,7 +906,7 @@ void *mdss_dsi_clk_init(struct mdss_dsi_clk_info *info)
 	}
 	memcpy(mngr->name, info->name, DSI_CLK_NAME_LEN);
 error:
-	pr_debug("EXIT %s, rc = %ld\n", mngr->name, PTR_ERR(mngr));
+	pr_err("EXIT %s, rc = %ld\n", mngr->name, PTR_ERR(mngr));
 	return mngr;
 }
 
@@ -923,14 +923,14 @@ int mdss_dsi_clk_deinit(void *clk_mngr)
 		return -EINVAL;
 	}
 
-	pr_debug("%s: ENTER\n", mngr->name);
+	pr_err("%s: ENTER\n", mngr->name);
 	mutex_lock(&mngr->clk_mutex);
 
 	list_for_each_safe(position, tmp, &mngr->client_list) {
 		node = list_entry(position, struct mdss_dsi_clk_client_info,
 				  list);
 		list_del(&node->list);
-		pr_debug("Removed device (%s)\n", node->name);
+		pr_err("Removed device (%s)\n", node->name);
 		kfree(node);
 	}
 
@@ -939,7 +939,7 @@ int mdss_dsi_clk_deinit(void *clk_mngr)
 		pr_err("failed to disable all clocks\n");
 	mdss_reg_bus_vote_client_destroy(mngr->reg_bus_clt);
 	mutex_unlock(&mngr->clk_mutex);
-	pr_debug("%s: EXIT, rc = %d\n", mngr->name, rc);
+	pr_err("%s: EXIT, rc = %d\n", mngr->name, rc);
 	kfree(mngr);
 	return rc;
 }
