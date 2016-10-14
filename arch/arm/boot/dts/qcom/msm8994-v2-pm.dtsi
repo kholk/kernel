@@ -10,6 +10,8 @@
  * GNU General Public License for more details.
  */
 
+#include <dt-bindings/msm/pm.h>
+
 &soc {
 	qcom,spm@f9065000 {
 		compatible = "qcom,spm-v2";
