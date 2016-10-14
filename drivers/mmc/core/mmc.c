@@ -1272,6 +1272,11 @@ static int mmc_select_timing(struct mmc_card *card)
 	if (!mmc_can_ext_csd(card))
 		goto bus_speed;
 
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8994) || \
+    defined(CONFIG_ARCH_MSM8916)
+	card->ext_csd.strobe_support = 0;
+#endif
+
 	/* For Enhance Strobe HS400 flow */
 	if (card->ext_csd.strobe_support &&
 	    card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS400 &&
