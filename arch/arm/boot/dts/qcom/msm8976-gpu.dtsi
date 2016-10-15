@@ -21,8 +21,6 @@
 		compatible = "qcom,devbw";
 		governor = "bw_vbif";
 		qcom,src-dst-ports = <26 512>;
-
-		qcom,active-only;
 		qcom,bw-tbl =
 			< 0 >,    /* off                            */
 			< 805  >, /* DDR: 105.6 MHz BIMC:  52.8 MHz */
@@ -51,11 +49,8 @@
 
 		qcom,initial-pwrlevel = <5>;
 
-		qcom,idle-timeout = <80>; //msecs
-		qcom,deep-nap-timeout = <20>; //msecs
+		qcom,idle-timeout = <8>; //<HZ/12>
 		qcom,strtstp-sleepwake;
-
-		qcom,snapshot-size = <1048576>; //bytes
 
 		qcom,pm-qos-active-latency = <401>;
 		qcom,pm-qos-wakeup-latency = <101>;
@@ -71,21 +66,22 @@
 		 */
 		qcom,clk-map = <0x00000F9E>;
 
-		clocks = <&clock_gcc_gfx clk_gcc_oxili_gfx3d_clk>,
-			 <&clock_gcc_gfx clk_gcc_oxili_ahb_clk>,
-			 <&clock_gcc_gfx clk_gcc_oxili_gmem_clk>,
-			 <&clock_gcc_gfx clk_gcc_bimc_gfx_clk>,
-			 <&clock_gcc_gfx clk_gcc_gtcu_ahb_clk>,
-			 <&clock_gcc_gfx clk_gcc_oxili_timer_clk>,
-			 <&clock_gcc_gfx clk_gcc_gfx_tcu_clk>,
-			 <&clock_gcc_gfx clk_gcc_gfx_tbu_clk>,
-			 <&clock_gcc_gfx clk_gcc_gfx_1_tbu_clk>,
-			 <&clock_gcc_gfx clk_gcc_oxili_aon_clk>;
+	clocks = <&clock_gcc_gfx clk_gcc_oxili_gfx3d_clk>,
+		 <&clock_gcc_gfx clk_gcc_oxili_ahb_clk>,
+		 <&clock_gcc_gfx clk_gcc_oxili_gmem_clk>,
+		 <&clock_gcc_gfx clk_gcc_bimc_gfx_clk>,
+		 <&clock_gcc_gfx clk_gcc_gtcu_ahb_clk>,
+		 <&clock_gcc_gfx clk_gcc_gfx_tcu_clk>,
+		 <&clock_gcc_gfx clk_gcc_gfx_tbu_clk>,
+		 <&clock_gcc_gfx clk_gcc_gfx_1_tbu_clk>,
+		 <&clock_gcc_gfx clk_gcc_oxili_timer_clk>,
+		 <&clock_gcc_gfx clk_gcc_oxili_aon_clk>;
 
-		clock-names =   "core_clk", "iface_clk", "mem_clk",
-				"mem_iface_clk", "gtcu_iface_clk", "rbbmtimer_clk",
-				"gtcu_clk", "gtbu_clk", "gtbu1_clk",
-				"alwayson_clk";
+	clock-names =   "core_clk", "iface_clk", "mem_clk",
+			"mem_iface_clk", "gtcu_iface_clk",
+			"gtcu_clk", "gtbu_clk", "gtbu1_clk",
+			"rbbmtimer_clk", "aon_clk";
+
 
 		/* Bus Scale Settings */
 		qcom,gpubw-dev = <&gpubw>;
@@ -190,41 +186,6 @@
 				qcom,bus-min = <0>;
 				qcom,bus-max = <0>;
 			};
-		};
-	};
-
-	/* ahb_base_offset: 0x40000 */
-	kgsl_msm_iommu: qcom,kgsl-iommu {
-		compatible = "qcom,kgsl-smmu-v2";
-		reg = <0x1f00000 0x10000>;
-		/*
-		* The gpu can only program a single context bank
-		* at this fixed offset.
-		*/
-		qcom,protect = <0x40000 0x20000>;
-		qcom,micro-mmu-control = <0x6000>;
-
-		clocks = <&clock_gcc clk_gcc_smmu_cfg_clk>,
-			<&clock_gcc_gfx clk_gcc_gfx_tcu_clk>,
-			<&clock_gcc_gfx clk_gcc_gtcu_ahb_clk>,
-			<&clock_gcc_gfx clk_gcc_gfx_tbu_clk>,
-			<&clock_gcc_gfx clk_gcc_gfx_1_tbu_clk>;
-		clock-names = "scfg_clk", "gtcu_clk", "gtcu_iface_clk",
-				"gtbu_clk", "gtbu1_clk";
-
-		qcom,secure_align_mask = <0xfff>;
-		gfx3d_user: gfx3d_user {
-			compatible = "qcom,smmu-kgsl-cb";
-			label = "gfx3d_user";
-			qcom,gpu-offset = <0x48000>;
-		};
-		gfx3d_secure: gfx3d_secure {
-			compatible = "qcom,smmu-kgsl-cb";
-			label = "gfx3d_secure";
-		};
-		gfx3d_priv: gfx3d_priv {
-			compatible = "qcom,smmu-kgsl-cb";
-			label = "gfx3d_priv";
 		};
 	};
 };

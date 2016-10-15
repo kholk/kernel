@@ -615,7 +615,7 @@ static int sendcmd(struct adreno_device *adreno_dev,
 
 			if (!test_and_set_bit(ADRENO_DISPATCHER_ACTIVE,
 				&dispatcher->priv))
-				INIT_COMPLETION(dispatcher->idle_gate);
+				init_completion(&dispatcher->idle_gate);
 		} else {
 			kgsl_active_count_put(device);
 			clear_bit(ADRENO_DISPATCHER_POWER, &dispatcher->priv);

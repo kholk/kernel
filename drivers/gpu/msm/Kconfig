@@ -13,7 +13,7 @@ config MSM_KGSL_LEGACY310
 endchoice
 
 source drivers/gpu/msm_legacy/Kconfig
-source drivers/gpu/msm_legacy_310/Kconfig
+#source drivers/gpu/msm_legacy_310/Kconfig
 
 menu "Qualcomm Adreno proprietary stack"
         depends on MSM_KGSL_CURRENT

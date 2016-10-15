@@ -1150,7 +1150,7 @@ static void _write_voltage_table(struct adreno_device *adreno_dev,
 	struct kgsl_device *device = &adreno_dev->dev;
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	int i;
-	struct opp *opp;
+	struct dev_pm_opp *opp;
 	int levels = pwr->num_pwrlevels - 1;
 	unsigned int mvolt = 0;
 

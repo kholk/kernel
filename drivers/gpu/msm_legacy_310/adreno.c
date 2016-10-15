@@ -2481,7 +2481,7 @@ int adreno_idle(struct kgsl_device *device)
  */
 static int adreno_drain(struct kgsl_device *device)
 {
-	INIT_COMPLETION(device->cmdbatch_gate);
+	init_completion(&device->cmdbatch_gate);
 
 	return 0;
 }
