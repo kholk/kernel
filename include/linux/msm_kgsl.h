@@ -1,3 +1,6 @@
+#ifdef CONFIG_MSM_KGSL_LEGACY310
+#include <linux/msm_kgsl_legacy_310.h>
+#else
 #ifndef _MSM_KGSL_H
 #define _MSM_KGSL_H
 
@@ -11,3 +14,4 @@ void kgsl_pwr_limits_set_default(void *limit);
 unsigned int kgsl_pwr_limits_get_freq(enum kgsl_deviceid id);
 
 #endif /* _MSM_KGSL_H */
+#endif /* CONFIG_MSM_KGSL_LEGACY310 */
