@@ -1,22 +1,3 @@
-choice
-        prompt "Qualcomm Adreno proprietary stack version"
-
-config MSM_KGSL_CURRENT
-        bool "Use bleeding edge KGSL stack"
-        default y
-
-config MSM_KGSL_LEGACY
-        bool "Use legacy QC KGSL stack"
-
-config MSM_KGSL_LEGACY310
-	bool "Use legacy QC KGSL stack from 3.10"
-endchoice
-
-source drivers/gpu/msm_legacy/Kconfig
-
-menu "Qualcomm Adreno proprietary stack"
-        depends on MSM_KGSL_CURRENT
-
 config MSM_KGSL
 	tristate "MSM 3D Graphics driver"
 	default n
@@ -60,18 +41,12 @@ config MSM_ADRENO_DEFAULT_GOVERNOR
 	default "simple_ondemand"
 	depends on MSM_KGSL
 
-config MSM_KGSL_IOMMU
-	bool
-	default y if MSM_KGSL && (MSM_IOMMU || ARM_SMMU)
-
 config MSM_ADRENO_USES_OLD_FIRMWARE
 	bool "Mantain compatibility with old Adreno firmwares"
-	default y
+	default n
 	---help---
 	  Select this if you need to use old Adreno firmwares
 	  not supporting CP_WAIT_FOR_ME and/or CP_COND_EXEC cmds.
 	  This is to retain compatibility with older software.
 
 	  If you experience GPU faults at boot, say Y.
-
-endmenu

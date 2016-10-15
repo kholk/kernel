@@ -4,3 +4,4 @@ obj-$(CONFIG_IMX_IPUV3_CORE)	+= ipu-v3/
 
 obj-$(CONFIG_MSM_KGSL_CURRENT)	+= msm/
 obj-$(CONFIG_MSM_KGSL_LEGACY)	+= msm_legacy/
+obj-$(CONFIG_MSM_KGSL_LEGACY310)+= msm_legacy_310/

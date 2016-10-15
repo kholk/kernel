@@ -86,7 +86,7 @@ config DEVFREQ_GOV_MSM_ADRENO_TZ_CURRENT
 
 config DEVFREQ_GOV_MSM_ADRENO_TZ_LEGACY
         bool
-        depends on DEVFREQ_GOV_MSM_ADRENO_TZ && MSM_KGSL_LEGACY
+        depends on DEVFREQ_GOV_MSM_ADRENO_TZ && (MSM_KGSL_LEGACY || MSM_KGSL_LEGACY310)
         default y
 
 config MSM_BIMC_BWMON
