@@ -1,3 +1,6 @@
+menu "Qualcomm Adreno proprietary stack (legacy)"
+        depends on MSM_KGSL_LEGACY310
+
 config MSM_KGSL
 	tristate "MSM 3D Graphics driver"
 	default n
@@ -50,3 +53,5 @@ config MSM_ADRENO_USES_OLD_FIRMWARE
 	  This is to retain compatibility with older software.
 
 	  If you experience GPU faults at boot, say Y.
+
+endmenu
