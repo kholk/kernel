@@ -2347,11 +2347,13 @@ static int a5xx_microcode_read(struct adreno_device *adreno_dev)
 	if (ret)
 		return ret;
 
-	ret = _load_gpmu_firmware(adreno_dev);
-	if (ret)
-		return ret;
+	if (!adreno_is_a510(adreno_dev))
+		ret = _load_gpmu_firmware(adreno_dev);
+		if (ret)
+			return ret;
 
-	_load_regfile(adreno_dev);
+	if (!adreno_is_a510(adreno_dev))
+		_load_regfile(adreno_dev);
 
 	return ret;
 }
@@ -2380,24 +2382,26 @@ static int a5xx_microcode_load(struct adreno_device *adreno_dev,
 	kgsl_regwrite(device, A5XX_CP_PFP_INSTR_BASE_HI,
 				upper_32_bits(gpuaddr));
 
-	/*
-	 * Resume call to write the zap shader base address into the
-	 * appropriate register
-	 */
-	if (zap_ucode_loaded) {
-		int ret;
-		struct scm_desc desc = {0};
+	if (!adreno_is_a510(adreno_dev)) {
+		/*
+		 * Resume call to write the zap shader base address into the
+		 * appropriate register
+		 */
+		if (zap_ucode_loaded) {
+			int ret;
+			struct scm_desc desc = {0};
 
-		desc.args[0] = 0;
-		desc.args[1] = 13;
-		desc.arginfo = SCM_ARGS(2);
+			desc.args[0] = 0;
+			desc.args[1] = 13;
+			desc.arginfo = SCM_ARGS(2);
 
-		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_BOOT, 0xA), &desc);
-		if (ret) {
-			pr_err("SCM resume call failed with error %d\n", ret);
-			return ret;
+			ret = scm_call2(SCM_SIP_FNID(SCM_SVC_BOOT, 0xA), &desc);
+			if (ret) {
+				pr_err("SCM resume call failed with error %d\n", ret);
+				return ret;
+			}
+
 		}
-
 	}
 
 	/* Load the zap shader firmware through PIL if its available */
