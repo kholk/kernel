@@ -10,7 +10,9 @@
  * GNU General Public License for more details.
  *
  */
-
+#ifdef CONFIG_MSM_KGSL_LEGACY310
+#include "../msm_legacy_310/adreno_trace.h"
+#else
 #if !defined(_ADRENO_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _ADRENO_TRACE_H
 
@@ -581,3 +583,4 @@ TRACE_EVENT(adreno_preempt_done,
 
 /* This part must be outside protection */
 #include <trace/define_trace.h>
+#endif /* CONFIG_MSM_KGSL_LEGACY310 */
