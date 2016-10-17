@@ -154,7 +154,7 @@ static int msm_sharedmem_probe(struct platform_device *pdev)
 		}
 	}
 
-#ifndef CONFIG_ARCH_MSM8994
+#ifdef CONFIG_ARCH_MSM8996
 	/* Set up the permissions for the shared ram that was allocated. */
 	setup_shared_ram_perms(client_id, shared_mem_pyhsical, shared_mem_size);
 #endif
