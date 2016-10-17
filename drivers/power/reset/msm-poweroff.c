@@ -397,6 +397,7 @@ static void do_msm_poweroff(void)
 	return;
 }
 
+#if 0
 static ssize_t attr_show(struct kobject *kobj, struct attribute *attr,
 				char *buf)
 {
@@ -474,6 +475,7 @@ static struct attribute *reset_attrs[] = {
 static struct attribute_group reset_attr_group = {
 	.attrs = reset_attrs,
 };
+#endif
 
 static int msm_reboot_call(struct notifier_block *this,
 			   unsigned long code, void *_cmd)
