@@ -340,8 +340,6 @@ static int _iommu_map_sg_sync_pc(struct kgsl_pagetable *pt,
 		return  -ENODEV;
 	}
 
-	pr_info("%s: kgsl IOMMU v%d probed!\n", __func__, iommu->version);
-
 	return 0;
 }
 
