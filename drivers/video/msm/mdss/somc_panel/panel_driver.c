@@ -681,18 +681,18 @@ static void mdss_dsi_panel_switch_mode(struct mdss_panel_data *pdata,
 		pr_warn("%s: Invalid mode switch attempted\n", __func__);
 		return;
 	}
-
+/*
 	if ((pdata->panel_info.compression_mode == COMPRESSION_DSC) &&
 			(pdata->panel_info.send_pps_before_switch))
 		mdss_dsi_panel_dsc_pps_send(ctrl_pdata, &pdata->panel_info);
-
+*/
 	if (pdata->panel_info.dsi_master == pdata->panel_info.pdest)
 		__mdss_dsi_panel_cmds_send(ctrl_pdata, pcmds, flags);
-
+/*
 	if ((pdata->panel_info.compression_mode == COMPRESSION_DSC) &&
 			(!pdata->panel_info.send_pps_before_switch))
 		mdss_dsi_panel_dsc_pps_send(ctrl_pdata, &pdata->panel_info);
-
+*/
 	return;
 }
 
@@ -2677,7 +2677,7 @@ static int mdss_dsi_parse_dsc_params(struct device_node *np,
 end:
 	return rc;
 }
-
+#ifdef UM_BRANCH_FEATURESET
 static struct device_node *mdss_dsi_panel_get_dsc_cfg_np(
 		struct device_node *np, struct mdss_panel_data *panel_data,
 		bool default_timing)
@@ -2707,7 +2707,7 @@ static struct device_node *mdss_dsi_panel_get_dsc_cfg_np(
 
 	return dsc_cfg_np;
 }
-
+#endif
 static int mdss_dsi_parse_topology_config(struct device_node *np,
 	struct dsi_panel_timing *pt, struct mdss_panel_data *panel_data,
 	bool default_timing)
@@ -2724,9 +2724,12 @@ static int mdss_dsi_parse_topology_config(struct device_node *np,
 							panel_data);
 
 	pinfo = &ctrl_pdata->panel_data.panel_info;
-
+#ifdef UM_BRANCH_FEATURESET
 	cfg_np = mdss_dsi_panel_get_dsc_cfg_np(np,
 				&ctrl_pdata->panel_data, default_timing);
+#else
+	cfg_np = ctrl_pdata->panel_data.cfg_np;
+#endif
 
 	if (cfg_np) {
 		if (!of_property_read_u32_array(cfg_np, "qcom,lm-split",
@@ -2767,11 +2770,11 @@ static int mdss_dsi_parse_topology_config(struct device_node *np,
 			rc = mdss_dsi_parse_dsc_version(np, &pt->timing);
 			if (rc)
 				goto end;
-
+#ifdef UM_BRANCH_FEATURESET
 			pinfo->send_pps_before_switch =
 				of_property_read_bool(np,
 				"qcom,mdss-dsi-send-pps-before-switch");
-
+#endif
 			rc = mdss_dsi_parse_dsc_params(cfg_np, &pt->timing,
 					is_split_display);
 		} else if (!strcmp(data, "fbc")) {
@@ -2875,6 +2878,7 @@ static int mdss_dsi_nt35596_read_status(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 	return -EINVAL;
 }
 
+#ifdef UM_BRANCH_FEATURESET
 static void mdss_dsi_parse_roi_alignment(struct device_node *np,
 		struct dsi_panel_timing *pt)
 {
@@ -2911,6 +2915,40 @@ static void mdss_dsi_parse_roi_alignment(struct device_node *np,
 			timing->roi_alignment.min_height);
 	}
 }
+#else
+static void mdss_dsi_parse_roi_alignment(struct device_node *np,
+		struct mdss_panel_info *pinfo)
+{
+	int len = 0;
+	u32 value[6];
+	struct property *data;
+	data = of_find_property(np, "qcom,panel-roi-alignment", &len);
+	len /= sizeof(u32);
+	if (!data || (len != 6)) {
+		pr_debug("%s: Panel roi alignment not found", __func__);
+	} else {
+		int rc = of_property_read_u32_array(np,
+				"qcom,panel-roi-alignment", value, len);
+		if (rc)
+			pr_debug("%s: Error reading panel roi alignment values",
+					__func__);
+		else {
+			pinfo->xstart_pix_align = value[0];
+			pinfo->ystart_pix_align = value[1];
+			pinfo->width_pix_align = value[2];
+			pinfo->height_pix_align = value[3];
+			pinfo->min_width = value[4];
+			pinfo->min_height = value[5];
+		}
+
+		pr_debug("%s: ROI alignment: [%d, %d, %d, %d, %d, %d]",
+				__func__, pinfo->xstart_pix_align,
+				pinfo->width_pix_align, pinfo->ystart_pix_align,
+				pinfo->height_pix_align, pinfo->min_width,
+				pinfo->min_height);
+	}
+}
+#endif
 
 static void mdss_dsi_parse_dms_config(struct device_node *np,
 	struct mdss_dsi_ctrl_pdata *ctrl)
@@ -2973,6 +3011,7 @@ exit:
 	return;
 }
 
+#ifdef UM_BRANCH_FEATURESET
 /* the length of all the valid values to be checked should not be great
  * than the length of returned data from read command.
  */
@@ -2990,6 +3029,7 @@ mdss_dsi_parse_esd_check_valid_params(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	return true;
 }
+#endif
 
 static bool mdss_dsi_parse_esd_status_len(struct device_node *np,
 	char *prop_key, u32 **target, u32 cmd_cnt)
@@ -3023,6 +3063,7 @@ static bool mdss_dsi_parse_esd_status_len(struct device_node *np,
 	return true;
 }
 
+#ifdef UM_BRANCH_FEATURESET
 static void mdss_dsi_parse_esd_params(struct device_node *np,
 	struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -3136,7 +3177,93 @@ error1:
 error:
 	pinfo->esd_check_enabled = false;
 }
+#else
+static void mdss_dsi_parse_esd_params(struct device_node *np,
+	struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	u32 tmp;
+	int rc;
+	struct property *data;
+	const char *string;
+	struct mdss_panel_info *pinfo = &ctrl->panel_data.panel_info;
 
+	pinfo->esd_check_enabled = of_property_read_bool(np,
+		"qcom,esd-check-enabled");
+
+	if (!pinfo->esd_check_enabled)
+		return;
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl->status_cmds,
+			"qcom,mdss-dsi-panel-status-command",
+				"qcom,mdss-dsi-panel-status-command-state");
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-status-read-length",
+		&tmp);
+	ctrl->status_cmds_rlen = (!rc ? tmp : 1);
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-max-error-count",
+		&tmp);
+	ctrl->max_status_error_count = (!rc ? tmp : 0);
+
+	ctrl->status_value = kzalloc(sizeof(u32) * ctrl->status_cmds_rlen,
+				GFP_KERNEL);
+	if (!ctrl->status_value) {
+		pr_err("%s: Error allocating memory for status buffer\n",
+			__func__);
+		pinfo->esd_check_enabled = false;
+		return;
+	}
+
+	data = of_find_property(np, "qcom,mdss-dsi-panel-status-value", &tmp);
+	tmp /= sizeof(u32);
+	if (!data || (tmp != ctrl->status_cmds_rlen)) {
+		pr_debug("%s: Panel status values not found\n", __func__);
+		memset(ctrl->status_value, 0, ctrl->status_cmds_rlen);
+	} else {
+		rc = of_property_read_u32_array(np,
+			"qcom,mdss-dsi-panel-status-value",
+			ctrl->status_value, tmp);
+		if (rc) {
+			pr_debug("%s: Error reading panel status values\n",
+					__func__);
+			memset(ctrl->status_value, 0, ctrl->status_cmds_rlen);
+		}
+	}
+
+	ctrl->status_mode = ESD_MAX;
+	rc = of_property_read_string(np,
+			"qcom,mdss-dsi-panel-status-check-mode", &string);
+	if (!rc) {
+		if (!strcmp(string, "bta_check")) {
+			ctrl->status_mode = ESD_BTA;
+		} else if (!strcmp(string, "reg_read")) {
+			ctrl->status_mode = ESD_REG;
+			ctrl->check_read_status =
+				mdss_dsi_gen_read_status;
+		} else if (!strcmp(string, "reg_read_nt35596")) {
+			ctrl->status_mode = ESD_REG_NT35596;
+			ctrl->status_error_count = 0;
+			ctrl->check_read_status =
+				mdss_dsi_nt35596_read_status;
+		} else if (!strcmp(string, "te_signal_check")) {
+			if (pinfo->mipi.mode == DSI_CMD_MODE) {
+				ctrl->status_mode = ESD_TE;
+			} else {
+				pr_err("TE-ESD not valid for video mode\n");
+				goto error;
+			}
+		} else {
+			pr_err("No valid panel-status-check-mode string\n");
+			goto error;
+		}
+	}
+	return;
+
+error:
+	kfree(ctrl->status_value);
+	pinfo->esd_check_enabled = false;
+}
+#endif
 static int mdss_dsi_parse_panel_features(struct device_node *np,
 	struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -3687,7 +3814,9 @@ static int  mdss_dsi_panel_config_res_properties(struct device_node *np,
 {
 	int rc = 0;
 
+#ifdef UM_BRANCH_FEATURESET
 	mdss_dsi_parse_roi_alignment(np, pt);
+#endif
 
 	mdss_dsi_parse_dcs_cmds(np, &pt->einit_cmds,
 		"somc,mdss-dsi-early-init-command", NULL);
@@ -4079,10 +4208,10 @@ int mdss_panel_parse_dt(struct device_node *np,
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-init-delay-us",
 			&tmp);
 	pinfo->mipi.init_delay = (!rc ? tmp : 0);
-
+#ifdef UM_BRANCH_FEATURESET
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-post-init-delay", &tmp);
 	pinfo->mipi.post_init_delay = (!rc ? tmp : 0);
-
+#endif
 	rc = of_property_read_u32(np,
 		"qcom,mdss-dsi-panel-framerate", &tmp);
 	pinfo->mipi.frame_rate = !rc ? tmp : 60;
@@ -4114,6 +4243,10 @@ int mdss_panel_parse_dt(struct device_node *np,
 	} else
 		pr_err("%s:%d, Unable to read Phy lane configure\n",
 			__func__, __LINE__);
+
+#ifndef UM_BRANCH_FEATURESET
+	mdss_dsi_parse_roi_alignment(np, pinfo);
+#endif
 
 	mdss_dsi_parse_trigger(np, &(pinfo->mipi.mdp_trigger),
 		"qcom,mdss-dsi-mdp-trigger");
@@ -4304,6 +4437,7 @@ int mdss_panel_parse_dt(struct device_node *np,
 	pinfo->is_dba_panel = of_property_read_bool(np,
 			"qcom,dba-panel");
 
+#ifdef UM_BRANCH_FEATURESET
 	if (pinfo->is_dba_panel) {
 		bridge_chip_name = of_get_property(np,
 			"qcom,bridge-name", &len);
@@ -4316,6 +4450,7 @@ int mdss_panel_parse_dt(struct device_node *np,
 		strlcpy(ctrl_pdata->bridge_name, bridge_chip_name,
 			MSM_DBA_CHIP_NAME_MAX_LEN);
 	}
+#endif
 
 	pinfo->lcdc.chg_fps.enable = of_property_read_bool(np,
 					"somc,change-fps-enable");
