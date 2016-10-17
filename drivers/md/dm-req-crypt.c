@@ -872,10 +872,8 @@ static int req_crypt_endio(struct dm_target *ti, struct request *clone,
 
 	/* If it is a write request, do nothing just return. */
 	if (encryption_mode == DM_REQ_CRYPT_ENCRYPTION_MODE_TRANSPARENT
-		&& rq_data_dir(clone) == READ) {
-		mempool_free(req_io, req_io_pool);
+		&& rq_data_dir(clone) == READ)
 		goto submit_request;
-	}
 
 	if (rq_data_dir(clone) == WRITE) {
 		rq_for_each_segment(bvec, clone, iter1) {
