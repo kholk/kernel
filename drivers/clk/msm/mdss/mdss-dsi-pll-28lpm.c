@@ -608,7 +608,7 @@ int dsi_pll_clock_register_lpm(struct platform_device *pdev,
 	switch (pll_res->target_id) {
 		case MDSS_PLL_TARGET_8952:
 		case MDSS_PLL_TARGET_8937:
-		case MDSS_PLL_TARGET_8909:
+		//case MDSS_PLL_TARGET_8909:
 			pr_info("MSM8952/8937/8909 detected!\n");
 			if (!pll_res->index)
 				rc = of_msm_clock_register(pdev->dev.of_node,
