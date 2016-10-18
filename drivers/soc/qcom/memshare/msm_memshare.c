@@ -144,14 +144,16 @@ static int check_client(int client_id, int proc, int request)
 
 void free_client(int id)
 {
-
+#ifndef CONFIG_MACH_SONY_LOIRE
 	memblock[id].size = 0;
+	memblock[id].client_id = DHMS_MEM_CLIENT_INVALID;
+	memblock[id].peripheral = -1;
+#endif
+
 	memblock[id].phy_addr = 0;
 	memblock[id].virtual_addr = 0;
 	memblock[id].alloted = 0;
-	memblock[id].client_id = DHMS_MEM_CLIENT_INVALID;
 	memblock[id].guarantee = 0;
-	memblock[id].peripheral = -1;
 	memblock[id].sequence_id = -1;
 	memblock[id].memory_type = MEMORY_CMA;
 
