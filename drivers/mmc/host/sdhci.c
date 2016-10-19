@@ -1562,14 +1562,6 @@ static inline void sdhci_update_power_policy(struct sdhci_host *host,
 	host->power_policy = policy;
 }
 
-static void sdhci_notify_pm_status(struct mmc_host *mmc, enum dev_state state)
-{
-	struct sdhci_host *host = mmc_priv(mmc);
-
-	if (host->ops->notify_pm_status)
-		host->ops->notify_pm_status(host, state);
-}
-
 static int sdhci_notify_load(struct mmc_host *mmc, enum mmc_load state)
 {
 	int err = 0;
@@ -2689,7 +2681,6 @@ static const struct mmc_host_ops sdhci_ops = {
 	.notify_load	= sdhci_notify_load,
 	.notify_halt	= sdhci_notify_halt,
 	.force_err_irq	= sdhci_force_err_irq,
-	.notify_pm_status	= sdhci_notify_pm_status,
 };
 
 /*****************************************************************************\
