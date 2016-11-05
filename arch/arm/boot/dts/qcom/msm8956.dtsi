@@ -2331,6 +2331,7 @@
 		compatible = "qcom,wcd9xxx-irq";
 		interrupt-controller;
 		#interrupt-cells = <1>;
+		interrupt-names = "cdc-int";
 		interrupt-parent = <&msm_gpio>;
 		qcom,gpio-connect = <&msm_gpio 120 0>;
 	};
