@@ -1286,7 +1286,7 @@ static int mmc_select_timing(struct mmc_card *card)
 		goto bus_speed;
 
 #if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8994) || \
-    defined(CONFIG_ARCH_MSM8916)
+    defined(CONFIG_ARCH_SONY_KANUTI)
 	card->ext_csd.strobe_support = 0;
 #endif
 
