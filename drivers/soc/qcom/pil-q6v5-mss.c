@@ -139,7 +139,8 @@ static int modem_powerup(const struct subsys_desc *subsys)
 	 */
 	reinit_completion(&drv->stop_ack);
 	drv->subsys_desc.ramdump_disable = 0;
-	drv->ignore_errors = false;
+	//drv->ignore_errors = false;
+drv->ignore_errors = true;
 	drv->q6->desc.fw_name = subsys->fw_name;
 	return pil_boot(&drv->q6->desc);
 }

@@ -78,6 +78,7 @@ static int sharedmem_mmap(struct uio_info *info, struct vm_area_struct *vma)
 /* Setup the shared ram permissions.
  * This function currently supports the mpss client only.
  */
+#if 0
 static void setup_shared_ram_perms(u32 client_id, phys_addr_t addr, u32 size)
 {
 	int ret;
@@ -99,7 +100,7 @@ static void setup_shared_ram_perms(u32 client_id, phys_addr_t addr, u32 size)
 				&addr, size, ret);
 	}
 }
-
+#endif
 static int msm_sharedmem_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -155,7 +156,7 @@ static int msm_sharedmem_probe(struct platform_device *pdev)
 	}
 
 	/* Set up the permissions for the shared ram that was allocated. */
-	setup_shared_ram_perms(client_id, shared_mem_pyhsical, shared_mem_size);
+	//setup_shared_ram_perms(client_id, shared_mem_pyhsical, shared_mem_size);
 
 	/* Setup device */
 	info->mmap = sharedmem_mmap; /* Custom mmap function. */

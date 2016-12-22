@@ -370,12 +370,6 @@ static int __pil_q6v55_reset(struct pil_desc *pil)
 		writel_relaxed(QDSP6SS_ACC_OVERRIDE_VAL,
 				drv->reg_base + QDSP6SS_STRAP_ACC);
 
-	/* Override the ACC value with input value */
-	if (!of_property_read_u32(pil->dev->of_node, "qcom,override-acc-1",
-				&drv->override_acc_1))
-		writel_relaxed(drv->override_acc_1,
-				drv->reg_base + QDSP6SS_STRAP_ACC);
-
 	/* Assert resets, stop core */
 	val = readl_relaxed(drv->reg_base + QDSP6SS_RESET);
 	val |= (Q6SS_CORE_ARES | Q6SS_BUS_ARES_ENA | Q6SS_STOP_CORE);
@@ -392,34 +386,6 @@ static int __pil_q6v55_reset(struct pil_desc *pil)
 	writel_relaxed(val, drv->reg_base + QDSP6SS_PWR_CTL);
 	mb();
 	udelay(1);
-
-	if (drv->qdsp6v62_1_2) {
-		for (i = BHS_CHECK_MAX_LOOPS; i > 0; i--) {
-			if (readl_relaxed(drv->reg_base + QDSP6V62SS_BHS_STATUS)
-			    & QDSP6v55_BHS_EN_REST_ACK)
-				break;
-			udelay(1);
-		}
-		if (!i) {
-			pr_err("%s: BHS_EN_REST_ACK not set!\n", __func__);
-			return -ETIMEDOUT;
-		}
-	}
-
-	if (drv->qdsp6v61_1_1) {
-		for (i = BHS_CHECK_MAX_LOOPS; i > 0; i--) {
-			if (readl_relaxed(drv->reg_base + QDSP6SS_BHS_STATUS)
-			    & QDSP6v55_BHS_EN_REST_ACK)
-				break;
-			udelay(1);
-		}
-		if (!i) {
-			pr_err("%s: BHS_EN_REST_ACK not set!\n", __func__);
-			return -ETIMEDOUT;
-		}
-	}
-
-	/* Put LDO in bypass mode */
 	val |= QDSP6v55_LDO_BYP;
 	writel_relaxed(val, drv->reg_base + QDSP6SS_PWR_CTL);
 
@@ -439,85 +405,20 @@ static int __pil_q6v55_reset(struct pil_desc *pil)
 			writel_relaxed(val, drv->reg_base + QDSP6SS_PWR_CTL);
 			udelay(1);
 		}
-	} else if (drv->qdsp6v56_1_5 || drv->qdsp6v56_1_8
-					|| drv->qdsp6v56_1_10) {
-		/* Deassert QDSP6 compiler memory clamp */
-		val = readl_relaxed(drv->reg_base + QDSP6SS_PWR_CTL);
-		val &= ~QDSP6v55_CLAMP_QMC_MEM;
-		writel_relaxed(val, drv->reg_base + QDSP6SS_PWR_CTL);
-
+	} else if (drv->qdsp6v56_1_8) {
 		/* Deassert memory peripheral sleep and L2 memory standby */
+		val = readl_relaxed(drv->reg_base + QDSP6SS_PWR_CTL);
 		val |= (Q6SS_L2DATA_STBY_N | Q6SS_SLP_RET_N);
 		writel_relaxed(val, drv->reg_base + QDSP6SS_PWR_CTL);
 
-		/* Turn on L1, L2, ETB and JU memories 1 at a time */
+		/*
+		 * Enable memories, turn on memory footswitch/head switch
+		 * one bank at a time to avoid in-rush current
+		 */
 		val = readl_relaxed(drv->reg_base + QDSP6SS_MEM_PWR_CTL);
 		for (i = 19; i >= 0; i--) {
 			val |= BIT(i);
-			writel_relaxed(val, drv->reg_base +
-						QDSP6SS_MEM_PWR_CTL);
-			val |= readl_relaxed(drv->reg_base +
-						QDSP6SS_MEM_PWR_CTL);
-			/*
-			 * Wait for 1us for both memory peripheral and
-			 * data array to turn on.
-			 */
-			udelay(1);
-		}
-	} else if (drv->qdsp6v56_1_8_inrush_current) {
-		/* Deassert QDSP6 compiler memory clamp */
-		val = readl_relaxed(drv->reg_base + QDSP6SS_PWR_CTL);
-		val &= ~QDSP6v55_CLAMP_QMC_MEM;
-		writel_relaxed(val, drv->reg_base + QDSP6SS_PWR_CTL);
-
-		/* Deassert memory peripheral sleep and L2 memory standby */
-		val |= (Q6SS_L2DATA_STBY_N | Q6SS_SLP_RET_N);
-		writel_relaxed(val, drv->reg_base + QDSP6SS_PWR_CTL);
-
-		/* Turn on L1, L2, ETB and JU memories 1 at a time */
-		val = readl_relaxed(drv->reg_base + QDSP6SS_MEM_PWR_CTL);
-		for (i = 19; i >= 6; i--) {
-			val |= BIT(i);
-			writel_relaxed(val, drv->reg_base +
-						QDSP6SS_MEM_PWR_CTL);
-			/*
-			 * Wait for 1us for both memory peripheral and
-			 * data array to turn on.
-			 */
-			udelay(1);
-		}
-
-		for (i = 0 ; i <= 5 ; i++) {
-			val |= BIT(i);
-			writel_relaxed(val, drv->reg_base +
-						QDSP6SS_MEM_PWR_CTL);
-			/*
-			 * Wait for 1us for both memory peripheral and
-			 * data array to turn on.
-			 */
-			udelay(1);
-		}
-	} else if (drv->qdsp6v61_1_1 || drv->qdsp6v62_1_2) {
-		/* Deassert QDSP6 compiler memory clamp */
-		val = readl_relaxed(drv->reg_base + QDSP6SS_PWR_CTL);
-		val &= ~QDSP6v55_CLAMP_QMC_MEM;
-		writel_relaxed(val, drv->reg_base + QDSP6SS_PWR_CTL);
-
-		/* Deassert memory peripheral sleep and L2 memory standby */
-		val |= (Q6SS_L2DATA_STBY_N | Q6SS_SLP_RET_N);
-		writel_relaxed(val, drv->reg_base + QDSP6SS_PWR_CTL);
-
-		/* Turn on L1, L2, ETB and JU memories 1 at a time */
-		val = readl_relaxed(drv->reg_base +
-				QDSP6V6SS_MEM_PWR_CTL);
-		for (i = 28; i >= 0; i--) {
-			val |= BIT(i);
-			writel_relaxed(val, drv->reg_base +
-					QDSP6V6SS_MEM_PWR_CTL);
-			/*
-			 * Wait for 1us for both memory peripheral and
-			 * data array to turn on.
-			 */
+			writel_relaxed(val, drv->reg_base + QDSP6SS_MEM_PWR_CTL);
 			udelay(1);
 		}
 	} else {

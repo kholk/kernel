@@ -537,7 +537,9 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 	int ret, count;
 	const u8 *data;
 	struct device *dma_dev = md->mba_mem_dev_fixed ?: &md->mba_mem_dev;
-
+if (md->mba_mem_dev_fixed){
+pr_info("--------------MBA MEM IS FIXED!!!!\n");
+}
 	fw_name_p = drv->non_elf_image ? fw_name_legacy : fw_name;
 	ret = request_firmware(&fw, fw_name_p, pil->dev);
 	if (ret) {
@@ -583,8 +585,8 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 	}
 
 	/* Make sure there are no mappings in PKMAP and fixmap */
-	kmap_flush_unused();
-	kmap_atomic_flush_unused();
+	//kmap_flush_unused();
+	//kmap_atomic_flush_unused();
 
 	drv->mba_dp_phys = mba_dp_phys;
 	drv->mba_dp_virt = mba_dp_virt;
@@ -605,7 +607,7 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 		/* Ensure memcpy is done before powering up modem */
 		wmb();
 	}
-
+#if 0
 	if (pil->subsys_vmid > 0) {
 		ret = pil_assign_mem_to_subsys(pil, drv->mba_dp_phys,
 							drv->mba_dp_size);
@@ -614,13 +616,13 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 			goto err_mba_data;
 		}
 	}
-
+#endif
 	ret = pil_mss_reset(pil);
 	if (ret) {
 		dev_err(pil->dev, "MBA boot failed.\n");
 		goto err_mss_reset;
 	}
-
+return -EINVAL;
 	if (dp_fw)
 		release_firmware(dp_fw);
 	release_firmware(fw);
@@ -631,9 +633,11 @@ err_mss_reset:
 	if (pil->subsys_vmid > 0)
 		pil_assign_mem_to_linux(pil, drv->mba_dp_phys,
 							drv->mba_dp_size);
+#if 0
 err_mba_data:
 	dma_free_attrs(dma_dev, drv->mba_dp_size, drv->mba_dp_virt,
 				drv->mba_dp_phys, &md->attrs_dma);
+#endif
 err_invalid_fw:
 	if (dp_fw)
 		release_firmware(dp_fw);
@@ -671,6 +675,7 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 	/* wmb() ensures copy completes prior to starting authentication. */
 	wmb();
 
+#if 0
 	if (pil->subsys_vmid > 0) {
 		ret = pil_assign_mem_to_subsys(pil, mdata_phys,
 							ALIGN(size, SZ_4K));
@@ -681,7 +686,7 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 			goto fail;
 		}
 	}
-
+#endif
 	/* Initialize length counter to 0 */
 	writel_relaxed(0, drv->rmb_base + RMB_PMI_CODE_LENGTH);
 
@@ -705,6 +710,7 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 	dma_free_attrs(dma_dev, size, mdata_virt, mdata_phys, &attrs);
 
 	if (!ret)
+pr_info("------------MBA AUTHENTICATION OK\n");
 		return ret;
 
 fail:
@@ -727,11 +733,12 @@ static int pil_msa_mss_reset_mba_load_auth_mdt(struct pil_desc *pil,
 				  const u8 *metadata, size_t size)
 {
 	int ret;
-
+pr_info("RESET LOAD MBA\n");
 	ret = pil_mss_reset_load_mba(pil);
 	if (ret)
 		return ret;
 
+pr_info(" AUTHENTICATE MODEM\n");
 	return pil_msa_auth_modem_mdt(pil, metadata, size);
 }
 

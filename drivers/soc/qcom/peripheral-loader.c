@@ -186,7 +186,7 @@ int pil_assign_mem_to_subsys(struct pil_desc *desc, phys_addr_t addr,
 	int srcVM[1] = {VMID_HLOS};
 	int destVM[1] = {desc->subsys_vmid};
 	int destVMperm[1] = {PERM_READ | PERM_WRITE};
-
+return 0;
 	ret = hyp_assign_phys(addr, size, srcVM, 1, destVM, destVMperm, 1);
 	if (ret)
 		pil_err(desc, "%s: failed for %pa address of size %zx - subsys VMid %d\n",
@@ -202,10 +202,10 @@ int pil_assign_mem_to_linux(struct pil_desc *desc, phys_addr_t addr,
 	int srcVM[1] = {desc->subsys_vmid};
 	int destVM[1] = {VMID_HLOS};
 	int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
-
+return 0;
 	ret = hyp_assign_phys(addr, size, srcVM, 1, destVM, destVMperm, 1);
 	if (ret)
-		panic("%s: failed for %pa address of size %zx - subsys VMid %d. Fatal error.\n",
+		pr_err("%s: failed for %pa address of size %zx - subsys VMid %d. Fatal error.\n",
 				__func__, &addr, size, desc->subsys_vmid);
 
 	return ret;
@@ -219,7 +219,7 @@ int pil_assign_mem_to_subsys_and_linux(struct pil_desc *desc,
 	int srcVM[1] = {VMID_HLOS};
 	int destVM[2] = {VMID_HLOS, desc->subsys_vmid};
 	int destVMperm[2] = {PERM_READ | PERM_WRITE, PERM_READ | PERM_WRITE};
-
+return 0;
 	ret = hyp_assign_phys(addr, size, srcVM, 1, destVM, destVMperm, 2);
 	if (ret)
 		pil_err(desc, "%s: failed for %pa address of size %zx - subsys VMid %d\n",
@@ -236,7 +236,7 @@ int pil_reclaim_mem(struct pil_desc *desc, phys_addr_t addr, size_t size,
 	int srcVM[2] = {VMID_HLOS, desc->subsys_vmid};
 	int destVM[1] = {VMid};
 	int destVMperm[1] = {PERM_READ | PERM_WRITE};
-
+return 0;
 	if (VMid == VMID_HLOS)
 		destVMperm[0] = PERM_READ | PERM_WRITE | PERM_EXEC;
 
@@ -802,7 +802,8 @@ int pil_boot(struct pil_desc *desc)
 		pil_err(desc, "Invalid firmware metadata\n");
 		goto err_boot;
 	}
-
+return 0;
+pr_info("-----------MBA PERFORMING MEM SETUP\n");
 	if (desc->ops->mem_setup)
 		ret = desc->ops->mem_setup(desc, priv->region_start,
 				priv->region_end - priv->region_start);
@@ -810,7 +811,7 @@ int pil_boot(struct pil_desc *desc)
 		pil_err(desc, "Memory setup error\n");
 		goto err_deinit_image;
 	}
-
+#if 0
 	if (desc->subsys_vmid > 0) {
 		/* In case of modem ssr, we need to assign memory back to linux.
 		 * This is not true after cold boot since linux already owns it.
@@ -833,13 +834,15 @@ int pil_boot(struct pil_desc *desc)
 		}
 		hyp_assign = true;
 	}
-
+#endif
+pr_info("----------MBA LOADING SEGMENTS\n");
 	list_for_each_entry(seg, &desc->priv->segs, list) {
 		ret = pil_load_seg(desc, seg);
 		if (ret)
 			goto err_deinit_image;
 	}
 
+#if 0
 	if (desc->subsys_vmid > 0) {
 		ret =  pil_reclaim_mem(desc, priv->region_start,
 				(priv->region_end - priv->region_start),
@@ -851,12 +854,14 @@ int pil_boot(struct pil_desc *desc)
 		}
 		hyp_assign = false;
 	}
-
+#endif
+pr_info("-------------MBA AUTH AND RESET\n");
 	ret = desc->ops->auth_and_reset(desc);
 	if (ret) {
 		pil_err(desc, "Failed to bring out of reset\n");
 		goto err_auth_and_reset;
 	}
+pr_info("------------MBA MODEM BROUGHT OUT OF RESET\n");
 	pil_info(desc, "Brought out of reset\n");
 	desc->modem_ssr = false;
 err_auth_and_reset:
@@ -865,6 +870,8 @@ err_auth_and_reset:
 				(priv->region_end - priv->region_start));
 		mem_protect = true;
 	}
+	up_read(&pil_pm_rwsem);
+	return 0;
 err_deinit_image:
 	if (ret && desc->ops->deinit_image)
 		desc->ops->deinit_image(desc);

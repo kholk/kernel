@@ -193,7 +193,7 @@ void initialize_client(void)
 	}
 	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &attrs);
 }
-
+#if 0
 static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 					void *_cmd)
 {
@@ -268,7 +268,48 @@ static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 	mutex_unlock(&memsh_drv->mem_share);
 	return NOTIFY_DONE;
 }
+#else
 
+void free_mem_clients(int proc)
+{
+	int i;
+
+	pr_debug("memshare: freeing clients\n");
+
+	for (i = 0; i < MAX_CLIENTS; i++) {
+		if (memblock[i].peripheral == proc &&
+				!memblock[i].guarantee && memblock[i].alloted) {
+			pr_debug("Freeing memory for client id: %d\n",
+					memblock[i].client_id);
+			dma_free_attrs(memsh_drv->dev, memblock[i].size,
+				memblock[i].virtual_addr, memblock[i].phy_addr,
+				&attrs);
+			free_client(i);
+		}
+	}
+}
+
+static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
+					void *_cmd)
+{
+	pr_debug("memshare: Modem notification\n");
+
+	switch (code) {
+
+	case SUBSYS_AFTER_POWERUP:
+		pr_err("memshare: Modem Restart has happened\n");
+		//free_mem_clients(DHMS_MEM_PROC_MPSS_V01);
+		bootup_request++;
+		break;
+
+	default:
+		pr_debug("Memshare: code: %lu\n", code);
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+#endif
 static struct notifier_block nb = {
 	.notifier_call = modem_notifier_cb,
 };
@@ -280,7 +321,8 @@ static void shared_hyp_mapping(int client_id)
 	int dest_vmids[2] = {VMID_HLOS, VMID_MSS_MSA};
 	int dest_perms[2] = {PERM_READ|PERM_WRITE,
 				PERM_READ|PERM_WRITE};
-
+pr_info("----------------------BYPASSING HYP SHARING-------------memshare\n");
+return;
 	if (client_id == DHMS_MEM_CLIENT_INVALID) {
 		pr_err("memshare: %s, Invalid Client\n", __func__);
 		return;
