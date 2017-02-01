@@ -76,7 +76,7 @@ LIST_HEAD(hpet_map);
  * Domain for untranslated devices - only allocated
  * if iommu=pt passed on kernel cmd line.
  */
-static const struct iommu_ops amd_iommu_ops;
+const struct iommu_ops amd_iommu_ops;
 
 static ATOMIC_NOTIFIER_HEAD(ppr_notifier);
 int amd_iommu_max_glx_val = -1;
@@ -3173,7 +3173,7 @@ static void amd_iommu_put_dm_regions(struct device *dev,
 		kfree(entry);
 }
 
-static const struct iommu_ops amd_iommu_ops = {
+const struct iommu_ops amd_iommu_ops = {
 	.capable = amd_iommu_capable,
 	.domain_alloc = amd_iommu_domain_alloc,
 	.domain_free  = amd_iommu_domain_free,
