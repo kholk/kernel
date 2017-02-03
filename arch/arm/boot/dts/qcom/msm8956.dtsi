@@ -1887,6 +1887,7 @@
 		qcom,hfi = "venus";
 		qcom,firmware-name = "venus-v1";
 		//qcom,platform-version = <0x600000000 0x1D>;
+		qcom,uses-qc-iommu;
 
 		clocks =
 			<&clock_gcc clk_gcc_venus0_vcodec0_clk>,
