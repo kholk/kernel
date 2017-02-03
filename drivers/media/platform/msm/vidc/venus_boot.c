@@ -25,6 +25,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/msm_iommu_domains.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sizes.h>
@@ -78,7 +79,9 @@ static struct {
 	void __iomem *reg_base;
 	struct device *iommu_ctx_bank_dev;
 	struct dma_iommu_mapping *mapping;
+	struct iommu_domain *iommu_fw_domain;
 	dma_addr_t fw_iova;
+	int venus_domain_num;
 	bool is_booted;
 	bool hw_ver_checked;
 	u32 fw_sz;
@@ -164,6 +167,52 @@ static int venus_setup_cb(struct device *dev,
 		"%s Attached device %pK and created mapping %pK for %s\n",
 		__func__, dev, venus_data->mapping, dev_name(dev));
 	return 0;
+}
+
+static int venus_register_qciommu_domain(u32 fw_max_sz)
+{
+	struct msm_iova_partition venus_fw_partition = {
+		.start = 0,
+		.size = fw_max_sz,
+	};
+	struct msm_iova_layout venus_fw_layout = {
+		.partitions = &venus_fw_partition,
+		.npartitions = 1,
+		.client_name = "pil_venus",
+		.domain_flags = 0,
+	};
+
+	return msm_register_domain(&venus_fw_layout);
+}
+
+static int pil_venus_qciommu_mem_setup(
+		struct platform_device *pdev, size_t size)
+{
+	int domain;
+
+	venus_data->iommu_ctx_bank_dev = msm_iommu_get_ctx("venus_fw");
+	if (!venus_data->iommu_ctx_bank_dev) {
+		dprintk(VIDC_ERR, "No iommu firmware context found\n");
+		return -ENODEV;
+	}
+
+	if (!venus_data->venus_domain_num) {
+		size = round_up(size, SZ_4K);
+		domain = venus_register_qciommu_domain(size);
+		if (domain < 0) {
+			dprintk(VIDC_ERR,
+				"Venus fw iommu domain register failed\n");
+			return -ENODEV;
+		}
+		venus_data->iommu_fw_domain = msm_get_iommu_domain(domain);
+		if (!venus_data->iommu_fw_domain) {
+			dprintk(VIDC_ERR, "No iommu fw domain found\n");
+			return -ENODEV;
+		}
+		venus_data->venus_domain_num = domain;
+		venus_data->fw_sz = size;
+	}
+	return 0;	
 }
 
 static int pil_venus_mem_setup(size_t size)
@@ -275,7 +324,7 @@ static int pil_venus_auth_and_reset(void)
 	 */
 	udelay(1);
 
-	if (iommu_present) {
+	if (iommu_present && !venus_data->resources->is_qciommu) {
 		phys_addr_t pa = fw_bias;
 
 		/* Enable this for new SMMU to set the device attribute */
@@ -315,6 +364,32 @@ static int pil_venus_auth_and_reset(void)
 					dev_name(dev));
 			goto err_iommu_map;
 		}
+	} else if (iommu_present && venus_data->resources->is_qciommu) {
+		phys_addr_t pa = fw_bias;
+		dma_addr_t iova;
+
+		rc = iommu_attach_device(venus_data->iommu_fw_domain,
+				venus_data->iommu_ctx_bank_dev);
+		if (rc) {
+			dprintk(VIDC_ERR,
+				"venus fw iommu attach failed %d\n", rc);
+			goto err;
+		}
+
+		/*
+		 * Map virtual addr space 0 - fw_sz to firmware physical
+		 * addr space
+		 */
+		rc = msm_iommu_map_contig_buffer(pa,
+				venus_data->venus_domain_num, 0,
+				venus_data->fw_sz, SZ_4K, 0, &iova);
+
+		if (rc || (iova != 0)) {
+			dprintk(VIDC_ERR, "Failed to setup IOMMU\n");
+			iommu_detach_device(venus_data->iommu_fw_domain,
+					venus_data->iommu_ctx_bank_dev);
+			goto err;
+		}
 	}
 	/* Bring Arm9 out of reset */
 	writel_relaxed(0, reg_base + VENUS_WRAPPER_SW_RESET);
@@ -352,7 +427,12 @@ static int pil_venus_shutdown(void)
 	if (is_iommu_present(venus_data->resources)) {
 		iommu_unmap(venus_data->mapping->domain, venus_data->fw_iova,
 			venus_data->fw_sz);
-		arm_iommu_detach_device(venus_data->iommu_ctx_bank_dev);
+
+		if (venus_data->resources->is_qciommu)
+			iommu_detach_device(venus_data->iommu_fw_domain,
+					    venus_data->iommu_ctx_bank_dev);
+		else
+			arm_iommu_detach_device(venus_data->iommu_ctx_bank_dev);
 	}
 	/*
 	 * Force the VBIF clk to be on to avoid AXI bridge halt ack failure
@@ -430,8 +510,13 @@ static int venus_notifier_cb(struct notifier_block *this, unsigned long code,
 	}
 
 	if (code == SUBSYS_AFTER_POWERUP) {
-		if (is_iommu_present(venus_data->resources))
-			pil_venus_mem_setup(VENUS_REGION_SIZE);
+		if (is_iommu_present(venus_data->resources)) {
+			if (venus_data->resources->is_qciommu)
+				pil_venus_qciommu_mem_setup(data->pdev,
+						VENUS_REGION_SIZE);
+			else
+				pil_venus_mem_setup(VENUS_REGION_SIZE);
+		}
 		pil_venus_auth_and_reset();
 	 } else if (code == SUBSYS_AFTER_SHUTDOWN)
 		pil_venus_shutdown();

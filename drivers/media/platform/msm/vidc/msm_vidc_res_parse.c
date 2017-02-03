@@ -164,6 +164,13 @@ static inline void msm_vidc_free_clock_voltage_table(
 	res->cv_info_vp9d.count = 0;
 }
 
+void msm_vidc_free_qciommu_groups(
+			struct msm_vidc_platform_resources *res)
+{
+	if (res->is_qciommu)
+		res->iommu_group_set.iommu_maps = NULL;
+}
+
 void msm_vidc_free_platform_resources(
 			struct msm_vidc_platform_resources *res)
 {
@@ -180,6 +187,7 @@ void msm_vidc_free_platform_resources(
 	msm_vidc_free_qdss_addr_table(res);
 	msm_vidc_free_bus_vectors(res);
 	msm_vidc_free_buffer_usage_table(res);
+	msm_vidc_free_qciommu_groups(res);
 }
 
 static int msm_vidc_load_reg_table(struct msm_vidc_platform_resources *res)
@@ -1573,6 +1581,7 @@ static int msm_vidc_populate_legacy_context_bank(
 	}
 
 	/* set up each context bank for legacy DT bindings*/
+	if (!is_qciommu)
 	for_each_child_of_node(domains_parent_node,
 		domains_child_node) {
 		cb = devm_kzalloc(&pdev->dev, sizeof(*cb), GFP_KERNEL);
@@ -1632,6 +1641,7 @@ static int msm_vidc_populate_legacy_context_bank(
 		rc = msm_vidc_setup_context_bank(cb, cb->dev);
 		if (rc) {
 			dprintk(VIDC_ERR, "Cannot setup context bank %d\n", rc);
+			if (!is_qciommu)
 			goto err_setup_cb;
 		}
 
@@ -1683,10 +1693,11 @@ static int msm_vidc_populate_legacy_context_bank(
 
 		iommu_map->npartitions = array_size / sizeof(u32) / 2;
 
-		dprintk(VIDC_DBG,
-				"%d partitions in domain %d",
+//		dprintk(VIDC_DBG,
+		dprintk(VIDC_ERR,
+				"%d partitions in domain %d %s",
 				iommu_map->npartitions,
-				domain_idx);
+				domain_idx, iommu_map->name);
 
 		rc = of_property_read_u32_array(ctx_node,
 				"qcom,virtual-addr-pool",
@@ -1703,7 +1714,7 @@ static int msm_vidc_populate_legacy_context_bank(
 		iommu_map->is_secure =
 			of_property_read_bool(ctx_node,	"qcom,secure-domain");
 
-		dprintk(VIDC_DBG,
+		dprintk(VIDC_ERR,
 				"domain %s : secure = %d\n",
 				iommu_map->name,
 				iommu_map->is_secure);

@@ -21,8 +21,10 @@
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/iommu.h>
+#include <linux/qcom_iommu.h>
 #include <linux/iopoll.h>
 #include <linux/of.h>
+#include <linux/msm_iommu_domains.h>
 #include <linux/pm_qos.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
@@ -699,7 +701,73 @@ static void __set_threshold_registers(struct venus_hfi_device *device)
 		dprintk(VIDC_ERR, "Failed to restore threshold values\n");
 }
 
-static void __iommu_detach(struct venus_hfi_device *device)
+static int __qciommu_attach(struct venus_hfi_device *device)
+{
+	int rc = 0;
+	struct iommu_domain *domain;
+	int i;
+	struct iommu_set *iommu_group_set;
+	struct iommu_group *group;
+	struct iommu_info *iommu_map;
+
+	if (!device || !device->res)
+		return -EINVAL;
+return 0;
+	iommu_group_set = &device->res->iommu_group_set;
+	for (i = 0; i < iommu_group_set->count; i++) {
+		iommu_map = &iommu_group_set->iommu_maps[i];
+		group = iommu_map->group;
+		domain = msm_get_iommu_domain(iommu_map->domain);
+		if (IS_ERR_OR_NULL(domain)) {
+			dprintk(VIDC_ERR,
+				"Failed to get domain: %s\n", iommu_map->name);
+			rc = PTR_ERR(domain) ?: -EINVAL;
+			break;
+		}
+		rc = iommu_attach_group(domain, group);
+		if (rc) {
+			dprintk(VIDC_ERR,
+				"IOMMU attach failed: %s\n", iommu_map->name);
+			break;
+		}
+	}
+	if (i < iommu_group_set->count) {
+		i--;
+		for (; i >= 0; i--) {
+			iommu_map = &iommu_group_set->iommu_maps[i];
+			group = iommu_map->group;
+			domain = msm_get_iommu_domain(iommu_map->domain);
+			if (group && domain)
+				iommu_detach_group(domain, group);
+		}
+	}
+	return rc;
+}
+
+static void __qciommu_detach(struct venus_hfi_device *device)
+{
+	struct iommu_group *group;
+	struct iommu_domain *domain;
+	struct iommu_set *iommu_group_set;
+	struct iommu_info *iommu_map;
+	int i;
+
+	if (!device || !device->res) {
+		dprintk(VIDC_ERR, "Invalid paramter: %pK\n", device);
+		return;
+	}
+
+	iommu_group_set = &device->res->iommu_group_set;
+	for (i = 0; i < iommu_group_set->count; i++) {
+		iommu_map = &iommu_group_set->iommu_maps[i];
+		group = iommu_map->group;
+		domain = msm_get_iommu_domain(iommu_map->domain);
+		if (group && domain)
+			iommu_detach_group(domain, group);
+	}
+}
+
+static void __arm_iommu_detach(struct venus_hfi_device *device)
 {
 	struct context_bank_info *cb;
 
@@ -714,6 +782,14 @@ static void __iommu_detach(struct venus_hfi_device *device)
 		if (cb->mapping)
 			arm_iommu_release_mapping(cb->mapping);
 	}
+}
+
+static void __iommu_detach(struct venus_hfi_device *device)
+{
+	if (device->res->is_qciommu)
+		__qciommu_detach(device);
+	else
+		__arm_iommu_detach(device);
 }
 
 static bool __is_session_supported(unsigned long sessions_supported,
@@ -4094,6 +4170,77 @@ fail_clk_enable:
 	return rc;
 }
 
+static int __register_qciommu_domains(struct venus_hfi_device *device,
+					struct msm_vidc_platform_resources *res)
+{
+	struct iommu_domain *domain;
+	int rc = 0, i = 0;
+	struct iommu_set *iommu_group_set;
+	struct iommu_info *iommu_map;
+
+	if (!device || !res)
+		return -EINVAL;
+return 0;
+	iommu_group_set = &res->iommu_group_set; //&device->res->iommu_group_set;
+
+	for (i = 0; i < iommu_group_set->count; i++) {
+		iommu_map = &iommu_group_set->iommu_maps[i];
+		iommu_map->group = iommu_group_find(iommu_map->name);
+		if (!iommu_map->group) {
+			dprintk(VIDC_ERR, "Failed to find group :%s\n",
+				iommu_map->name);
+			rc = -EPROBE_DEFER;
+			goto fail_group;
+		}
+		domain = iommu_group_get_iommudata(iommu_map->group);
+		if (!domain) {
+			dprintk(VIDC_ERR,
+				"Failed to get domain data for group %pK\n",
+				iommu_map->group);
+			rc = -EINVAL;
+			goto fail_group;
+		}
+		iommu_map->domain = msm_find_domain_no(domain);
+		if (iommu_map->domain < 0) {
+			dprintk(VIDC_ERR,
+				"Failed to get domain index for domain %pK\n",
+				domain);
+			rc = -EINVAL;
+			goto fail_group;
+		}
+	}
+	return rc;
+
+fail_group:
+	for (--i; i >= 0; i--) {
+		iommu_map = &iommu_group_set->iommu_maps[i];
+		if (iommu_map->group)
+			iommu_group_put(iommu_map->group);
+		iommu_map->group = NULL;
+		iommu_map->domain = -1;
+	}
+	return rc;
+}
+
+static void __deregister_qciommu_domains(struct venus_hfi_device *device)
+{
+	struct iommu_set *iommu_group_set;
+	struct iommu_info *iommu_map;
+	int i = 0;
+
+	if (!device)
+		return;
+
+	iommu_group_set = &device->res->iommu_group_set;
+	for (i = 0; i < iommu_group_set->count; i++) {
+		iommu_map = &iommu_group_set->iommu_maps[i];
+		if (iommu_map->group)
+			iommu_group_put(iommu_map->group);
+		iommu_map->group = NULL;
+		iommu_map->domain = -1;
+	}
+}
+
 static void __deinit_bus(struct venus_hfi_device *device)
 {
 	struct bus_info *bus = NULL;
@@ -4241,8 +4388,22 @@ static int __init_resources(struct venus_hfi_device *device,
 		kzalloc(sizeof(struct msm_vidc_capability)
 		* VIDC_MAX_SESSIONS, GFP_TEMPORARY);
 
+	if (res->is_qciommu) {
+		rc = __register_qciommu_domains(device, res);
+		if (rc) {
+			if (rc != -EPROBE_DEFER) {
+				dprintk(VIDC_ERR,
+				"Failed to register iommu domains: %d\n", rc);
+			}
+			goto err_qciommu_domains;
+		}
+	}
+
+
 	return rc;
 
+err_qciommu_domains:
+	__deinit_bus(device);
 err_init_bus:
 	__deinit_clocks(device);
 err_init_clocks:
@@ -4252,6 +4413,8 @@ err_init_clocks:
 
 static void __deinit_resources(struct venus_hfi_device *device)
 {
+	if (device->res->is_qciommu)
+		__deregister_qciommu_domains(device);
 	__deinit_bus(device);
 	__deinit_clocks(device);
 	__deinit_regulators(device);
@@ -4264,16 +4427,49 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 	struct tzbsp_memprot memprot;
 	unsigned int resp = 0;
 	int rc = 0;
+	int i;
 	struct context_bank_info *cb;
+	struct iommu_set *iommu_group_set;
+	struct iommu_info *iommu_map;
 	struct scm_desc desc = {0};
+	bool is_qciommu = false;
 
 	if (!device)
 		return -EINVAL;
+
+	is_qciommu = device->res->is_qciommu;
 
 	memprot.cp_start = 0x0;
 	memprot.cp_size = 0x0;
 	memprot.cp_nonpixel_start = 0x0;
 	memprot.cp_nonpixel_size = 0x0;
+
+	if (is_qciommu) {
+		iommu_group_set = &device->res->iommu_group_set;
+		if (!iommu_group_set) {
+			dprintk(VIDC_ERR, "invalid params: %pK\n",
+				iommu_group_set);
+			return -EINVAL;
+		}
+
+		for (i = 0; i < iommu_group_set->count; i++) {
+			iommu_map = &iommu_group_set->iommu_maps[i];
+			if (strcmp(iommu_map->name, "venus_ns") == 0)
+				desc.args[1] = memprot.cp_size =
+					iommu_map->addr_range[0].start;
+
+			if (strcmp(iommu_map->name, "venus_sec_non_pixel") == 0) {
+				desc.args[2] = memprot.cp_nonpixel_start =
+					iommu_map->addr_range[0].start;
+				desc.args[3] = memprot.cp_nonpixel_size =
+					iommu_map->addr_range[0].size;
+			} else if (strcmp(iommu_map->name, "venus_cp") == 0) {
+				desc.args[2] = memprot.cp_nonpixel_start =
+					iommu_map->addr_range[1].start;
+			}
+		}
+		goto do_unprotect;
+	}
 
 	list_for_each_entry(cb, &device->res->context_banks, list) {
 		if (!strcmp(cb->name, "venus_ns")) {
@@ -4295,6 +4491,7 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 		}
 	}
 
+do_unprotect:
 	if (!is_scm_armv8()) {
 		rc = scm_call(SCM_SVC_MP, TZBSP_MEM_PROTECT_VIDEO_VAR, &memprot,
 			sizeof(memprot), &resp, sizeof(resp));
@@ -4472,6 +4669,16 @@ static int __venus_power_on(struct venus_hfi_device *device)
 	}
 	__write_register(device, VIDC_WRAPPER_INTR_MASK,
 			VIDC_WRAPPER_INTR_MASK_A2HVCODEC_BMSK);
+
+	if (device->res->is_qciommu) {
+		rc = __qciommu_attach(device);
+		if (rc) {
+			dprintk(VIDC_ERR, "Failed to attach QC \
+				IOMMU after Venus power on\n");
+			goto fail_qciommu_attach;
+		}
+	}
+
 	device->intr_status = 0;
 	enable_irq(device->hal_data->irq);
 
@@ -4486,6 +4693,7 @@ static int __venus_power_on(struct venus_hfi_device *device)
 
 	return rc;
 
+fail_qciommu_attach:
 fail_enable_clks:
 	__disable_regulators(device);
 fail_enable_gdsc:
@@ -4634,6 +4842,15 @@ static int __load_fw(struct venus_hfi_device *device)
 		goto fail_init_res;
 	}
 
+/* WARNING: Done at poweron stage. Not needed.
+	if (device->res->is_qciommu) {
+		rc = __qciommu_attach(device);
+		if (rc) {
+			dprintk(VIDC_ERR, "Failed to attach iommu\n");
+			goto fail_init_res;
+		}
+	}
+*/
 	/* kholk: Legacy SoCs cannot initialize packetization
 	 *        in firmware load path because old bootloader
 	 */

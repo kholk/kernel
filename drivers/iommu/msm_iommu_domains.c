@@ -48,13 +48,12 @@ static DEFINE_IDA(domain_nums);
 void msm_iommu_set_client_name(struct iommu_domain *domain, char const *name)
 {
 	struct msm_iommu_priv *priv = domain->priv;
-
 	priv->client_name = name;
 }
 
-int msm_use_iommu(void)
+int msm_use_iommu()
 {
-	return iommu_present(msm_iommu_non_sec_bus_type);
+	return iommu_present(&platform_bus_type);
 }
 
 bool msm_iommu_page_size_is_supported(unsigned long page_size)
@@ -158,7 +157,6 @@ static int msm_iommu_map_iova_phys(struct iommu_domain *domain,
 {
 	int ret;
 	int prot = IOMMU_WRITE | IOMMU_READ;
-
 	prot |= cached ? IOMMU_CACHE : 0;
 
 	ret = iommu_map(domain, iova, phys, size, prot);
@@ -269,7 +267,6 @@ static int add_domain(struct msm_iova_data *node)
 	mutex_lock(&domain_mutex);
 	while (*p) {
 		struct msm_iova_data *tmp;
-
 		parent = *p;
 
 		tmp = rb_entry(parent, struct msm_iova_data, node);
@@ -345,7 +342,6 @@ EXPORT_SYMBOL(msm_find_domain_no);
 struct iommu_domain *msm_iommu_domain_find(const char *name)
 {
 	struct iommu_group *group = iommu_group_find(name);
-
 	if (!group)
 		return NULL;
 	return iommu_group_get_iommudata(group);
@@ -355,7 +351,6 @@ EXPORT_SYMBOL(msm_iommu_domain_find);
 int msm_iommu_domain_no_find(const char *name)
 {
 	struct iommu_domain *domain = msm_iommu_domain_find(name);
-
 	if (!domain)
 		return -EINVAL;
 	return msm_find_domain_no(domain);
@@ -383,6 +378,21 @@ static struct msm_iova_data *msm_domain_to_iova_data(struct iommu_domain
 	return iova_data;
 }
 
+#ifdef CONFIG_MMU500_ACTIVE_PREFETCH_BUG_WITH_SECTION_MAPPING
+static unsigned long get_alignment_order(unsigned long align)
+{
+	if (align >= SZ_1M && align < SZ_2M)
+		return ilog2(SZ_2M);
+	else
+		return ilog2(align);
+}
+#else
+static unsigned long get_alignment_order(unsigned long align)
+{
+	return ilog2(align);
+}
+#endif
+
 int msm_allocate_iova_address(unsigned int iommu_domain,
 					unsigned int partition_no,
 					unsigned long size,
@@ -392,10 +402,7 @@ int msm_allocate_iova_address(unsigned int iommu_domain,
 	struct msm_iova_data *data;
 	struct mem_pool *pool;
 	unsigned long va;
-	unsigned long pageno;
-	unsigned long nbits = PAGE_ALIGN(size) >> PAGE_SHIFT;
-	int ret;
-
+	unsigned long aligned_order;
 
 	data = find_domain(iommu_domain);
 
@@ -407,25 +414,24 @@ int msm_allocate_iova_address(unsigned int iommu_domain,
 
 	pool = &data->pools[partition_no];
 
-	if (!pool->bitmap)
+	if (!pool->gpool)
 		return -EINVAL;
 
-	ret = -ENOMEM;
-	mutex_lock(&pool->pool_mutex);
-	align = (1 << get_order(align)) - 1;
+	aligned_order = get_alignment_order(align);
 
-	pageno = bitmap_find_next_zero_area(pool->bitmap, pool->nr_pages,
-						0, nbits, align);
-	if (pageno < pool->nr_pages) {
+	mutex_lock(&pool->pool_mutex);
+	va = gen_pool_alloc_aligned(pool->gpool, size, aligned_order);
+	mutex_unlock(&pool->pool_mutex);
+	if (va) {
 		pool->free -= size;
-		bitmap_set(pool->bitmap, pageno, nbits);
-		va = pool->paddr + pageno * PAGE_SIZE;
+		/* Offset because genpool can't handle 0 addresses */
+		if (pool->paddr == 0)
+			va -= SZ_4K;
 		*iova = va;
-		ret = 0;
+		return 0;
 	}
 
-	mutex_unlock(&pool->pool_mutex);
-	return ret;
+	return -ENOMEM;
 }
 
 void msm_free_iova_address(unsigned long iova,
@@ -456,9 +462,12 @@ void msm_free_iova_address(unsigned long iova,
 
 	pool->free += size;
 
+	/* Offset because genpool can't handle 0 addresses */
+	if (pool->paddr == 0)
+		iova += SZ_4K;
+
 	mutex_lock(&pool->pool_mutex);
-	bitmap_clear(pool->bitmap, (iova - pool->paddr) >> PAGE_SHIFT,
-				PAGE_ALIGN(size) >> PAGE_SHIFT);
+	gen_pool_free(pool->gpool, iova, size);
 	mutex_unlock(&pool->pool_mutex);
 }
 
@@ -478,7 +487,7 @@ int msm_register_domain(struct msm_iova_layout *layout)
 	if (!data)
 		return -ENOMEM;
 
-	pools = kcalloc(layout->npartitions, sizeof(struct mem_pool),
+	pools = kzalloc(sizeof(struct mem_pool) * layout->npartitions,
 			GFP_KERNEL);
 
 	if (!pools)
@@ -488,21 +497,36 @@ int msm_register_domain(struct msm_iova_layout *layout)
 		if (layout->partitions[i].size == 0)
 			continue;
 
+		pools[i].gpool = gen_pool_create(PAGE_SHIFT, -1);
+
+		if (!pools[i].gpool)
+			continue;
+
 		pools[i].paddr = layout->partitions[i].start;
 		pools[i].size = layout->partitions[i].size;
 		mutex_init(&pools[i].pool_mutex);
-		pools[i].nr_pages = PAGE_ALIGN(layout->partitions[i].size)
-					>> PAGE_SHIFT;
-		pools[i].bitmap = kzalloc(
-				BITS_TO_LONGS(pools[i].nr_pages) * sizeof(long),
-					GFP_KERNEL);
-		if (!pools[i].bitmap)
+
+		/*
+		 * genalloc can't handle a pool starting at address 0.
+		 * For now, solve this problem by offsetting the value
+		 * put in by 4k.
+		 * gen pool address = actual address + 4k
+		 */
+		if (pools[i].paddr == 0)
+			layout->partitions[i].start += SZ_4K;
+
+		if (gen_pool_add(pools[i].gpool,
+			layout->partitions[i].start,
+			layout->partitions[i].size, -1)) {
+			gen_pool_destroy(pools[i].gpool);
+			pools[i].gpool = NULL;
 			continue;
+		}
 	}
 
 	bus = layout->is_secure == MSM_IOMMU_DOMAIN_SECURE ?
 					&msm_iommu_sec_bus_type :
-					msm_iommu_non_sec_bus_type;
+					&platform_bus_type;
 
 	data->pools = pools;
 	data->npools = layout->npartitions;
@@ -528,8 +552,10 @@ free_domain_num:
 	ida_simple_remove(&domain_nums, data->domain_num);
 
 free_pools:
-	for (i = 0; i < layout->npartitions; i++)
-		kfree(pools[i].bitmap);
+	for (i = 0; i < layout->npartitions; i++) {
+		if (pools[i].gpool)
+			gen_pool_destroy(pools[i].gpool);
+	}
 	kfree(pools);
 free_data:
 	kfree(data);
@@ -558,7 +584,8 @@ int msm_unregister_domain(struct iommu_domain *domain)
 	ida_simple_remove(&domain_nums, data->domain_num);
 
 	for (i = 0; i < data->npools; ++i)
-		kfree(data->pools[i].bitmap);
+		if (data->pools[i].gpool)
+			gen_pool_destroy(data->pools[i].gpool);
 
 	kfree(data->pools);
 	kfree(data);
@@ -631,6 +658,8 @@ static int create_and_add_domain(struct iommu_group *group,
 		}
 		addr_array = kmalloc(array_size, GFP_KERNEL);
 		if (!addr_array) {
+			pr_err("%s: could not allocate space for partition",
+				__func__);
 			ret_val = -ENOMEM;
 			goto free_mem;
 		}
@@ -732,7 +761,6 @@ static int iommu_domain_parse_dt(const struct device_node *dt_node)
 	struct msm_iommu_data_entry *grp_list_entry;
 	struct msm_iommu_data_entry *tmp;
 	struct list_head iommu_group_list;
-
 	INIT_LIST_HEAD(&iommu_group_list);
 
 	for_each_child_of_node(dt_node, node) {
@@ -768,9 +796,9 @@ static int iommu_domain_parse_dt(const struct device_node *dt_node)
 		num_contexts = sz / sizeof(unsigned int);
 
 		ret_val = find_and_add_contexts(group, node, num_contexts);
-		if (ret_val)
+		if (ret_val) {
 			goto free_group;
-
+		}
 		ret_val = create_and_add_domain(group, node, name);
 		if (ret_val) {
 			ret_val = -EINVAL;
@@ -894,7 +922,6 @@ static struct platform_driver iommu_domain_driver = {
 static int __init msm_subsystem_iommu_init(void)
 {
 	int ret;
-
 	ret = platform_driver_register(&iommu_domain_driver);
 	if (ret != 0)
 		pr_err("Failed to register IOMMU domain driver\n");
@@ -908,3 +935,4 @@ static void __exit msm_subsystem_iommu_exit(void)
 
 device_initcall(msm_subsystem_iommu_init);
 module_exit(msm_subsystem_iommu_exit);
+

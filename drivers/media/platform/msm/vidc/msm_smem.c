@@ -784,7 +784,7 @@ int msm_smem_get_domain_partition(void *clt, u32 flags, enum hal_buffer
 			}
 		}
 	}
-	dprintk(VIDC_DBG, "domain: %d, partition: %d found!\n",
+	dprintk(VIDC_ERR, "domain: %d, partition: %d found!\n",
 			*domain_num, *partition_num);
 	return 0;
 }
