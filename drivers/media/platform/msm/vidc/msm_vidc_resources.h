@@ -221,6 +221,10 @@ struct msm_vidc_platform_resources {
 
 static inline bool is_iommu_present(struct msm_vidc_platform_resources *res)
 {
+	if (res->is_qciommu)
+		return (res->iommu_group_set.count > 0 &&
+				res->iommu_group_set.iommu_maps != NULL);
+
 	return !list_empty(&res->context_banks);
 }
 
