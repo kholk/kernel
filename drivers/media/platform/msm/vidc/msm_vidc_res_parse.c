@@ -1215,6 +1215,9 @@ int read_platform_resources_from_dt(
 		goto err_load_max_hw_load;
 	}
 
+	res->is_qciommu = of_property_read_bool(pdev->dev.of_node,
+			"qcom,uses-qc-iommu");
+
 	rc = msm_vidc_populate_legacy_context_bank(res);
 	if (rc) {
 		dprintk(VIDC_ERR,
@@ -1522,7 +1525,12 @@ static int msm_vidc_populate_legacy_context_bank(
 	struct device_node *domains_parent_node = NULL;
 	struct device_node *domains_child_node = NULL;
 	struct device_node *ctx_node = NULL;
+	struct iommu_set *iommu_group_set = NULL;
+	struct iommu_info *iommu_map;
 	struct context_bank_info *cb;
+	int domain_idx = 0;
+	int array_size = 0;
+	bool is_qciommu = false;
 
 	if (!res || !res->pdev) {
 		dprintk(VIDC_ERR, "%s - invalid inputs\n", __func__);
@@ -1536,6 +1544,32 @@ static int msm_vidc_populate_legacy_context_bank(
 		dprintk(VIDC_DBG,
 			"%s legacy iommu domains not present\n", __func__);
 		return 0;
+	}
+
+	is_qciommu = res->is_qciommu;
+	if (is_qciommu) {
+		iommu_group_set = &res->iommu_group_set;
+		iommu_group_set->count = 0;
+
+		for_each_child_of_node(domains_parent_node,
+					domains_child_node) {
+			iommu_group_set->count++;
+		}
+
+		if (iommu_group_set->count == 0) {
+			dprintk(VIDC_ERR, "No IOMMU groups in IOMMU domains\n");
+			return -ENOENT;
+		}
+
+		iommu_group_set->iommu_maps = devm_kzalloc(&pdev->dev,
+				iommu_group_set->count *
+				sizeof(*iommu_group_set->iommu_maps),
+				GFP_KERNEL);
+
+		if (!iommu_group_set->iommu_maps) {
+			dprintk(VIDC_ERR, "Unable to allocate maps memory\n");
+			return -ENOMEM;
+		}
 	}
 
 	/* set up each context bank for legacy DT bindings*/
@@ -1600,15 +1634,104 @@ static int msm_vidc_populate_legacy_context_bank(
 			dprintk(VIDC_ERR, "Cannot setup context bank %d\n", rc);
 			goto err_setup_cb;
 		}
+
 		dprintk(VIDC_DBG,
 			"%s: context bank %s secure %d addr start = %#x addr size = %#x buffer_type = %#x\n",
 			__func__, cb->name, cb->is_secure, cb->addr_range.start,
 			cb->addr_range.size, cb->buffer_type);
 	}
+
+	if (!is_qciommu)
+		goto ret;
+
+	/* Set up context banks for legacy QC IOMMU v1/v2 */
+	for_each_child_of_node(domains_parent_node, domains_child_node) {
+		ctx_node = of_parse_phandle(domains_child_node,
+				"qcom,vidc-domain-phandle", 0);
+
+		if (domain_idx >= iommu_group_set->count)
+			break;
+
+		iommu_map = &iommu_group_set->iommu_maps[domain_idx];
+		if (!ctx_node) {
+			dprintk(VIDC_ERR, "Unable to parse pHandle\n");
+			rc = -EBADHANDLE;
+			goto err_load_groups;
+		}
+
+		/* domain info from domains.dtsi */
+		rc = of_property_read_string(ctx_node, "label",
+				&(iommu_map->name));
+		if (rc) {
+			dprintk(VIDC_ERR, "Could not find label property\n");
+			goto err_load_groups;
+		}
+
+		dprintk(VIDC_DBG,
+				"domain %d has name %s\n",
+				domain_idx,
+				iommu_map->name);
+
+		if (!of_get_property(ctx_node, "qcom,virtual-addr-pool",
+				&array_size)) {
+			dprintk(VIDC_ERR,
+				"Could not find any addr pool for group : %s\n",
+				iommu_map->name);
+			rc = -EBADHANDLE;
+			goto err_load_groups;
+		}
+
+		iommu_map->npartitions = array_size / sizeof(u32) / 2;
+
+		dprintk(VIDC_DBG,
+				"%d partitions in domain %d",
+				iommu_map->npartitions,
+				domain_idx);
+
+		rc = of_property_read_u32_array(ctx_node,
+				"qcom,virtual-addr-pool",
+				(u32 *)iommu_map->addr_range,
+				iommu_map->npartitions * 2);
+		if (rc) {
+			dprintk(VIDC_ERR,
+				"Could not read addr pool for group : %s (%d)\n",
+				iommu_map->name,
+				rc);
+			goto err_load_groups;
+		}
+
+		iommu_map->is_secure =
+			of_property_read_bool(ctx_node,	"qcom,secure-domain");
+
+		dprintk(VIDC_DBG,
+				"domain %s : secure = %d\n",
+				iommu_map->name,
+				iommu_map->is_secure);
+
+		/* setup partitions and buffer type per partition */
+		rc = of_property_read_u32_array(domains_child_node,
+				"qcom,vidc-buffer-types",
+				iommu_map->buffer_type,
+				iommu_map->npartitions);
+
+		if (rc) {
+			dprintk(VIDC_ERR,
+					"cannot load partition buffertype information (%d)\n",
+					rc);
+			rc = -ENOENT;
+			goto err_load_groups;
+		}
+		domain_idx++;
+	}
+ret:
 	return rc;
 
 err_setup_cb:
 	list_del(&cb->list);
+	return rc;
+
+err_load_groups:
+	res->iommu_group_set.iommu_maps = NULL;
 	return rc;
 }
 

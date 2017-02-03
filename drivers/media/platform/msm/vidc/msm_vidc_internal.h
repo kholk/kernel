@@ -371,4 +371,8 @@ bool msm_smem_compare_buffers(void *clt, int fd, void *priv);
 /* XXX: normally should be in msm_vidc.h, but that's meant for public APIs,
  * whereas this is private */
 int msm_vidc_destroy(struct msm_vidc_inst *inst);
+
+/* QC IOMMU support */
+int msm_smem_get_domain_partition(void *clt, u32 flags, enum hal_buffer
+		buffer_type, int *domain_num, int *partition_num);
 #endif

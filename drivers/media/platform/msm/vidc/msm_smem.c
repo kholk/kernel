@@ -17,6 +17,7 @@
 #include <linux/dma-direction.h>
 #include <linux/iommu.h>
 #include <linux/msm_dma_iommu_mapping.h>
+#include <linux/msm_iommu_domains.h>
 #include <linux/msm_ion.h>
 #include <linux/slab.h>
 #include <linux/types.h>
@@ -43,6 +44,9 @@ static int get_device_address(struct smem_client *smem_client,
 	struct dma_buf_attachment *attach;
 	struct sg_table *table = NULL;
 	struct context_bank_info *cb = NULL;
+	int domain, partition;
+	int iommu_present = 0;
+	bool is_qciommu = false;
 
 	if (!iova || !buffer_size || !hndl || !smem_client || !mapping_info) {
 		dprintk(VIDC_ERR, "Invalid params: %pK, %pK, %pK, %pK\n",
@@ -56,7 +60,21 @@ static int get_device_address(struct smem_client *smem_client,
 		return -EINVAL;
 	}
 
-	if (is_iommu_present(smem_client->res)) {
+	iommu_present = is_iommu_present(smem_client->res);
+	is_qciommu = smem_client->res->is_qciommu;
+
+	if (iommu_present && is_qciommu) {
+		rc = msm_smem_get_domain_partition(smem_client, flags,
+			buffer_type, &domain, &partition);
+		if (rc) {
+			dprintk(VIDC_ERR,
+				"Cannot get domain and partition: %d\n", rc);
+			goto mem_map_failed;
+		}
+	}
+
+
+	if (iommu_present && !is_qciommu) {
 		cb = msm_smem_get_context_bank(smem_client, flags & SMEM_SECURE,
 				buffer_type);
 		if (!cb) {
@@ -128,13 +146,21 @@ static int get_device_address(struct smem_client *smem_client,
 
 		trace_msm_smem_buffer_iommu_op_end("MAP", 0, 0,
 			align, *iova, *buffer_size);
+	} else if (iommu_present && is_qciommu) {
+		trace_msm_smem_buffer_iommu_op_start("MAP", domain, partition,
+			align, *iova, *buffer_size);
+		rc = ion_map_iommu(clnt, hndl, domain, partition, align,
+				0, iova, buffer_size, 0, 0);
+		trace_msm_smem_buffer_iommu_op_end("MAP", domain, partition,
+			align, *iova, *buffer_size);
 	} else {
 		dprintk(VIDC_DBG, "Using physical memory address\n");
 		rc = ion_phys(clnt, hndl, iova, (size_t *)buffer_size);
-		if (rc) {
-			dprintk(VIDC_ERR, "ion memory map failed - %d\n", rc);
-			goto mem_map_failed;
-		}
+	}
+
+	if (rc) {
+		dprintk(VIDC_ERR, "ion memory map failed - %d\n", rc);
+		goto mem_map_failed;
 	}
 
 	dprintk(VIDC_DBG, "mapped ion handle %pK to %pa\n", hndl, iova);
@@ -152,18 +178,28 @@ mem_map_failed:
 static void put_device_address(struct smem_client *smem_client,
 	struct ion_handle *hndl, u32 flags,
 	struct dma_mapping_info *mapping_info,
+	int domain_num, int partition_num,
 	enum hal_buffer buffer_type)
 {
 	struct ion_client *clnt = NULL;
+	bool is_qciommu = false;
 
-	if (!hndl || !smem_client || !mapping_info) {
+	if (!hndl || !smem_client) {
 		dprintk(VIDC_WARN, "Invalid params: %pK, %pK\n",
 				smem_client, hndl);
 		return;
 	}
 
-	if (!mapping_info->dev || !mapping_info->table ||
-		!mapping_info->buf || !mapping_info->attach) {
+	is_qciommu = smem_client->res->is_qciommu;
+
+	if (!mapping_info && !is_qciommu) {
+		dprintk(VIDC_WARN, "ERR: No DMA Mapping informations!!\n");
+		return;
+	}
+
+	if (!is_qciommu &&
+		(!mapping_info->dev || !mapping_info->table ||
+		!mapping_info->buf || !mapping_info->attach)) {
 			dprintk(VIDC_WARN, "Invalid params:\n");
 			return;
 	}
@@ -182,13 +218,17 @@ static void put_device_address(struct smem_client *smem_client,
 			mapping_info->attach);
 
 		trace_msm_smem_buffer_iommu_op_start("UNMAP", 0, 0, 0, 0, 0);
-		msm_dma_unmap_sg(mapping_info->dev, mapping_info->table->sgl,
-			mapping_info->table->nents, DMA_BIDIRECTIONAL,
-			mapping_info->buf);
-		dma_buf_unmap_attachment(mapping_info->attach,
-			mapping_info->table, DMA_BIDIRECTIONAL);
-		dma_buf_detach(mapping_info->buf, mapping_info->attach);
-		dma_buf_put(mapping_info->buf);
+		if (is_qciommu) {
+			ion_unmap_iommu(clnt, hndl, domain_num, partition_num);
+		} else {
+			msm_dma_unmap_sg(mapping_info->dev, mapping_info->table->sgl,
+				mapping_info->table->nents, DMA_BIDIRECTIONAL,
+				mapping_info->buf);
+			dma_buf_unmap_attachment(mapping_info->attach,
+				mapping_info->table, DMA_BIDIRECTIONAL);
+			dma_buf_detach(mapping_info->buf, mapping_info->attach);
+			dma_buf_put(mapping_info->buf);
+		};
 		trace_msm_smem_buffer_iommu_op_end("UNMAP", 0, 0, 0, 0, 0);
 	}
 }
@@ -392,14 +432,32 @@ fail_shared_mem_alloc:
 
 static void free_ion_mem(struct smem_client *client, struct msm_smem *mem)
 {
+	int domain, partition, rc;
+	bool is_qciommu = client->res->is_qciommu;
+
 	dprintk(VIDC_DBG,
 		"%s: ion_handle = %pK, device_addr = %pa, size = %#zx, kvaddr = %pK, buffer_type = %#x\n",
 		__func__, mem->smem_priv, &mem->device_addr,
 		mem->size, mem->kvaddr, mem->buffer_type);
 
-	if (mem->device_addr)
-		put_device_address(client, mem->smem_priv, mem->flags,
-			&mem->mapping_info, mem->buffer_type);
+	if (is_qciommu) {
+		rc = msm_smem_get_domain_partition((void *)client, mem->flags,
+				mem->buffer_type, &domain, &partition);
+		if (rc) {
+			dprintk(VIDC_ERR,
+				"Failed to get domain, partition: %d\n", rc);
+			return;
+		}
+	}
+
+	if (mem->device_addr) {
+		if (is_qciommu)
+			put_device_address(client, mem->smem_priv, mem->flags,
+				NULL, domain, partition, mem->buffer_type);
+		else
+			put_device_address(client, mem->smem_priv, mem->flags,
+				&mem->mapping_info, 0, 0, mem->buffer_type);
+	}
 
 	if (mem->kvaddr)
 		ion_unmap_kernel(client->clnt, mem->smem_priv);
@@ -691,4 +749,42 @@ struct context_bank_info *msm_smem_get_context_bank(void *clt,
 	}
 
 	return match;
+}
+
+int msm_smem_get_domain_partition(void *clt, u32 flags, enum hal_buffer
+		buffer_type, int *domain_num, int *partition_num)
+{
+	struct smem_client *client = clt;
+	struct iommu_set *iommu_group_set = &client->res->iommu_group_set;
+	int i;
+	int j;
+	bool is_secure = (flags & SMEM_SECURE);
+	struct iommu_info *iommu_map;
+	if (!domain_num || !partition_num) {
+		dprintk(VIDC_DBG, "passed null to get domain partition!\n");
+		return -EINVAL;
+	}
+
+	*domain_num = -1;
+	*partition_num = -1;
+	if (!iommu_group_set) {
+		dprintk(VIDC_DBG, "no iommu group set present!\n");
+		return -ENOENT;
+	}
+
+	for (i = 0; i < iommu_group_set->count; i++) {
+		iommu_map = &iommu_group_set->iommu_maps[i];
+		if (iommu_map->is_secure == is_secure) {
+			for (j = 0; j < iommu_map->npartitions; j++) {
+				if (iommu_map->buffer_type[j] & buffer_type) {
+					*domain_num = iommu_map->domain;
+					*partition_num = j;
+					break;
+				}
+			}
+		}
+	}
+	dprintk(VIDC_DBG, "domain: %d, partition: %d found!\n",
+			*domain_num, *partition_num);
+	return 0;
 }

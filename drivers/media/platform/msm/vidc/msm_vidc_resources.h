@@ -160,6 +160,21 @@ struct clock_freq_table {
 	u32 count;
 };
 
+struct iommu_info {
+	const char *name;
+	u32 buffer_type[MAX_BUFFER_TYPES];
+	struct iommu_group *group;
+	int domain;
+	bool is_secure;
+	struct addr_range addr_range[MAX_BUFFER_TYPES];
+	int npartitions;
+};
+
+struct iommu_set {
+	struct iommu_info *iommu_maps;
+	u32 count;
+};
+
 struct msm_vidc_platform_resources {
 	phys_addr_t firmware_base;
 	phys_addr_t register_base;
@@ -178,6 +193,7 @@ struct msm_vidc_platform_resources {
 	u32 imem_ab_tbl_size;
 	struct reg_set reg_set;
 	struct addr_set qdss_addr_set;
+	struct iommu_set iommu_group_set;
 	struct buffer_usage_set buffer_usage_set;
 	uint32_t imem_size;
 	enum imem_type imem_type;
@@ -200,6 +216,7 @@ struct msm_vidc_platform_resources {
 	uint32_t pm_qos_latency_us;
 	uint32_t max_inst_count;
 	uint32_t max_secure_inst_count;
+	bool is_qciommu;
 };
 
 static inline bool is_iommu_present(struct msm_vidc_platform_resources *res)
