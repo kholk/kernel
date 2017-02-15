@@ -264,6 +264,62 @@ static int32_t msm_vfe40_init_vbif_parms(struct vfe_device *vfe_dev,
 	return 0;
 }
 
+void __iomem *msm_camera_get_reg_base(struct platform_device *pdev,
+		char *device_name, int reserve_mem)
+{
+	struct resource *mem;
+	void *base;
+
+	if (!pdev || !device_name) {
+		pr_err("Invalid params\n");
+		return NULL;
+	}
+
+	CDBG("device name :%s\n", device_name);
+	mem = platform_get_resource_byname(pdev,
+			IORESOURCE_MEM, device_name);
+	if (!mem) {
+		pr_err("err: mem resource %s not found\n", device_name);
+		return NULL;
+	}
+
+	if (reserve_mem) {
+		CDBG("device:%pK, mem : %pK, size : %d\n",
+			&pdev->dev, mem, (int)resource_size(mem));
+		if (!devm_request_mem_region(&pdev->dev, mem->start,
+			resource_size(mem),
+			device_name)) {
+			pr_err("err: no valid mem region for device:%s\n",
+				device_name);
+			return NULL;
+		}
+	}
+
+	base = devm_ioremap(&pdev->dev, mem->start, resource_size(mem));
+	if (!base) {
+		devm_release_mem_region(&pdev->dev, mem->start,
+				resource_size(mem));
+		pr_err("err: ioremap failed: %s\n", device_name);
+		return NULL;
+	}
+
+	CDBG("base : %pK\n", base);
+	return base;
+}
+
+struct resource *msm_camera_get_irq(struct platform_device *pdev,
+							char *irq_name)
+{
+	if (!pdev || !irq_name) {
+		pr_err("Invalid params\n");
+		return NULL;
+	}
+
+	CDBG("Get irq for %s\n", irq_name);
+	return platform_get_resource_byname(pdev, IORESOURCE_IRQ, irq_name);
+}
+EXPORT_SYMBOL(msm_camera_get_irq);
+
 static int msm_vfe40_init_hardware(struct vfe_device *vfe_dev)
 {
 	int rc = -1;
@@ -304,8 +360,9 @@ static int msm_vfe40_init_hardware(struct vfe_device *vfe_dev)
 	if (rc < 0)
 		goto clk_enable_failed;
 
-	vfe_dev->vfe_base = ioremap(vfe_dev->vfe_mem->start,
-		resource_size(vfe_dev->vfe_mem));
+	//vfe_dev->vfe_base = ioremap(vfe_dev->vfe_mem->start,
+	//	resource_size(vfe_dev->vfe_mem));
+	vfe_dev->vfe_base = msm_camera_get_reg_base(vfe_dev->pdev, "vfe", 0);
 	if (!vfe_dev->vfe_base) {
 		rc = -ENOMEM;
 		pr_err("%s: vfe ioremap failed\n", __func__);
@@ -315,16 +372,19 @@ static int msm_vfe40_init_hardware(struct vfe_device *vfe_dev)
 		vfe_dev->vfe_base;
 	vfe_dev->common_data->dual_vfe_res->vfe_dev[vfe_dev->pdev->id] = vfe_dev;
 
-	vfe_dev->vfe_vbif_base = ioremap(vfe_dev->vfe_vbif_mem->start,
-		resource_size(vfe_dev->vfe_vbif_mem));
+	//vfe_dev->vfe_vbif_base = ioremap(vfe_dev->vfe_vbif_mem->start,
+	//	resource_size(vfe_dev->vfe_vbif_mem));
+	vfe_dev->vfe_vbif_base = msm_camera_get_reg_base(vfe_dev->pdev,
+					"vfe_vbif", 0);
 	if (!vfe_dev->vfe_vbif_base) {
 		rc = -ENOMEM;
 		pr_err("%s: vfe ioremap failed\n", __func__);
 		goto vbif_remap_failed;
 	}
 
-	rc = request_irq(vfe_dev->vfe_irq->start, msm_isp_process_irq,
-		IRQF_TRIGGER_RISING, "vfe", vfe_dev);
+//	rc = request_irq(vfe_dev->vfe_irq->start, msm_isp_process_irq,
+//		IRQF_TRIGGER_RISING, "vfe", vfe_dev);
+	vfe_dev->vfe_irq = msm_camera_get_irq(vfe_dev->pdev, "vfe");
 	if (rc < 0) {
 		pr_err("%s: irq request failed\n", __func__);
 		goto irq_req_failed;
@@ -2147,22 +2207,60 @@ static uint32_t msm_vfe40_stats_get_frame_id(
 {
 	return vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id;
 }
+/*
+int msm_vfe40_get_regulators(struct vfe_device *vfe_dev)
+{
+	int rc = 0;
+	int i;
+
+	vfe_dev->vfe_num_regulators =
+		sizeof(*vfe_dev->hw_info->regulator_names) / sizeof(char *);
+
+	vfe_dev->regulator_info = kzalloc(sizeof(struct msm_cam_regulator) *
+				vfe_dev->vfe_num_regulators, GFP_KERNEL);
+	if (!vfe_dev->regulator_info)
+		return -ENOMEM;
+
+	for (i = 0; i < vfe_dev->vfe_num_regulators; i++) {
+		vfe_dev->regulator_info[i].vdd = regulator_get(
+					&vfe_dev->pdev->dev,
+					vfe_dev->hw_info->regulator_names[i]);
+		if (IS_ERR(vfe_dev->regulator_info[i].vdd)) {
+			pr_err("%s: Regulator vfe get failed %ld\n", __func__,
+			PTR_ERR(vfe_dev->regulator_info[i].vdd));
+			rc = -ENODEV;
+			goto reg_get_fail;
+		}
+	}
+	return 0;
+
+reg_get_fail:
+	for (i--; i >= 0; i--)
+		regulator_put(vfe_dev->regulator_info[i].vdd);
+	kfree(vfe_dev->regulator_info);
+	vfe_dev->regulator_info = NULL;
+	return rc;
+}
+*/
 
 static int msm_vfe40_get_platform_data(struct vfe_device *vfe_dev)
 {
 	int rc = 0;
-	vfe_dev->vfe_mem = platform_get_resource_byname(vfe_dev->pdev,
-		IORESOURCE_MEM, "vfe");
-	if (!vfe_dev->vfe_mem) {
+	//vfe_dev->vfe_mem = platform_get_resource_byname(vfe_dev->pdev,
+	//	IORESOURCE_MEM, "vfe");
+	vfe_dev->vfe_base = msm_camera_get_reg_base(vfe_dev->pdev, "vfe", 0);
+	if (!vfe_dev->vfe_base) {
 		pr_err("%s: no mem resource?\n", __func__);
 		rc = -ENODEV;
 		goto vfe_no_resource;
 	}
 
-	vfe_dev->vfe_vbif_mem = platform_get_resource_byname(
-		vfe_dev->pdev,
-		IORESOURCE_MEM, "vfe_vbif");
-	if (!vfe_dev->vfe_vbif_mem) {
+//	vfe_dev->vfe_vbif_mem = platform_get_resource_byname(
+//		vfe_dev->pdev,
+//		IORESOURCE_MEM, "vfe_vbif");
+	vfe_dev->vfe_vbif_base = msm_camera_get_reg_base(vfe_dev->pdev,
+					"vfe_vbif", 0);
+	if (!vfe_dev->vfe_vbif_base) {
 		pr_err("%s: no mem resource?\n", __func__);
 		rc = -ENODEV;
 		goto vfe_no_resource;
@@ -2172,8 +2270,8 @@ static int msm_vfe40_get_platform_data(struct vfe_device *vfe_dev)
 		IORESOURCE_IRQ, "vfe");
 	if (!vfe_dev->vfe_irq) {
 		pr_err("%s: no irq resource?\n", __func__);
-		rc = -ENODEV;
-		goto vfe_no_resource;
+//		rc = -ENODEV;
+//		goto vfe_no_resource;
 	}
 
 	vfe_dev->fs_vfe = regulator_get(&vfe_dev->pdev->dev, "vdd");
@@ -2185,6 +2283,11 @@ static int msm_vfe40_get_platform_data(struct vfe_device *vfe_dev)
 		goto vfe_no_resource;
 	}
 
+/*
+	rc = msm_vfe40_get_regulators(&vfe_dev);
+	if (IS_ERR(rc))
+		goto vfe_no_resource;
+*/
 vfe_no_resource:
 	return rc;
 }
@@ -2339,6 +2442,7 @@ struct msm_vfe_hardware_info vfe40_hw_info = {
 	.dmi_reg_offset = 0x918,
 	.axi_hw_info = &msm_vfe40_axi_hw_info,
 	.stats_hw_info = &msm_vfe40_stats_hw_info,
+	//.regulator_names = {"vdd"},
 };
 EXPORT_SYMBOL(vfe40_hw_info);
 
