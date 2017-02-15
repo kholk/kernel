@@ -12,9 +12,6 @@
 #ifndef __MSMB_ISP__
 #define __MSMB_ISP__
 
-#ifdef CONFIG_MSMB_CAMERA_LEGACY
-#include <uapi/media/msmb_isp_legacy.h>
-#else
 #include <uapi/media/msmb_isp.h>
 
 
@@ -32,7 +29,6 @@ struct msm_isp_event_data32 {
 		struct msm_isp_sof_info sof_info;
 	} u;
 };
-#endif
 #endif
 
 #endif
