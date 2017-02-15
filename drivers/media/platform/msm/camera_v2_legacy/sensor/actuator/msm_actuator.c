@@ -493,7 +493,7 @@ static int32_t msm_actuator_vcm2_init_focus(struct msm_actuator_ctrl_t *a_ctrl,
 					reg_setting->reg_data_size = (cnt - i * I2C_SEQ_WRITE_MAX > I2C_SEQ_WRITE_MAX) ?
 								     I2C_SEQ_WRITE_MAX : (cnt - i * I2C_SEQ_WRITE_MAX);
 					for (j = 0; j < reg_setting->reg_data_size; j += settings[idx++].data_type) {
-						if (settings[idx].data_type == MSM_ACTUATOR_BYTE_DATA) {
+						if (settings[idx].data_type == 1) {
 							reg_setting->reg_data[j] = (uint8_t)settings[idx].reg_data;
 						} else {
 							reg_setting->reg_data[j] = (uint8_t)(settings[idx].reg_data >> 8);

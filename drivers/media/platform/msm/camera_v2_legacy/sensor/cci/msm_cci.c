@@ -1224,10 +1224,10 @@ static int32_t msm_cci_init(struct v4l2_subdev *sd,
 			mutex_lock(&cci_dev->cci_master_info[master].mutex);
 			flush_workqueue(cci_dev->write_wq[master]);
 			/* Re-initialize the completion */
-			INIT_COMPLETION(cci_dev->
+			init_completion(&cci_dev->
 				cci_master_info[master].reset_complete);
 			for (i = 0; i < NUM_QUEUES; i++)
-				INIT_COMPLETION(cci_dev->
+				init_completion(&cci_dev->
 					cci_master_info[master].report_q[i]);
 			/* Set reset pending flag to TRUE */
 			cci_dev->cci_master_info[master].reset_pending = TRUE;
@@ -1298,9 +1298,9 @@ static int32_t msm_cci_init(struct v4l2_subdev *sd,
 		goto clk_enable_failed;
 	}
 	/* Re-initialize the completion */
-	INIT_COMPLETION(cci_dev->cci_master_info[master].reset_complete);
+	init_completion(&cci_dev->cci_master_info[master].reset_complete);
 	for (i = 0; i < NUM_QUEUES; i++)
-		INIT_COMPLETION(cci_dev->cci_master_info[master].report_q[i]);
+		init_completion(&cci_dev->cci_master_info[master].report_q[i]);
 	enable_irq(cci_dev->irq->start);
 	cci_dev->hw_version = msm_camera_io_r_mb(cci_dev->base +
 		CCI_HW_VERSION_ADDR);
