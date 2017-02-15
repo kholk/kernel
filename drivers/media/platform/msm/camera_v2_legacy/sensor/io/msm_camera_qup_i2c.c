@@ -258,10 +258,6 @@ int32_t msm_camera_qup_i2c_write_word_addr_byte_data_batch(
 	int batch_size = client->batch_size;
 
 	for (i = 0; i < batch_size; i++) {
-		S_I2C_DBG("%s reg addr = 0x%x data type: %d\n",
-			__func__, reg_setting->addr,
-			MSM_CAMERA_I2C_BYTE_DATA);
-
 		buf[i][0] = reg_setting->reg_addr >> BITS_PER_BYTE;
 		buf[i][1] = reg_setting->reg_addr;
 
@@ -294,9 +290,6 @@ int32_t msm_camera_qup_i2c_write_word_addr_word_data_batch(
 	int batch_size = client->batch_size;
 
 	for (i = 0; i < batch_size; i++) {
-		S_I2C_DBG("%s reg addr = 0x%x data type: %d\n",
-			__func__, reg_setting->addr,
-			MSM_CAMERA_I2C_BYTE_DATA);
 
 		buf[i][0] = reg_setting->reg_addr >> BITS_PER_BYTE;
 		buf[i][1] = reg_setting->reg_addr;
@@ -310,8 +303,8 @@ int32_t msm_camera_qup_i2c_write_word_addr_word_data_batch(
 		buf[i][2] = reg_setting->reg_data >> BITS_PER_BYTE;
 		buf[i][3] = reg_setting->reg_data;
 
-		S_I2C_DBG("Byte %d: 0x%x\n", len+2, buf[len+2]);
-		S_I2C_DBG("Byte %d: 0x%x\n", len+3, buf[len+3]);
+		S_I2C_DBG("Byte %d: 0x%x\n", len+2, buf[i][len+2]);
+		S_I2C_DBG("Byte %d: 0x%x\n", len+3, buf[i][len+3]);
 
 		len = 4;
 		reg_setting++;
@@ -333,10 +326,6 @@ int32_t msm_camera_qup_i2c_write_byte_addr_word_data_batch(
 	int batch_size = client->batch_size;
 
 	for (i = 0; i < batch_size; i++) {
-		S_I2C_DBG("%s reg addr = 0x%x data type: %d\n",
-			__func__, reg_setting->addr,
-			MSM_CAMERA_I2C_BYTE_DATA);
-
 		buf[i][0] = reg_setting->reg_addr;
 		S_I2C_DBG("%s byte %d: 0x%x\n", __func__,
 			len, buf[i][len]);
@@ -345,8 +334,8 @@ int32_t msm_camera_qup_i2c_write_byte_addr_word_data_batch(
 		buf[i][1] = reg_setting->reg_data >> BITS_PER_BYTE;
 		buf[i][2] = reg_setting->reg_data;
 
-		S_I2C_DBG("Byte %d: 0x%x\n", len+1, buf[len+1]);
-		S_I2C_DBG("Byte %d: 0x%x\n", len+2, buf[len+2]);
+		S_I2C_DBG("Byte %d: 0x%x\n", len+1, buf[i][len+1]);
+		S_I2C_DBG("Byte %d: 0x%x\n", len+2, buf[i][len+2]);
 
 		len = 3;
 		reg_setting++;
@@ -368,10 +357,6 @@ int32_t msm_camera_qup_i2c_write_byte_addr_byte_data_batch(
 	int batch_size = client->batch_size;
 
 	for (i = 0; i < batch_size; i++) {
-		S_I2C_DBG("%s reg addr = 0x%x data type: %d\n",
-			__func__, reg_setting->addr,
-			MSM_CAMERA_I2C_BYTE_DATA);
-
 		buf[i][0] = reg_setting->reg_addr;
 
 		S_I2C_DBG("%s byte %d: 0x%x\n", __func__,

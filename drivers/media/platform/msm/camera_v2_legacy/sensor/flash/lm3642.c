@@ -17,7 +17,7 @@
 
 #define FLASH_NAME "ti,lm3642"
 
-#define CONFIG_MSMB_CAMERA_DEBUG
+//#define CONFIG_MSMB_CAMERA_DEBUG
 #ifdef CONFIG_MSMB_CAMERA_DEBUG
 #define LM3642_DBG(fmt, args...) pr_err(fmt, ##args)
 #else
