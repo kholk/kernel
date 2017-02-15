@@ -854,7 +854,6 @@ static long msm_isp_ioctl_compat(struct v4l2_subdev *sd,
 		memset(&buf_event, 0, sizeof(buf_event));
 		buf_event32 =
 		  (struct msm_isp_event_data32 *)arg;
-		buf_event.input_intf = buf_event32->input_intf;
 		buf_event.frame_id = buf_event32->frame_id;
 		buf_event.timestamp.tv_sec =
 				buf_event32->timestamp.tv_sec;
