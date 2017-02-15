@@ -1033,10 +1033,7 @@ static void msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 		return;
 	}
 
-	if (SRC_TO_INTF(stream_info->stream_src) < VFE_SRC_MAX)
-		frame_id = vfe_dev->axi_data.
-			src_info[SRC_TO_INTF(stream_info->stream_src)].frame_id;
-	else {
+	if (SRC_TO_INTF(stream_info->stream_src) >= VFE_SRC_MAX) {
 		pr_err("%s: Invalid stream index, put buf back to vb2 queue\n",
 			__func__);
 		vfe_dev->buf_mgr->ops->put_buf(vfe_dev->buf_mgr,
@@ -1044,61 +1041,65 @@ static void msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 		return;
 	}
 
-	if (buf && ts) {
-		if (vfe_dev->vt_enable) {
-			msm_isp_get_avtimer_ts(ts);
-			time_stamp = &ts->vt_time;
-		}
-		else
-			time_stamp = &ts->buf_time;
+	if (!buf || !ts)
+		return;
 
-		rc = vfe_dev->buf_mgr->ops->get_buf_src(vfe_dev->buf_mgr,
-						buf->bufq_handle, &buf_src);
-		if (stream_info->buf_divert && rc == 0 &&
-				buf_src != MSM_ISP_BUFFER_SRC_SCRATCH) {
-			rc = vfe_dev->buf_mgr->ops->buf_divert(vfe_dev->buf_mgr,
-				buf->bufq_handle, buf->buf_idx,
-				time_stamp, frame_id);
-			/* Buf divert return value represent whether the buf
-			 * can be diverted. A positive return value means
-			 * other ISP hardware is still processing the frame.
-			 */
-			if (rc == 0) {
-				buf_event.input_intf =
-					SRC_TO_INTF(stream_info->stream_src);
-				buf_event.frame_id = frame_id;
-				buf_event.timestamp = *time_stamp;
-				buf_event.u.buf_done.session_id =
-					stream_info->session_id;
-				buf_event.u.buf_done.stream_id =
-					stream_info->stream_id;
-				buf_event.u.buf_done.handle =
-					stream_info->bufq_handle;
-				buf_event.u.buf_done.buf_idx = buf->buf_idx;
-				buf_event.u.buf_done.output_format =
-					stream_info->runtime_output_format;
-				msm_isp_send_event(vfe_dev,
-					ISP_EVENT_BUF_DIVERT + stream_idx,
-					&buf_event);
-			}
-		} else {
+	if (vfe_dev->vt_enable) {
+		msm_isp_get_avtimer_ts(ts);
+		time_stamp = &ts->vt_time;
+	}
+	else
+		time_stamp = &ts->buf_time;
+
+	frame_id = vfe_dev->axi_data.
+		src_info[SRC_TO_INTF(stream_info->stream_src)].frame_id;
+
+	rc = vfe_dev->buf_mgr->ops->get_buf_src(vfe_dev->buf_mgr,
+					buf->bufq_handle, &buf_src);
+	if (stream_info->buf_divert && rc == 0 &&
+			buf_src != MSM_ISP_BUFFER_SRC_SCRATCH) {
+		rc = vfe_dev->buf_mgr->ops->buf_divert(vfe_dev->buf_mgr,
+			buf->bufq_handle, buf->buf_idx,
+			time_stamp, frame_id);
+		/* Buf divert return value represent whether the buf
+		 * can be diverted. A positive return value means
+		 * other ISP hardware is still processing the frame.
+		 */
+		if (rc == 0) {
 			buf_event.input_intf =
 				SRC_TO_INTF(stream_info->stream_src);
 			buf_event.frame_id = frame_id;
-			buf_event.timestamp = ts->buf_time;
+			buf_event.timestamp = *time_stamp;
 			buf_event.u.buf_done.session_id =
 				stream_info->session_id;
 			buf_event.u.buf_done.stream_id =
 				stream_info->stream_id;
+			buf_event.u.buf_done.handle =
+				stream_info->bufq_handle;
+			buf_event.u.buf_done.buf_idx = buf->buf_idx;
 			buf_event.u.buf_done.output_format =
 				stream_info->runtime_output_format;
 			msm_isp_send_event(vfe_dev,
-				ISP_EVENT_BUF_DONE, &buf_event);
-			vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
-				buf->bufq_handle, buf->buf_idx,
-				time_stamp, frame_id,
-				stream_info->runtime_output_format);
+				ISP_EVENT_BUF_DIVERT + stream_idx,
+				&buf_event);
 		}
+	} else {
+		buf_event.input_intf =
+			SRC_TO_INTF(stream_info->stream_src);
+		buf_event.frame_id = frame_id;
+		buf_event.timestamp = ts->buf_time;
+		buf_event.u.buf_done.session_id =
+			stream_info->session_id;
+		buf_event.u.buf_done.stream_id =
+			stream_info->stream_id;
+		buf_event.u.buf_done.output_format =
+			stream_info->runtime_output_format;
+		msm_isp_send_event(vfe_dev,
+			ISP_EVENT_BUF_DONE, &buf_event);
+		vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
+			buf->bufq_handle, buf->buf_idx,
+			time_stamp, frame_id,
+			stream_info->runtime_output_format);
 	}
 }
 
