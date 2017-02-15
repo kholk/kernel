@@ -461,7 +461,7 @@ static inline int msm_isp_process_event_subscription(struct v4l2_fh *fh,
 	}
 
 	for (evt_mask_index = ISP_EVENT_MASK_INDEX_STATS_NOTIFY;
-		evt_mask_index <= ISP_EVENT_MASK_INDEX_MAX;
+		evt_mask_index <= ISP_EVENT_MASK_INDEX_HW_FATAL_ERROR;
 		evt_mask_index++) {
 		if (evt_mask & (1<<evt_mask_index)) {
 			evt_id = msm_isp_evt_mask_to_isp_event(evt_mask_index);

@@ -781,7 +781,7 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 	}
 
 	/*re-init wait_complete */
-	INIT_COMPLETION(cmd_ack->wait_complete);
+	init_completion(&cmd_ack->wait_complete);
 
 	v4l2_event_queue(vdev, event);
 
