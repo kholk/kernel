@@ -9,7 +9,9 @@ ccflags-y += -Idrivers/media/platform/msm/camera_v2_legacy/camera
 ccflags-y += -Idrivers/media/platform/msm/camera_v2_legacy/jpeg_10
 ccflags-y += -Idrivers/media/platform/msm/camera_v2_legacy/fd
 ccflags-y += -Idrivers/media/platform/msm/camera_v2_legacy/smmu
+ccflags-y += -Idrivers/media/platform/msm/camera_v2_legacy/common
 
+obj-$(CONFIG_MSMB_CAMERA) += common/
 obj-$(CONFIG_MSMB_CAMERA) += msm.o
 obj-$(CONFIG_MSMB_CAMERA) += smmu/
 obj-$(CONFIG_MSMB_CAMERA) += camera/

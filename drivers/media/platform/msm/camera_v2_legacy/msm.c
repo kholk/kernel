@@ -31,6 +31,7 @@
 #include "msm_sd.h"
 #include <media/msmb_generic_buf_mgr.h>
 
+#include "cam_hw_ops.h"
 
 static struct v4l2_device *msm_v4l2_dev;
 static struct list_head    ordered_sd_list;
@@ -1175,6 +1176,12 @@ static int msm_probe(struct platform_device *pdev)
 					 NULL,
 					 &logsync_fops))
 			pr_warn("NON-FATAL: failed to create logsync debugfs file\n");
+	}
+
+	rc = cam_ahb_clk_init(pdev);
+	if (rc < 0) {
+		pr_err("%s: failed to register ahb clocks\n", __func__);
+		goto v4l2_fail;
 	}
 
 	goto probe_end;

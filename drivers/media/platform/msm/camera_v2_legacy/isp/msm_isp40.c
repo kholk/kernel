@@ -21,6 +21,7 @@
 #include "msm_isp.h"
 #include "msm.h"
 #include "msm_camera_io_util.h"
+#include "cam_soc_api.h"
 
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
@@ -263,62 +264,6 @@ static int32_t msm_vfe40_init_vbif_parms(struct vfe_device *vfe_dev,
 	}
 	return 0;
 }
-
-void __iomem *msm_camera_get_reg_base(struct platform_device *pdev,
-		char *device_name, int reserve_mem)
-{
-	struct resource *mem;
-	void *base;
-
-	if (!pdev || !device_name) {
-		pr_err("Invalid params\n");
-		return NULL;
-	}
-
-	CDBG("device name :%s\n", device_name);
-	mem = platform_get_resource_byname(pdev,
-			IORESOURCE_MEM, device_name);
-	if (!mem) {
-		pr_err("err: mem resource %s not found\n", device_name);
-		return NULL;
-	}
-
-	if (reserve_mem) {
-		CDBG("device:%pK, mem : %pK, size : %d\n",
-			&pdev->dev, mem, (int)resource_size(mem));
-		if (!devm_request_mem_region(&pdev->dev, mem->start,
-			resource_size(mem),
-			device_name)) {
-			pr_err("err: no valid mem region for device:%s\n",
-				device_name);
-			return NULL;
-		}
-	}
-
-	base = devm_ioremap(&pdev->dev, mem->start, resource_size(mem));
-	if (!base) {
-		devm_release_mem_region(&pdev->dev, mem->start,
-				resource_size(mem));
-		pr_err("err: ioremap failed: %s\n", device_name);
-		return NULL;
-	}
-
-	CDBG("base : %pK\n", base);
-	return base;
-}
-
-struct resource *msm_camera_get_irq(struct platform_device *pdev,
-							char *irq_name)
-{
-	if (!pdev || !irq_name) {
-		pr_err("Invalid params\n");
-		return NULL;
-	}
-
-	CDBG("Get irq for %s\n", irq_name);
-	return platform_get_resource_byname(pdev, IORESOURCE_IRQ, irq_name);
-}
-EXPORT_SYMBOL(msm_camera_get_irq);
 
 static int msm_vfe40_init_hardware(struct vfe_device *vfe_dev)
 {

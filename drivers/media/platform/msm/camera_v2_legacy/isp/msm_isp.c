@@ -41,8 +41,28 @@ static struct msm_isp_buf_mgr vfe_buf_mgr;
 static struct msm_vfe_common_dev_data vfe_common_data;
 
 static const struct of_device_id msm_vfe_dt_match[] = {
-	{
+/*	{
 		.compatible = "qcom,vfe",
+	},*/
+	{
+		.compatible = "qcom,vfe47",
+		.data = &vfe47_hw_info,
+	},
+	{
+		.compatible = "qcom,vfe46",
+		.data = &vfe46_hw_info,
+	},
+	{
+		.compatible = "qcom,vfe44",
+		.data = &vfe44_hw_info,
+	},
+	{
+		.compatible = "qcom,vfe40",
+		.data = &vfe40_hw_info,
+	},
+	{
+		.compatible = "qcom,vfe32",
+		.data = &vfe32_hw_info,
 	},
 	{}
 };
