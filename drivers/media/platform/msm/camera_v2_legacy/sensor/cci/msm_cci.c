@@ -1091,19 +1091,6 @@ static int32_t msm_cci_i2c_write_async(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int msm_cci_subdev_g_chip_ident(struct v4l2_subdev *sd,
-			struct v4l2_dbg_chip_ident *chip)
-{
-	if (!chip) {
-		pr_err("%s:%d: NULL pointer supplied for chip ident\n",
-			 __func__, __LINE__);
-		return -EINVAL;
-	}
-	chip->ident = V4L2_IDENT_CCI;
-	chip->revision = 0;
-	return 0;
-}
-
 static int32_t msm_cci_pinctrl_init(struct cci_device *cci_dev)
 {
 	struct msm_pinctrl_info *cci_pctrl = NULL;
@@ -1673,7 +1660,6 @@ static long msm_cci_subdev_ioctl(struct v4l2_subdev *sd,
 }
 
 static struct v4l2_subdev_core_ops msm_cci_subdev_core_ops = {
-	.g_chip_ident = &msm_cci_subdev_g_chip_ident,
 	.ioctl = &msm_cci_subdev_ioctl,
 	.interrupt_service_routine = msm_cci_irq_routine,
 };

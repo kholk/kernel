@@ -273,15 +273,6 @@ static void msm_csiphy_reset(struct csiphy_device *csiphy_dev)
 		csiphy_dev->ctrl_reg->csiphy_reg.mipi_csiphy_glbl_reset_addr);
 }
 
-static int msm_csiphy_subdev_g_chip_ident(struct v4l2_subdev *sd,
-			struct v4l2_dbg_chip_ident *chip)
-{
-	BUG_ON(!chip);
-	chip->ident = V4L2_IDENT_CSIPHY;
-	chip->revision = 0;
-	return 0;
-}
-
 #if DBG_CSIPHY
 static int msm_csiphy_init(struct csiphy_device *csiphy_dev)
 {
@@ -778,7 +769,6 @@ static long msm_csiphy_subdev_fops_ioctl(struct file *file, unsigned int cmd,
 static const struct v4l2_subdev_internal_ops msm_csiphy_internal_ops;
 
 static struct v4l2_subdev_core_ops msm_csiphy_subdev_core_ops = {
-	.g_chip_ident = &msm_csiphy_subdev_g_chip_ident,
 	.ioctl = &msm_csiphy_subdev_ioctl,
 };
 

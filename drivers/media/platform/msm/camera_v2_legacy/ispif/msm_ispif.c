@@ -449,15 +449,6 @@ static int msm_ispif_reset(struct ispif_device *ispif)
 	return rc;
 }
 
-static int msm_ispif_subdev_g_chip_ident(struct v4l2_subdev *sd,
-	struct v4l2_dbg_chip_ident *chip)
-{
-	BUG_ON(!chip);
-	chip->ident = V4L2_IDENT_ISPIF;
-	chip->revision = 0;
-	return 0;
-}
-
 static void msm_ispif_sel_csid_core(struct ispif_device *ispif,
 	uint8_t intftype, uint8_t csid, uint8_t vfe_intf)
 {
@@ -1530,7 +1521,6 @@ end:
 }
 
 static struct v4l2_subdev_core_ops msm_ispif_subdev_core_ops = {
-	.g_chip_ident = &msm_ispif_subdev_g_chip_ident,
 	.ioctl = &msm_ispif_subdev_ioctl,
 };
 

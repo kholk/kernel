@@ -299,15 +299,6 @@ static int msm_csid_irq_routine(struct v4l2_subdev *sd, u32 status,
 	return 0;
 }
 
-static int msm_csid_subdev_g_chip_ident(struct v4l2_subdev *sd,
-			struct v4l2_dbg_chip_ident *chip)
-{
-	BUG_ON(!chip);
-	chip->ident = V4L2_IDENT_CSID;
-	chip->revision = 0;
-	return 0;
-}
-
 static int msm_csid_init(struct csid_device *csid_dev, uint32_t *csid_version)
 {
 	int rc = 0;
@@ -834,7 +825,6 @@ static long msm_csid_subdev_fops_ioctl32(struct file *file, unsigned int cmd,
 static const struct v4l2_subdev_internal_ops msm_csid_internal_ops;
 
 static struct v4l2_subdev_core_ops msm_csid_subdev_core_ops = {
-	.g_chip_ident = &msm_csid_subdev_g_chip_ident,
 	.ioctl = &msm_csid_subdev_ioctl,
 	.interrupt_service_routine = msm_csid_irq_routine,
 };
