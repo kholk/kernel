@@ -43,6 +43,7 @@ enum cci_i2c_sync {
 	MSM_SYNC_ENABLE,
 };
 
+
 enum cci_i2c_queue_t {
 	QUEUE_0,
 	QUEUE_1,
@@ -158,6 +159,7 @@ struct cci_device {
 	uint8_t ref_count;
 	enum msm_cci_state_t cci_state;
 	uint32_t num_clk;
+	struct mutex mutex;
 	uint32_t num_clk_cases;
 
 	struct clk *cci_clk[CCI_NUM_CLK_MAX];
@@ -170,11 +172,9 @@ struct cci_device {
 	uint8_t cci_gpio_tbl_size;
 	struct msm_pinctrl_info cci_pinctrl;
 	uint8_t cci_pinctrl_status;
+	struct regulator *reg_ptr;
 	uint32_t cycles_per_us;
 	uint32_t cci_clk_src;
-	struct camera_vreg_t *cci_vreg;
-	struct regulator *cci_reg_ptr[MAX_REGULATOR];
-	int32_t regulator_count;
 	uint8_t payload_size;
 	uint8_t support_seq_write;
 	struct workqueue_struct *write_wq[MASTER_MAX];

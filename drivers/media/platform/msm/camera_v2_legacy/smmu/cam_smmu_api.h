@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,6 +14,7 @@
 
 #include <linux/dma-direction.h>
 #include <linux/module.h>
+#include <linux/qcom_iommu.h>
 #include <linux/dma-buf.h>
 #include <asm/dma-iommu.h>
 #include <linux/dma-direction.h>
@@ -87,55 +88,6 @@ int cam_smmu_get_phy_addr(int handle,
 int cam_smmu_put_phy_addr(int handle, int ion_fd);
 
 /**
- * @brief	   : Allocates a scratch buffer
- *
- * This function allocates a scratch virtual buffer of length virt_len in the
- * device virtual address space mapped to phys_len physically contiguous bytes
- * in that device's SMMU.
- *
- * virt_len and phys_len are expected to be aligned to PAGE_SIZE and with each
- * other, otherwise -EINVAL is returned.
- *
- * -EINVAL will be returned if virt_len is less than phys_len.
- *
- * Passing a too large phys_len might also cause failure if that much size is
- * not available for allocation in a physically contiguous way.
- *
- * @param handle   : Handle to identify the CAMSMMU client (VFE, CPP, FD etc.)
- * @param dir      : Direction of mapping which will translate to IOMMU_READ
- *			IOMMU_WRITE or a bit mask of both.
- * @param paddr_ptr: Device virtual address that the client device will be
- *		able to read from/write to
- * @param virt_len : Virtual length of the scratch buffer
- * @param phys_len : Physical length of the scratch buffer
- *
- * @return Status of operation. Negative in case of error. Zero otherwise.
- */
-
-int cam_smmu_get_phy_addr_scratch(int handle,
-				  enum cam_smmu_map_dir dir,
-				  dma_addr_t *paddr_ptr,
-				  size_t virt_len,
-				  size_t phys_len);
-
-/**
- * @brief	   : Frees a scratch buffer
- *
- * This function frees a scratch buffer and releases the corresponding SMMU
- * mappings.
- *
- * @param handle   : Handle to identify the CAMSMMU client (VFE, CPP, FD etc.)
- *			IOMMU_WRITE or a bit mask of both.
- * @param paddr_ptr: Device virtual address of client's scratch buffer that
- *			will be freed.
- *
- * @return Status of operation. Negative in case of error. Zero otherwise.
- */
-
-int cam_smmu_put_phy_addr_scratch(int handle,
-				  dma_addr_t paddr);
-
-/**
  * @param handle: Handle to identify the CAM SMMU client (VFE, CPP, FD etc.)
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
@@ -159,7 +111,7 @@ int cam_smmu_find_index_by_handle(int hdl);
  * @param token: It is input param when trigger page fault handler
  */
 void cam_smmu_reg_client_page_fault_handler(int handle,
-		void (*client_page_fault_handler)(struct iommu_domain *,
+		int (*client_page_fault_handler)(struct iommu_domain *,
 		struct device *, unsigned long,
 		int, void*), void *token);
 
