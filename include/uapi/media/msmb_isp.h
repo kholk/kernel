@@ -816,6 +816,10 @@ struct msm_isp_ahb_clk_cfg {
 	uint32_t reserved[2];
 };
 
+struct msm_isp_set_stats_ab {
+	uint64_t stats_ab;
+};
+
 #define V4L2_PIX_FMT_QBGGR8  v4l2_fourcc('Q', 'B', 'G', '8')
 #define V4L2_PIX_FMT_QGBRG8  v4l2_fourcc('Q', 'G', 'B', '8')
 #define V4L2_PIX_FMT_QGRBG8  v4l2_fourcc('Q', 'G', 'R', '8')
@@ -873,6 +877,7 @@ enum msm_isp_ioctl_cmd_code {
 	MSM_ISP_UNMAP_BUF,
 	MSM_ISP_FETCH_ENG_MULTI_PASS_START,
 	MSM_ISP_MAP_BUF_START_MULTI_PASS_FE,
+	MSM_ISP_SET_STATS_BANDWIDTH,
 };
 
 #define VIDIOC_MSM_VFE_REG_CFG \
@@ -985,4 +990,8 @@ enum msm_isp_ioctl_cmd_code {
 #define VIDIOC_MSM_ISP_MAP_BUF_START_MULTI_PASS_FE \
 	_IOWR('V', MSM_ISP_MAP_BUF_START_MULTI_PASS_FE, \
 		struct msm_vfe_fetch_eng_multi_pass_start)
+
+#define VIDIOC_MSM_ISP_SET_STATS_BANDWIDTH \
+	_IOWR('V', MSM_ISP_SET_STATS_BANDWIDTH, \
+		struct msm_isp_set_stats_ab)
 #endif /* __MSMB_ISP__ */
