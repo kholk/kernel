@@ -20,6 +20,7 @@
 #include <asm/sysreg.h>
 #include <asm/system_misc.h>
 #include <asm/traps.h>
+#include <asm/kprobes.h>
 #include <asm/uaccess.h>
 #include <asm/cpufeature.h>
 
