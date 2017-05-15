@@ -1,2 +1,2 @@
 obj-y	+= qcom/
-obj-y	+= qcom_legacy/
+obj-$(CONFIG_POWER_QCOM_LEGACY)	+= qcom_legacy/

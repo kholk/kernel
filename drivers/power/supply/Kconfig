@@ -1,3 +1,14 @@
-source "drivers/power/supply/qcom/Kconfig"
+config POWER_QCOM_LEGACY
+	bool "Legacy QC power supply drivers"
+	help
+	  Say Y here to use legacy power supply drivers for QC
+	  SoCs. Those drivers are needed for MSM8996, 8976 and
+	  other legacy SoCs.
 
+if POWER_QCOM_LEGACY
 source "drivers/power/supply/qcom_legacy/Kconfig"
+endif
+
+if !POWER_QCOM_LEGACY
+source "drivers/power/supply/qcom/Kconfig"
+endif
