@@ -83,3 +83,14 @@ config QPNP_TYPEC
 	  CC-orientation. The module does not support USB power-delivery. The driver
 	  adds support to report these type-C parameters via the power-supply
 	  framework.
+
+config SMB1351_USB_CHARGER
+	tristate "smb1351 usb charger (with VBUS detection)"
+	depends on I2C
+	help
+	 Say Y to enable support for the SMB1351 switching mode based charger.
+	 The driver supports charging control (enable/disable) and
+	 charge-current limiting. It also provides USB VBUS detection and
+	 notification support. The driver controls SMB1351 via I2C and
+	 supports device-tree interface.
+

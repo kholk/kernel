@@ -7,3 +7,4 @@ obj-$(CONFIG_QPNP_CHARGER)	+= qpnp-charger.o
 obj-$(CONFIG_QPNP_LINEAR_CHARGER)	+= qpnp-linear-charger.o
 obj-$(CONFIG_QPNP_SMBCHARGER)	+= qpnp-smbcharger.o pmic-voter.o
 obj-$(CONFIG_QPNP_TYPEC)	+= qpnp-typec.o
+obj-$(CONFIG_SMB1351_USB_CHARGER) += smb1351-charger.o
