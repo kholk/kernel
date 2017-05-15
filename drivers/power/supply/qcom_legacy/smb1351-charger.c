@@ -550,8 +550,10 @@ struct smb1351_charger {
 	int			usb_psy_ma;
 	enum power_supply_type	usb_psy_type;
 	struct power_supply	*bms_psy;
+	struct power_supply_desc batt_psy_d:
 	struct power_supply	batt_psy;
 	struct power_supply	parallel_psy;
+	struct power_supply_desc parallel_psy_d;
 
 	struct smb1351_regulator	otg_vreg;
 	struct mutex		irq_complete;
@@ -4456,6 +4458,7 @@ static int smb1351_main_charger_probe(struct i2c_client *client,
 	int rc;
 	struct smb1351_charger *chip;
 	struct power_supply *usb_psy;
+	struct power_supply_config batt_psy_cfg = {};
 	u8 reg = 0;
 
 	usb_psy = power_supply_get_by_name("usb");
@@ -4514,30 +4517,34 @@ static int smb1351_main_charger_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, chip);
 
-	chip->batt_psy.name		= "battery";
-	chip->batt_psy.type		= POWER_SUPPLY_TYPE_BATTERY;
-	chip->batt_psy.get_property	= smb1351_battery_get_property;
-	chip->batt_psy.set_property	= smb1351_battery_set_property;
-	chip->batt_psy.property_is_writeable =
+	chip->batt_psy_d.name		= "battery";
+	chip->batt_psy_d.type		= POWER_SUPPLY_TYPE_BATTERY;
+	chip->batt_psy_d.get_property	= smb1351_battery_get_property;
+	chip->batt_psy_d.set_property	= smb1351_battery_set_property;
+	chip->batt_psy_d.property_is_writeable =
 					smb1351_batt_property_is_writeable;
-	chip->batt_psy.properties	= smb1351_battery_properties;
-	chip->batt_psy.num_properties	=
+	chip->batt_psy_d.properties	= smb1351_battery_properties;
+	chip->batt_psy_d.num_properties	=
 				ARRAY_SIZE(smb1351_battery_properties);
-	chip->batt_psy.external_power_changed =
+	chip->batt_psy_d.external_power_changed =
 					smb1351_external_power_changed;
-	chip->batt_psy.supplied_to	= pm_batt_supplied_to;
-	chip->batt_psy.num_supplicants	= ARRAY_SIZE(pm_batt_supplied_to);
+	batt_psy_cfg.drv_data = chip;
+	batt_psy_cfg.supplied_to = pm_batt_supplied_to;
+	batt_psy_cfg.num_supplicants = ARRAY_SIZE(pm_batt_supplied_to);
 
 	chip->resume_completed = true;
 	mutex_init(&chip->irq_complete);
 	mutex_init(&chip->fcc_lock);
 	mutex_init(&chip->parallel.lock);
 
-	rc = power_supply_register(chip->dev, &chip->batt_psy);
-	if (rc) {
-		pr_err("Couldn't register batt psy rc=%d\n", rc);
-		goto destroy_mutex;
+	chip->batt_psy = devm_power_supply_register(chip->dev,
+			&cihp->batt_psy_d, &batt_psy_cfg);
+	if (IS_ERR(chip->batt_psy)) {
+		pr_err("Couldn't register batt psy rc=%ld\n",
+				PTR_ERR(chip->batt_psy));
+		return rc;
 	}
+
 	INIT_DELAYED_WORK(&chip->parallel.parallel_work, smb1351_parallel_work);
 	INIT_DELAYED_WORK(&chip->init_fg_work, smb1351_init_fg_work);
 	INIT_DELAYED_WORK(&chip->iterm_check_soc_work,
@@ -4629,6 +4636,7 @@ static int smb1351_parallel_slave_probe(struct i2c_client *client,
 	int rc;
 	struct smb1351_charger *chip;
 	struct device_node *node = client->dev.of_node;
+	struct power_supply_config parallel_psy_cfg = {};
 
 	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip) {
@@ -4663,24 +4671,29 @@ static int smb1351_parallel_slave_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, chip);
 	mutex_init(&chip->parallel_config_lock);
 
-	chip->parallel_psy.name		= "usb-parallel";
-	chip->parallel_psy.type		= POWER_SUPPLY_TYPE_USB_PARALLEL;
-	chip->parallel_psy.get_property	= smb1351_parallel_get_property;
-	chip->parallel_psy.set_property	= smb1351_parallel_set_property;
-	chip->parallel_psy.properties	= smb1351_parallel_properties;
-	chip->parallel_psy.property_is_writeable
+	chip->parallel_psy_d.name		= "usb-parallel";
+	chip->parallel_psy_d.type		= POWER_SUPPLY_TYPE_USB_PARALLEL;
+	chip->parallel_psy_d.get_property	= smb1351_parallel_get_property;
+	chip->parallel_psy_d.set_property	= smb1351_parallel_set_property;
+	chip->parallel_psy_d.properties		= smb1351_parallel_properties;
+	chip->parallel_psy_d.property_is_writeable
 				= smb1351_parallel_is_writeable;
-	chip->parallel_psy.num_properties
+	chip->parallel_psy_d.num_properties
 				= ARRAY_SIZE(smb1351_parallel_properties);
 
 	mutex_init(&chip->fcc_lock);
 	mutex_init(&chip->irq_complete);
 	smb1351_wakeup_src_init(chip);
 
-	rc = power_supply_register(chip->dev, &chip->parallel_psy);
-	if (rc) {
-		pr_err("Couldn't register parallel psy rc=%d\n", rc);
-		goto fail_register_psy;
+	parallel_psy_cfg.drv_data = chip;
+	parallel_psy_cfg.num_supplicants = 0;
+	chip->parallel_psy = devm_power_supply_register(chip->dev,
+			&chip->parallel_psy_d,
+			&parallel_psy_cfg);
+	if (IS_ERR(chip->parallel_psy)) {
+		pr_err("Couldn't register parallel psy rc=%ld\n",
+				PTR_ERR(chip->parallel_psy));
+		return rc;
 	}
 
 	chip->resume_completed = true;
