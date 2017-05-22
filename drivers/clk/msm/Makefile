@@ -17,7 +17,7 @@ obj-$(CONFIG_ARCH_MSM8916)	+= clock-gcc-8976.o
 obj-$(CONFIG_ARCH_MSM8916)	+= clock-cpu-8976.o
 
 # MSM 8996
-ifeq ($(CONFIG_COMMON_CLK_MSM), y)
+ifeq ($(CONFIG_COMMON_CLK_MSM), n)
 	obj-$(CONFIG_ARCH_MSM8996) += clock-gcc-8996.o
 	obj-$(CONFIG_ARCH_MSM8996) += clock-mmss-8996.o
 	obj-$(CONFIG_ARCH_MSM8996) += clock-cpu-8996.o

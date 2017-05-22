@@ -63,12 +63,12 @@
 			qcom,ea = <&ea0>;
 			next-level-cache = <&L2_0>;
 			L2_0: l2-cache {
-			      compatible = "cache";
+			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
 			      qcom,dump-size = <0x88000>;
 			};
 			L1_D_0: l1-dcache {
-				compatible = "cache";
+				compatible = "arm,arch-cache";
 				qcom,dump-size = <0x7800>;
 			};
 			L1_TLB_0: l1-tlb {
@@ -85,7 +85,7 @@
 			qcom,ea = <&ea1>;
 			next-level-cache = <&L2_0>;
 			L1_D_1: l1-dcache {
-				compatible = "cache";
+				compatible = "arm,arch-cache";
 				qcom,dump-size = <0x7800>;
 			};
 			L1_TLB_1: l1-tlb {
@@ -102,12 +102,12 @@
 			qcom,ea = <&ea2>;
 			next-level-cache = <&L2_1>;
 			L2_1: l2-cache {
-			      compatible = "cache";
+			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
 			      qcom,dump-size = <0x110000>;
 			};
 			L1_D_100: l1-dcache {
-				compatible = "cache";
+				compatible = "arm,arch-cache";
 				qcom,dump-size = <0x7800>;
 			};
 			L1_TLB_100: l1-tlb {
@@ -124,7 +124,7 @@
 			qcom,ea = <&ea3>;
 			next-level-cache = <&L2_1>;
 			L1_D_101: l1-dcache {
-				compatible = "cache";
+				compatible = "arm,arch-cache";
 				qcom,dump-size = <0x7800>;
 			};
 			L1_TLB_101: l1-tlb {
@@ -314,7 +314,7 @@
 				"apc1-l2-spm";
 		qcom,clock-source-override;
 	};
-
+#if 0
 	intc: interrupt-controller@09bc0000 {
 		compatible = "arm,gic-v3";
 		#interrupt-cells = <3>;
@@ -324,6 +324,29 @@
 		reg = <0x09bc0000 0x10000>,       /* GICD */
 		      <0x09c00000 0x100000>;      /* GICR * 4 */
 		interrupts = <1 9 4>;
+
+	};
+#endif
+
+	intc: interrupt-controller@09bc0000 {
+		compatible = "arm,gic-v3";
+		reg = <0x9bc0000 0x10000>,       /* GICD */
+		      <0x9c00000 0x100000>;      /* GICR * 4 */
+		#interrupt-cells = <3>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+		interrupt-controller;
+		#redistributor-regions = <1>;
+		redistributor-stride = <0x0 0x40000>;
+
+		interrupts = <1 9 4>;
+
+		gic-its@09BE0000 {
+			compatible = "arm,gic-v3-its";
+			msi-contoller;
+			reg = <0x9be0000 0x20000>;
+		};
 	};
 
 	timer {
@@ -616,14 +639,14 @@
 		compatible = "qcom,arm-memlat-mon";
 		qcom,cpulist =	<&CPU0 &CPU1>;
 		qcom,target-dev = <&memlat_cpu0>;
-		status = "disabled";
+		//status = "disabled";
 	};
 
 	qcom,arm-memlat-mon-2 {
 		compatible = "qcom,arm-memlat-mon";
 		qcom,cpulist =	<&CPU2 &CPU3>;
 		qcom,target-dev = <&memlat_cpu2>;
-		status = "disabled";
+		//status = "disabled";
 	};
 
 	devfreq_cpufreq: devfreq-cpufreq {

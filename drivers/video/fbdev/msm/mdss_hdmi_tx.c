@@ -1988,8 +1988,8 @@ static int hdmi_tx_init_hdcp(struct hdmi_tx_ctrl *hdmi_ctrl)
 		hdcp_data = hdcp_1x_init(&hdcp_init_data);
 
 		/* TODO: CHECKME!!! */
-		hdmi_hdcp_aksv(&hdmi_ctrl->aksv[0],
-			hdmi_ctrl->feature_data[HDMI_TX_FEAT_HDCP]);
+//		hdmi_hdcp_aksv(&hdmi_ctrl->aksv[0],
+//			hdmi_ctrl->feature_data[HDMI_TX_FEAT_HDCP]);
 
 		if (IS_ERR_OR_NULL(hdcp_data)) {
 			DEV_ERR("%s: hdcp 1.4 init failed\n", __func__);
