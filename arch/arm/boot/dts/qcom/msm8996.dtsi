@@ -341,20 +341,14 @@
 		redistributor-stride = <0x0 0x40000>;
 
 		interrupts = <1 9 4>;
-
-		gic-its@09BE0000 {
-			compatible = "arm,gic-v3-its";
-			msi-contoller;
-			reg = <0x9be0000 0x20000>;
-		};
 	};
 
 	timer {
 		compatible = "arm,armv8-timer";
-	        interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
-				<GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
-				<GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
-				<GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
+		interrupts = <1 13 0xf08>,
+			     <1 14 0xf08>,
+			     <1 11 0xf08>,
+			     <1 10 0xf08>;
 		clock-frequency = <19200000>;
 	};
 
@@ -4099,6 +4093,7 @@
 #include "msm8996-regulator.dtsi"
 #include "msm8996-camera.dtsi"
 #include "msm8996-gpu.dtsi"
+#include "msm8996-pinctrl.dtsi"
 #include "msm8996-pm.dtsi"
 #include "msm-arm-smmu-8996.dtsi"
 #include "msm8996-vidc.dtsi"
