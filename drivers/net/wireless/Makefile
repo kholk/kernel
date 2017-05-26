@@ -69,3 +69,4 @@ obj-$(CONFIG_CNSS_CRYPTO)	+= cnss_crypto/
 obj-$(CONFIG_CNSS_GENL) += cnss_genl/
 
 obj-y                           += controlfnc/
+obj-y				+= bcmdhd/
