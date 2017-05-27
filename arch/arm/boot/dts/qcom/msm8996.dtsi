@@ -42,7 +42,7 @@
 
 	chosen {
 		stdout-path = "serial0";
-		bootargs = "sched_enable_hmp=1 sched_enable_power_aware=1 rcupdate.rcu_expedited=1";
+		bootargs = "sched_enable_hmp=1 sched_enable_power_aware=1 rcupdate.rcu_expedited=1 oemandroidboot.babe09a9=1";
 	};
 
 	psci {
@@ -258,6 +258,8 @@
 };
 
 #include "msm8996-ion.dtsi"
+#include "msm8996-bus.dtsi"
+#include "msm8996-gpu.dtsi"
 #include "msm8996-mdss.dtsi"
 //#include "msm8996-sde.dtsi"
 //#include "msm8996-mdss.dtsi"
@@ -265,7 +267,7 @@
 #include "msm8996-smp2p.dtsi"
 #include "msm8996-ipcrouter.dtsi"
 #include "msm-gdsc-8996.dtsi"
-#include "msm8996-bus.dtsi"
+
 #include "msm-rdbg.dtsi"
 #include "msm8996-blsp.dtsi"
 
@@ -4060,7 +4062,6 @@
 #include "msm-pmi8994.dtsi"
 #include "msm8996-regulator.dtsi"
 #include "msm8996-camera.dtsi"
-#include "msm8996-gpu.dtsi"
 #include "msm8996-pm.dtsi"
 #include "msm-arm-smmu-8996.dtsi"
 #include "msm8996-vidc.dtsi"
