@@ -638,6 +638,88 @@ static void qcom_iommu_disable_clocks(struct qcom_iommu_dev *qcom_iommu)
 	clk_disable_unprepare(qcom_iommu->iface_clk);
 }
 
+#define IOMMU_SECURE_PTBL_SIZE  3
+#define IOMMU_SECURE_PTBL_INIT  4
+#define IOMMU_SEC_SET_CP_POOLSZ 5
+#define MAXIMUM_VIRT_SIZE	(300*SZ_1M)
+#define SCM_SVC_VERSION_MASK(major, minor, patch) \
+	(((major & 0x3FF) << 22) | ((minor & 0x3FF) << 12) | (patch & 0xFFF))
+static int iommu_scm_set_pool_size(void)
+{
+	struct scm_desc desc = {0};
+	int ret;
+
+	desc.args[0] = MAXIMUM_VIRT_SIZE;
+	desc.args[1] = 0;
+	desc.arginfo = SCM_ARGS(2);
+
+	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_MP, IOMMU_SEC_SET_CP_POOLSZ),
+			 &desc);
+	if (ret)
+		pr_err("%s: Failed to set CP pool size in secure env\n",
+			__func__);
+
+	return ret;
+}
+
+static int iommu_scm_get_secure_ptbl_size(u32 spare, size_t *size)
+{
+	struct scm_desc desc = {0};
+	int ret;
+
+	desc.args[0] = spare;
+	desc.arginfo = SCM_ARGS(1);
+
+	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_MP, IOMMU_SECURE_PTBL_SIZE),
+			&desc);
+	if (ret) {
+		pr_err("%s: Failed to get secure partition table size\n",
+			__func__);
+		return ret;
+	}
+
+	if (desc.ret[1]) {
+		pr_err("%s: TZ Error while getting secure partition table\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	if (size)
+		*size = desc.ret[0];
+
+	return desc.ret[1];
+}
+
+static int iommu_scm_secure_ptbl_init(u64 addr, u32 sz, u32 spare)
+{
+	struct scm_desc desc = {0};
+	int ret;
+
+	desc.args[0] = addr;
+	desc.args[1] = sz;
+	desc.args[2] = spare;
+	desc.arginfo = SCM_ARGS(3, SCM_RW, SCM_VAL, SCM_VAL);
+
+	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_MP, IOMMU_SECURE_PTBL_INIT),
+			&desc);
+	if (ret == -EPERM)
+		return 0;
+
+	if (ret) {
+		pr_err("%s: Failed to initialize secure partition table\n",
+			__func__);
+		return ret;
+	}
+
+	if (desc.ret[0]) {
+		pr_err("%s: TZ Error while initializing secure"
+			" partition table", __func__);
+		ret = desc.ret[0];
+	}
+
+	return ret;
+}
+
 static int qcom_iommu_sec_ptbl_init(struct device *dev)
 {
 	size_t psize = 0;
@@ -646,12 +728,19 @@ static int qcom_iommu_sec_ptbl_init(struct device *dev)
 	dma_addr_t paddr;
 	unsigned long attrs;
 	static bool allocated = false;
-	int ret;
+	int scm_version, ret;
 
 	if (allocated)
 		return 0;
 
-	ret = qcom_scm_iommu_secure_ptbl_size(spare, &psize);
+	scm_version = scm_get_feat_version(SCM_SVC_MP);
+	if (scm_version >= SCM_SVC_VERSION_MASK(1, 1, 1)) {
+		ret = iommu_scm_set_pool_size();
+		if (ret)
+			return ret;
+	}
+
+	ret = iommu_scm_get_secure_ptbl_size(spare, &psize);
 	if (ret) {
 		dev_err(dev, "failed to get iommu secure pgtable size (%d)\n",
 			ret);
@@ -669,7 +758,7 @@ static int qcom_iommu_sec_ptbl_init(struct device *dev)
 		return -ENOMEM;
 	}
 
-	ret = qcom_scm_iommu_secure_ptbl_init(paddr, psize, spare);
+	ret = iommu_scm_secure_ptbl_init(paddr, psize, spare);
 	if (ret) {
 		dev_err(dev, "failed to init iommu pgtable (%d)\n", ret);
 		goto free_mem;
