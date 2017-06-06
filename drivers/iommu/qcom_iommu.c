@@ -42,6 +42,8 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 
+#include <soc/qcom/scm.h>
+
 #include "io-pgtable.h"
 #include "arm-smmu-regs.h"
 
@@ -212,7 +214,7 @@ static int qcom_iommu_init_domain(struct iommu_domain *domain,
 	struct qcom_iommu_domain *qcom_domain = to_qcom_iommu_domain(domain);
 	struct io_pgtable_ops *pgtbl_ops;
 	struct io_pgtable_cfg pgtbl_cfg;
-	int i, ret = 0;
+	int i, ret = 0, scm_ret = 0;
 	u32 reg;
 
 	mutex_lock(&qcom_domain->init_mutex);
@@ -244,8 +246,8 @@ static int qcom_iommu_init_domain(struct iommu_domain *domain,
 		struct qcom_iommu_ctx *ctx = to_ctx(fwspec, fwspec->ids[i]);
 
 		if (!ctx->secure_init) {
-			ret = qcom_scm_restore_sec_cfg(qcom_iommu->sec_id, ctx->asid);
-			if (ret) {
+			ret = scm_restore_sec_cfg(qcom_iommu->sec_id, ctx->asid, &scm_ret);
+			if (ret || scm_ret) {
 				dev_err(qcom_iommu->dev, "secure init failed: %d\n", ret);
 				goto out_clear_iommu;
 			}
