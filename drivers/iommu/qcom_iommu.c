@@ -937,7 +937,7 @@ static int qcom_iommu_device_probe(struct platform_device *pdev)
 	pm_runtime_enable(dev);
 
 	/* register context bank devices, which are child nodes: */
-	ret = devm_of_platform_populate(dev);
+	ret = of_platform_populate(dev->of_node, NULL, NULL, dev);
 	if (ret) {
 		dev_err(dev, "Failed to populate iommu contexts\n");
 		return ret;
