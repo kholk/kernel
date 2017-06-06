@@ -1862,6 +1862,10 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 		ret = -ENOMEM;
 		goto out_clear_smmu;
 	}
+
+	/* Update the domain's page sizes to reflect the page table format */
+	domain->pgsize_bitmap = smmu_domain->pgtbl_cfg.pgsize_bitmap;
+
 	/*
 	 * assign any page table memory that might have been allocated
 	 * during alloc_io_pgtable_ops
