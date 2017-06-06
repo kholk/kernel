@@ -484,11 +484,11 @@ static int qcom_iommu_add_device(struct device *dev)
 {
 	struct qcom_iommu_dev *qcom_iommu = to_iommu(dev->iommu_fwspec);
 	struct iommu_group *group;
-	struct device_link *link;
+	//struct device_link *link;
 
 	if (!qcom_iommu)
 		return -ENODEV;
-
+#if 0
 	/*
 	 * Establish the link between iommu and master, so that the
 	 * iommu gets runtime enabled/disabled as per the master's
@@ -500,13 +500,13 @@ static int qcom_iommu_add_device(struct device *dev)
 			dev_name(qcom_iommu->dev), dev_name(dev));
 		return -ENODEV;
 	}
-
+#endif
 	group = iommu_group_get_for_dev(dev);
 	if (IS_ERR_OR_NULL(group))
 		return PTR_ERR_OR_ZERO(group);
 
 	iommu_group_put(group);
-	iommu_device_link(&qcom_iommu->iommu, dev);
+	iommu_device_link(qcom_iommu->dev, dev);
 
 	return 0;
 }
@@ -518,7 +518,7 @@ static void qcom_iommu_remove_device(struct device *dev)
 	if (!qcom_iommu)
 		return;
 
-	iommu_device_unlink(&qcom_iommu->iommu, dev);
+	iommu_device_unlink(qcom_iommu->dev, dev);
 	iommu_group_remove_device(dev);
 	iommu_fwspec_free(dev);
 }
