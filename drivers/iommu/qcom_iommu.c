@@ -726,9 +726,9 @@ static int qcom_iommu_sec_ptbl_init(struct device *dev)
 	unsigned int spare = 0;
 	void *cpu_addr;
 	dma_addr_t paddr;
-	unsigned long attrs;
 	static bool allocated = false;
 	int scm_version, ret;
+	DEFINE_DMA_ATTRS(attrs);
 
 	if (allocated)
 		return 0;
@@ -749,9 +749,9 @@ static int qcom_iommu_sec_ptbl_init(struct device *dev)
 
 	dev_info(dev, "iommu sec: pgtable size: %zu\n", psize);
 
-	attrs = DMA_ATTR_NO_KERNEL_MAPPING;
+	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &attrs);
 
-	cpu_addr = dma_alloc_attrs(dev, psize, &paddr, GFP_KERNEL, attrs);
+	cpu_addr = dma_alloc_attrs(dev, psize, &paddr, GFP_KERNEL, &attrs);
 	if (!cpu_addr) {
 		dev_err(dev, "failed to allocate %zu bytes for pgtable\n",
 			psize);
@@ -768,7 +768,7 @@ static int qcom_iommu_sec_ptbl_init(struct device *dev)
 	return 0;
 
 free_mem:
-	dma_free_attrs(dev, psize, cpu_addr, paddr, attrs);
+	dma_free_attrs(dev, psize, cpu_addr, paddr, &attrs);
 	return ret;
 }
 
