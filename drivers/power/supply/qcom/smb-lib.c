@@ -962,6 +962,7 @@ static int set_sdp_current(struct smb_charger *chg, int icl_ua)
 
 	return rc;
 }
+#endif /* CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION */
 
 static int get_sdp_current(struct smb_charger *chg, int *icl_ua)
 {
@@ -984,7 +985,7 @@ static int get_sdp_current(struct smb_charger *chg, int *icl_ua)
 
 	return rc;
 }
-#endif /* CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION */
+
 
 int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 {
@@ -1099,7 +1100,6 @@ enable_icl_changed_interrupt:
 	return rc;
 }
 
-#ifndef CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION
 int smblib_get_icl_current(struct smb_charger *chg, int *icl_ua)
 {
 	int rc = 0;
@@ -1141,7 +1141,7 @@ int smblib_get_icl_current(struct smb_charger *chg, int *icl_ua)
 
 	return 0;
 }
-#endif
+
 /*********************
  * VOTABLE CALLBACKS *
  *********************/
@@ -2297,6 +2297,7 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 			chg->thermal_mitigation[chg->system_temp_level]);
 	return 0;
 }
+#endif /* CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION */
 
 int smblib_set_prop_charge_qnovo_enable(struct smb_charger *chg,
 				  const union power_supply_propval *val)
@@ -2320,7 +2321,6 @@ int smblib_set_prop_input_current_limited(struct smb_charger *chg,
 	chg->fake_input_current_limited = val->intval;
 	return 0;
 }
-#endif /* CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION */
 
 int smblib_rerun_aicl(struct smb_charger *chg)
 {
