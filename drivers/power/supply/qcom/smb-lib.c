@@ -1021,13 +1021,13 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 	}
 
 	if ((reg & USBIN_SUSPEND_BIT) &&
-				(icl_ua - chg->icl_reduction_ua > USBIN_75MA)) {
+				(icl_ua > USBIN_75MA)) {
 		icl_setting_again = true;
 		rc = smblib_set_charge_param(chg, &chg->param.usb_icl,
 					USBIN_75MA);
 	} else {
 		rc = smblib_set_charge_param(chg, &chg->param.usb_icl,
-					icl_ua - chg->icl_reduction_ua);
+					icl_ua);
 	}
 #else
 	if (pval.intval == POWER_SUPPLY_TYPEC_SOURCE_DEFAULT
@@ -1086,7 +1086,7 @@ override_suspend_config:
 #ifdef CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION
 	if (icl_setting_again) {
 		rc = smblib_set_charge_param(chg, &chg->param.usb_icl,
-					icl_ua - chg->icl_reduction_ua);
+					icl_ua);
 		if (rc < 0) {
 			smblib_err(chg, "Couldn't set HC ICL rc=%d\n", rc);
 			goto enable_icl_changed_interrupt;
@@ -1099,6 +1099,7 @@ enable_icl_changed_interrupt:
 	return rc;
 }
 
+#ifndef CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION
 int smblib_get_icl_current(struct smb_charger *chg, int *icl_ua)
 {
 	int rc = 0;
@@ -1140,7 +1141,7 @@ int smblib_get_icl_current(struct smb_charger *chg, int *icl_ua)
 
 	return 0;
 }
-
+#endif
 /*********************
  * VOTABLE CALLBACKS *
  *********************/
@@ -3713,6 +3714,11 @@ static void smblib_micro_usb_plugin(struct smb_charger *chg, bool vbus_rising)
 	}
 }
 
+#ifdef CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION
+#define REMOVAL_DELAY_MS			2000
+#define REMOVAL_WAKE_PERIOD		(3 * HZ)
+#endif /* CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION */
+
 void smblib_usb_plugin_hard_reset_locked(struct smb_charger *chg)
 {
 	int rc;
@@ -3852,11 +3858,6 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: usbin-plugin %s\n",
 					vbus_rising ? "attached" : "detached");
 }
-
-#ifdef CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION
-#define REMOVAL_DELAY_MS			2000
-#define REMOVAL_WAKE_PERIOD		(3 * HZ)
-#endif /* CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION */
 
 irqreturn_t smblib_handle_usb_plugin(int irq, void *data)
 {
@@ -4469,7 +4470,7 @@ static bool smblib_sysok_reason_usbin(struct smb_charger *chg)
 static bool smblib_is_legacy_cable(struct smb_charger *chg)
 {
 	int rc;
-	u8 stat;
+	u8 stat5;
 
 	rc = smblib_read(chg, TYPE_C_STATUS_5_REG, &stat5);
 	if (rc < 0) {
@@ -4485,6 +4486,8 @@ static void smblib_handle_typec_insertion(struct smb_charger *chg,
 {
 	int rc;
 #ifdef CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION
+	int rp;
+	union power_supply_propval val;
 	bool vbus_cc_short;
 #endif
 
@@ -4507,7 +4510,7 @@ static void smblib_handle_typec_insertion(struct smb_charger *chg,
 		val.intval = 0;
 	if (val.intval > 4000000 && val.intval < 6000000) {
 		bool valid_legacy_cable = smblib_is_legacy_cable(chg) &&
-			(chg->usb_ever_removed ||
+			(usb_ever_removed ||
 			 !smblib_sysok_reason_usbin(chg));
 		rp = smblib_get_prop_ufp_mode(chg);
 		if (!chg->pd_active) {

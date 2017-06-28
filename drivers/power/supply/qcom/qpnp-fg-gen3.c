@@ -4021,6 +4021,75 @@ static int fg_hw_init(struct fg_chip *chip)
 		return rc;
 	}
 
+#ifdef CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION
+	if (chip->dt.therm_coeff_c1 > 0) {
+		rc = fg_masked_write(chip, BATT_INFO_THERM_C1(chip),
+					BATT_INFO_THERM_COEFF_MASK,
+					chip->dt.therm_coeff_c1);
+		if (rc < 0) {
+			pr_err("Error in writing therm_coeff_c1, rc=%d\n", rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.therm_coeff_c2 > 0) {
+		rc = fg_masked_write(chip, BATT_INFO_THERM_C2(chip),
+					BATT_INFO_THERM_COEFF_MASK,
+					chip->dt.therm_coeff_c2);
+		if (rc < 0) {
+			pr_err("Error in writing therm_coeff_c2, rc=%d\n", rc);
+			return rc;
+		}
+	}
+
+	if (chip->dt.therm_coeff_c3 > 0) {
+		rc = fg_masked_write(chip, BATT_INFO_THERM_C3(chip),
+					BATT_INFO_THERM_COEFF_MASK,
+					chip->dt.therm_coeff_c3);
+		if (rc < 0) {
+			pr_err("Error in writing therm_coeff_c3, rc=%d\n", rc);
+			return rc;
+		}
+	}
+
+	val = FG_ESR_CURRENT_THR_VALUE;
+	rc =  fg_sram_write(chip, ESR_CURRENT_THR_WORD, ESR_CURRENT_THR_OFFSET,
+						&val, 1, FG_IMA_DEFAULT);
+	if (rc < 0) {
+		pr_err("Error in writing ESR current threshold, rc=%d\n", rc);
+		return rc;
+	}
+
+	val = KI_COEFF_CUTOFF_VOLT_VALUE;
+	rc =  fg_sram_write(chip, KI_COEFF_CUTOFF_VOLT_WORD,
+					KI_COEFF_CUTOFF_VOLT_OFFSET,
+					&val, 1, FG_IMA_DEFAULT);
+	if (rc < 0) {
+		pr_err("Error in writing KI_COEFF_CUTOFF_VOLT_OFFSET, rc=%d\n",
+									rc);
+		return rc;
+	}
+
+	rc = fg_sram_masked_write(chip, ESR_VCTIBTRSLWEN_WORD,
+					ESR_VCTIBTRSLWEN_OFFSET,
+					ESR_VCTIBTRSLWEN_MASK,
+					ESR_VCTIBTRSLWEN_VALUE, FG_IMA_DEFAULT);
+	if (rc < 0) {
+		pr_err("Error in writing ESR_VCTIBTRSLWEN_OFFSET, rc=%d\n", rc);
+		return rc;
+	}
+
+	rc = fg_sram_masked_write(chip, SAT_CC_CLR_AUTO_WORD,
+					SAT_CC_CLR_AUTO_OFFSET,
+					SAT_CC_CLR_AUTO_MASK,
+					SAT_CC_CLR_AUTO_VALUE, FG_IMA_DEFAULT);
+	if (rc < 0) {
+		pr_err("Error in writing SAT_CC_CLR_AUTO_OFFSET, rc=%d\n", rc);
+		return rc;
+	}
+
+#endif /* CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION */
+
 	if (is_debug_batt_id(chip)) {
 		val = ESR_NO_PULL_DOWN;
 		rc = fg_masked_write(chip, BATT_INFO_ESR_PULL_DN_CFG(chip),
@@ -4455,75 +4524,6 @@ static int fg_parse_dt_property_u32_array(struct device_node *node,
 		pr_err("Error in reading %s, rc=%d\n", prop_name, rc);
 		return rc;
 	}
-
-#ifdef CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION
-	if (chip->dt.therm_coeff_c1 > 0) {
-		rc = fg_masked_write(chip, BATT_INFO_THERM_C1(chip),
-					BATT_INFO_THERM_COEFF_MASK,
-					chip->dt.therm_coeff_c1);
-		if (rc < 0) {
-			pr_err("Error in writing therm_coeff_c1, rc=%d\n", rc);
-			return rc;
-		}
-	}
-
-	if (chip->dt.therm_coeff_c2 > 0) {
-		rc = fg_masked_write(chip, BATT_INFO_THERM_C2(chip),
-					BATT_INFO_THERM_COEFF_MASK,
-					chip->dt.therm_coeff_c2);
-		if (rc < 0) {
-			pr_err("Error in writing therm_coeff_c2, rc=%d\n", rc);
-			return rc;
-		}
-	}
-
-	if (chip->dt.therm_coeff_c3 > 0) {
-		rc = fg_masked_write(chip, BATT_INFO_THERM_C3(chip),
-					BATT_INFO_THERM_COEFF_MASK,
-					chip->dt.therm_coeff_c3);
-		if (rc < 0) {
-			pr_err("Error in writing therm_coeff_c3, rc=%d\n", rc);
-			return rc;
-		}
-	}
-
-	val = FG_ESR_CURRENT_THR_VALUE;
-	rc =  fg_sram_write(chip, ESR_CURRENT_THR_WORD, ESR_CURRENT_THR_OFFSET,
-						&val, 1, FG_IMA_DEFAULT);
-	if (rc < 0) {
-		pr_err("Error in writing ESR current threshold, rc=%d\n", rc);
-		return rc;
-	}
-
-	val = KI_COEFF_CUTOFF_VOLT_VALUE;
-	rc =  fg_sram_write(chip, KI_COEFF_CUTOFF_VOLT_WORD,
-					KI_COEFF_CUTOFF_VOLT_OFFSET,
-					&val, 1, FG_IMA_DEFAULT);
-	if (rc < 0) {
-		pr_err("Error in writing KI_COEFF_CUTOFF_VOLT_OFFSET, rc=%d\n",
-									rc);
-		return rc;
-	}
-
-	rc = fg_sram_masked_write(chip, ESR_VCTIBTRSLWEN_WORD,
-					ESR_VCTIBTRSLWEN_OFFSET,
-					ESR_VCTIBTRSLWEN_MASK,
-					ESR_VCTIBTRSLWEN_VALUE, FG_IMA_DEFAULT);
-	if (rc < 0) {
-		pr_err("Error in writing ESR_VCTIBTRSLWEN_OFFSET, rc=%d\n", rc);
-		return rc;
-	}
-
-	rc = fg_sram_masked_write(chip, SAT_CC_CLR_AUTO_WORD,
-					SAT_CC_CLR_AUTO_OFFSET,
-					SAT_CC_CLR_AUTO_MASK,
-					SAT_CC_CLR_AUTO_VALUE, FG_IMA_DEFAULT);
-	if (rc < 0) {
-		pr_err("Error in writing SAT_CC_CLR_AUTO_OFFSET, rc=%d\n", rc);
-		return rc;
-	}
-
-#endif /* CONFIG_QPNP_SMBFG_NEWGEN_EXTENSION */
 
 	return 0;
 }
