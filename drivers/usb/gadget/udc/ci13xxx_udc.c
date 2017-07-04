@@ -2906,12 +2906,13 @@ static int ep_enable(struct usb_ep *ep,
 	spin_lock_irqsave(mEp->lock, flags);
 
 	/* only internal SW should enable ctrl endpts */
+	if (!list_empty(&mEp->qh.queue)) {
+		warn("enabling a non-empty endpoint!");
+		spin_unlock_irqrestore(mEp->lock, flags);
+		return -EBUSY;
+	}
 
 	mEp->desc = desc;
-
-	if (!list_empty(&mEp->qh.queue))
-		warn("enabling a non-empty endpoint!");
-
 	mEp->dir  = usb_endpoint_dir_in(desc) ? TX : RX;
 	mEp->num  = usb_endpoint_num(desc);
 	mEp->type = usb_endpoint_type(desc);
