@@ -85,15 +85,24 @@ struct ci13xxx_multi_req {
 	void                *buf;
 };
 
+
+struct td_node {
+	struct list_head	td;
+	dma_addr_t		dma;
+	struct ci13xxx_td	*ptr;
+};
+
 /* Extension of usb_request */
 struct ci13xxx_req {
 	struct usb_request   req;
 	unsigned             map;
 	struct list_head     queue;
-	struct ci13xxx_td   *ptr;
+/*	struct ci13xxx_td   *ptr;
 	dma_addr_t           dma;
 	struct ci13xxx_td   *zptr;
 	dma_addr_t           zdma;
+*/
+	struct list_head     tds;
 	struct ci13xxx_multi_req multi;
 };
 

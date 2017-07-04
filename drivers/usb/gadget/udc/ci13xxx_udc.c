@@ -1026,7 +1026,7 @@ static void dbg_print(u8 addr, const char *name, int status, const char *extra)
 		pr_notice("%s\t? %02X %-7.7s %4i ?\t%s\n",
 			  get_timestamp(tbuf), addr, name, status, extra);
 }
-
+#if 0
 /**
  * dbg_done: prints a DONE event
  * @addr:   endpoint address
@@ -1042,7 +1042,7 @@ static void dbg_done(u8 addr, const u32 token, int status)
 		  (int)(token & TD_STATUS)      >> ffs_nr(TD_STATUS));
 	dbg_print(addr, "DONE", status, msg);
 }
-
+#endif
 /**
  * dbg_event: prints a generic event
  * @addr:   endpoint address
@@ -1098,6 +1098,7 @@ static void dbg_setup(u8 addr, const struct usb_ctrlrequest *req)
 static void dbg_usb_op_fail(u8 addr, const char *name,
 				const struct ci13xxx_ep *mep)
 {
+#if 0
 	char msg[DBG_DATA_MSG];
 	struct ci13xxx_req *req;
 	struct list_head *ptr = NULL;
@@ -1127,6 +1128,9 @@ static void dbg_usb_op_fail(u8 addr, const char *name,
 			dbg_print(addr, "REQPAGE", 0, msg);
 		}
 	}
+#else
+return;
+#endif
 }
 
 /**
@@ -1488,6 +1492,7 @@ static DEVICE_ATTR(registers, S_IRUSR | S_IWUSR,
 static ssize_t show_requests(struct device *dev, struct device_attribute *attr,
 			     char *buf)
 {
+#if 0
 	struct ci13xxx *udc = container_of(dev, struct ci13xxx, gadget.dev);
 	unsigned long flags;
 	struct list_head   *ptr = NULL;
@@ -1519,6 +1524,9 @@ static ssize_t show_requests(struct device *dev, struct device_attribute *attr,
 	spin_unlock_irqrestore(udc->lock, flags);
 
 	return n;
+#else
+	return 0;
+#endif
 }
 static DEVICE_ATTR(requests, S_IRUSR, show_requests, NULL);
 
@@ -1532,6 +1540,7 @@ static ssize_t prime_ept(struct device *dev,
 	unsigned int ep_num, dir;
 	int n;
 	struct ci13xxx_req *mReq = NULL;
+	struct td_node *firstnode;
 
 	if (sscanf(buf, "%u %u", &ep_num, &dir) != 2) {
 		dev_err(dev, "<ep_num> <dir>: prime the ep");
@@ -1545,7 +1554,9 @@ static ssize_t prime_ept(struct device *dev,
 
 	n = hw_ep_bit(mEp->num, mEp->dir);
 	mReq =  list_entry(mEp->qh.queue.next, struct ci13xxx_req, queue);
-	mEp->qh.ptr->td.next   = mReq->dma;
+	firstnode = list_first_entry(&mReq->tds, struct td_node, td);
+
+	mEp->qh.ptr->td.next   = firstnode->dma;
 	mEp->qh.ptr->td.token &= ~TD_STATUS;
 
 	wmb();
@@ -1569,6 +1580,7 @@ static ssize_t print_dtds(struct device *dev,
 			       struct device_attribute *attr,
 			       const char *buf, size_t count)
 {
+#if 0
 	struct ci13xxx *udc = container_of(dev, struct ci13xxx, gadget.dev);
 	struct ci13xxx_ep *mEp;
 	unsigned int ep_num, dir;
@@ -1610,7 +1622,9 @@ static ssize_t print_dtds(struct device *dev,
 	}
 done:
 	return count;
-
+#else
+return 0;
+#endif
 }
 static DEVICE_ATTR(dtds, S_IWUSR, NULL, print_dtds);
 
@@ -1780,6 +1794,62 @@ __maybe_unused static int dbg_remove_files(struct device *dev)
 /******************************************************************************
  * UTIL block
  *****************************************************************************/
+static void setup_td_bits_msm(struct ci13xxx_req *mReq,
+			struct td_node *tdnode, unsigned length)
+{
+	/* MSM Specific: updating the request as required for
+	 * SPS mode. Enable MSM DMA engine according
+	 * to the UDC private data in the request.
+	 */
+	if (CI13XX_REQ_VENDOR_ID(mReq->req.udc_priv) == MSM_VENDOR_ID) {
+		if (mReq->req.udc_priv & MSM_SPS_MODE) {
+			tdnode->ptr->token = TD_STATUS_ACTIVE;
+			if (mReq->req.udc_priv & MSM_IS_FINITE_TRANSFER)
+				tdnode->ptr->next = TD_TERMINATE;
+			else
+				tdnode->ptr->next = MSM_ETD_TYPE | tdnode->dma;
+			if (!mReq->req.no_interrupt)
+				tdnode->ptr->token |= MSM_ETD_IOC;
+		}
+		mReq->req.dma = 0;
+	}
+}
+
+static void setup_td_bits(struct td_node *tdnode, unsigned length)
+{
+	memset(tdnode->ptr, 0, sizeof(*tdnode->ptr));
+	tdnode->ptr->token = cpu_to_le32(length << __ffs(TD_TOTAL_BYTES));
+	tdnode->ptr->token &= cpu_to_le32(TD_TOTAL_BYTES);
+	tdnode->ptr->token |= cpu_to_le32(TD_STATUS_ACTIVE);
+}
+
+static int add_td_to_list(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq,
+			  unsigned length)
+{
+	struct td_node *lastnode, *node = kzalloc(sizeof(struct td_node),
+						  GFP_ATOMIC);
+
+	if (node == NULL)
+		return -ENOMEM;
+
+	node->ptr = dma_pool_alloc(mEp->td_pool, GFP_ATOMIC,
+				   &node->dma);
+
+	setup_td_bits(node, length);
+
+	if (!list_empty(&mReq->tds)) {
+		/* get the last entry */
+		lastnode = list_entry(mReq->tds.prev,
+				struct td_node, td);
+		lastnode->ptr->next = cpu_to_le32(node->dma);
+	}
+
+	INIT_LIST_HEAD(&node->td);
+	list_add_tail(&node->td, &mReq->tds);
+
+	return 0;
+}
+
 /**
  * _usb_addr: calculates endpoint address from direction & number
  * @ep:  endpoint
@@ -1796,7 +1866,7 @@ static void ep_prime_timer_func(unsigned long data)
 	struct list_head *ptr = NULL;
 	int n = hw_ep_bit(mep->num, mep->dir);
 	unsigned long flags;
-
+	struct td_node *firstnode;
 
 	spin_lock_irqsave(mep->lock, flags);
 
@@ -1816,7 +1886,11 @@ static void ep_prime_timer_func(unsigned long data)
 	req = list_entry(mep->qh.queue.next, struct ci13xxx_req, queue);
 
 	mb();
-	if (!(TD_STATUS_ACTIVE & req->ptr->token))
+
+	firstnode = list_first_entry(&req->tds,
+		struct td_node, td);
+
+	if (!(TD_STATUS_ACTIVE & firstnode->ptr->token))
 		goto out;
 
 	mep->prime_timer_count++;
@@ -1829,8 +1903,9 @@ static void ep_prime_timer_func(unsigned long data)
 		list_for_each(ptr, &mep->qh.queue) {
 			req = list_entry(ptr, struct ci13xxx_req, queue);
 			pr_info("\treq:%pKa:%08xtkn:%08xpage0:%08xsts:%d\n",
-					&req->dma, req->ptr->next,
-					req->ptr->token, req->ptr->page[0],
+					&firstnode->dma, firstnode->ptr->next,
+					firstnode->ptr->token,
+					firstnode->ptr->page[0],
 					req->req.status);
 		}
 		dbg_usb_op_fail(0xFF, "PRIMEF", mep);
@@ -1861,6 +1936,7 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 	int ret = 0;
 	unsigned length = mReq->req.length;
 	struct ci13xxx *udc = _udc;
+	struct td_node *firstnode, *lastnode;
 
 	trace("%pK, %pK", mEp, mReq);
 
@@ -1869,74 +1945,34 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		return -EALREADY;
 
 	mReq->req.status = -EALREADY;
-	if (length && mReq->req.dma == DMA_ERROR_CODE) {
-		mReq->req.dma = \
-			dma_map_single(mEp->device, mReq->req.buf,
-				       length, mEp->dir ? DMA_TO_DEVICE :
-				       DMA_FROM_DEVICE);
-		if (mReq->req.dma == 0)
-			return -ENOMEM;
 
-		mReq->map = 1;
-	}
+	ret = usb_gadget_map_request(&udc->gadget, &mReq->req, mEp->dir);
+	if (ret)
+		return ret;
 
-	if (mReq->req.zero && length && (length % mEp->ep.maxpacket == 0)) {
-		mReq->zptr = dma_pool_alloc(mEp->td_pool, GFP_ATOMIC,
-					   &mReq->zdma);
-		if (mReq->zptr == NULL) {
-			if (mReq->map) {
-				dma_unmap_single(mEp->device, mReq->req.dma,
-					length, mEp->dir ? DMA_TO_DEVICE :
-					DMA_FROM_DEVICE);
-				mReq->req.dma = DMA_ERROR_CODE;
-				mReq->map     = 0;
-			}
-			return -ENOMEM;
-		}
-		memset(mReq->zptr, 0, sizeof(*mReq->zptr));
-		mReq->zptr->next    = TD_TERMINATE;
-		mReq->zptr->token   = TD_STATUS_ACTIVE;
-		if (!mReq->req.no_interrupt)
-			mReq->zptr->token   |= TD_IOC;
-	}
+	firstnode = list_first_entry(&mReq->tds,
+			struct td_node, td);
 
-	/*
-	 * TD configuration
-	 * TODO - handle requests which spawns into several TDs
-	 */
-	memset(mReq->ptr, 0, sizeof(*mReq->ptr));
-	mReq->ptr->token    = length << ffs_nr(TD_TOTAL_BYTES);
-	mReq->ptr->token   &= TD_TOTAL_BYTES;
-	mReq->ptr->token   |= TD_STATUS_ACTIVE;
-	if (mReq->zptr) {
-		mReq->ptr->next    = mReq->zdma;
-	} else {
-		mReq->ptr->next    = TD_TERMINATE;
-		if (!mReq->req.no_interrupt)
-			mReq->ptr->token  |= TD_IOC;
-	}
+	setup_td_bits(firstnode, length);
+	setup_td_bits_msm(mReq, firstnode, length);
 
-	/* MSM Specific: updating the request as required for
-	 * SPS mode. Enable MSM DMA engine according
-	 * to the UDC private data in the request.
-	 */
-	if (CI13XX_REQ_VENDOR_ID(mReq->req.udc_priv) == MSM_VENDOR_ID) {
-		if (mReq->req.udc_priv & MSM_SPS_MODE) {
-			mReq->ptr->token = TD_STATUS_ACTIVE;
-			if (mReq->req.udc_priv & MSM_IS_FINITE_TRANSFER)
-				mReq->ptr->next = TD_TERMINATE;
-			else
-				mReq->ptr->next = MSM_ETD_TYPE | mReq->dma;
-			if (!mReq->req.no_interrupt)
-				mReq->ptr->token |= MSM_ETD_IOC;
-		}
-		mReq->req.dma = 0;
-	}
-
-	mReq->ptr->page[0]  = mReq->req.dma;
+	firstnode->ptr->page[0] = cpu_to_le32(mReq->req.dma);
 	for (i = 1; i < 5; i++)
-		mReq->ptr->page[i] = (mReq->req.dma + i * CI13XXX_PAGE_SIZE) &
+		firstnode->ptr->page[i] = (mReq->req.dma + i * CI13XXX_PAGE_SIZE) &
 							~TD_RESERVED_MASK;
+
+	if (mReq->req.zero && length && (length % mEp->ep.maxpacket == 0))
+		add_td_to_list(mEp, mReq, 0);
+
+	lastnode = list_entry(mReq->tds.prev,
+		struct td_node, td);
+
+	lastnode->ptr->next = cpu_to_le32(TD_TERMINATE);
+	if (!mReq->req.no_interrupt) {
+		lastnode->ptr->token |= cpu_to_le32(TD_IOC);
+		lastnode->ptr->token |= cpu_to_le32(MSM_ETD_IOC);
+	}
+
 	wmb();
 
 	/* Remote Wakeup */
@@ -1961,13 +1997,15 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		int n = hw_ep_bit(mEp->num, mEp->dir);
 		int tmp_stat;
 		ktime_t start, diff;
+		struct td_node *prevlastnode;
+		u32 next = firstnode->dma & TD_ADDR_MASK;
 
 		mReqPrev = list_entry(mEp->qh.queue.prev,
 				struct ci13xxx_req, queue);
-		if (mReqPrev->zptr)
-			mReqPrev->zptr->next = mReq->dma & TD_ADDR_MASK;
-		else
-			mReqPrev->ptr->next = mReq->dma & TD_ADDR_MASK;
+		prevlastnode = list_entry(mReqPrev->tds.prev,
+				struct td_node, td);
+
+		prevlastnode->ptr->next = cpu_to_le32(next);
 		wmb();
 		if (hw_cread(CAP_ENDPTPRIME, BIT(n)))
 			goto done;
@@ -1990,7 +2028,7 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		if (tmp_stat)
 			goto done;
 	}
-
+#if 0
 	/* Hardware may leave few TDs unprocessed, check and reprime with 1st */
 	if (!list_empty(&mEp->qh.queue)) {
 		struct ci13xxx_req *mReq_active, *mReq_next;
@@ -2020,9 +2058,10 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		mEp->qh.ptr->td.token &= ~TD_STATUS;
 		goto prime;
 	}
+#endif
 
 	/*  QH configuration */
-	mEp->qh.ptr->td.next   = mReq->dma;    /* TERMINATE = 0 */
+	mEp->qh.ptr->td.next = cpu_to_le32(firstnode->dma);
 
 	if (CI13XX_REQ_VENDOR_ID(mReq->req.udc_priv) == MSM_VENDOR_ID) {
 		if (mReq->req.udc_priv & MSM_SPS_MODE) {
@@ -2056,7 +2095,9 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		}
 	}
 
-	mEp->qh.ptr->td.token &= ~TD_STATUS;   /* clear status */
+	mEp->qh.ptr->td.token &=
+		cpu_to_le32(~(TD_STATUS_HALTED|TD_STATUS_ACTIVE));
+//	mEp->qh.ptr->td.token &= ~TD_STATUS;   /* clear status */
 	mEp->qh.ptr->cap |=  QH_ZLT;
 
 	if (mEp->type == USB_ENDPOINT_XFER_ISOC) {
@@ -2067,7 +2108,7 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		mEp->qh.ptr->cap |= mul << __ffs(QH_MULT);
 	}
 
-prime:
+//prime:
 	wmb();   /* synchronize before ep prime */
 
 	ret = hw_ep_prime(mEp->num, mEp->dir,
@@ -2088,6 +2129,10 @@ done:
  */
 static int _hardware_dequeue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 {
+	u32 tmptoken;
+	struct td_node *node, *tmpnode, *firstnode;
+	struct ci13xxx *udc = _udc;
+
 	trace("%pK, %pK", mEp, mReq);
 
 	if (mReq->req.status != -EALREADY)
@@ -2096,41 +2141,31 @@ static int _hardware_dequeue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 	/* clean speculative fetches on req->ptr->token */
 	mb();
 
-	if ((TD_STATUS_ACTIVE & mReq->ptr->token) != 0)
-		return -EBUSY;
-
 	if (CI13XX_REQ_VENDOR_ID(mReq->req.udc_priv) == MSM_VENDOR_ID)
 		if ((mReq->req.udc_priv & MSM_SPS_MODE) &&
 			(mReq->req.udc_priv & MSM_IS_FINITE_TRANSFER))
 			return -EBUSY;
-	if (mReq->zptr) {
-		if ((TD_STATUS_ACTIVE & mReq->zptr->token) != 0)
+
+	firstnode = list_first_entry(&mReq->tds,
+		struct td_node, td);
+
+	list_for_each_entry_safe(node, tmpnode, &mReq->tds, td) {
+		tmptoken = le32_to_cpu(node->ptr->token);
+		if ((TD_STATUS_ACTIVE & tmptoken) != 0)
 			return -EBUSY;
-
-		/* The controller may access this dTD one more time.
-		 * Defer freeing this to next zero length dTD completion.
-		 * It is safe to assume that controller will no longer
-		 * access the previous dTD after next dTD completion.
-		 */
-		if (mEp->last_zptr)
-			dma_pool_free(mEp->td_pool, mEp->last_zptr,
-					mEp->last_zdma);
-		mEp->last_zptr = mReq->zptr;
-		mEp->last_zdma = mReq->zdma;
-
-		mReq->zptr = NULL;
+		if (node != firstnode) {
+			dma_pool_free(mEp->td_pool, node->ptr, node->dma);
+			list_del_init(&node->td);
+			node->ptr = NULL;
+			kfree(node);
+		}
 	}
 
 	mReq->req.status = 0;
 
-	if (mReq->map) {
-		dma_unmap_single(mEp->device, mReq->req.dma, mReq->req.length,
-				 mEp->dir ? DMA_TO_DEVICE : DMA_FROM_DEVICE);
-		mReq->req.dma = DMA_ERROR_CODE;
-		mReq->map     = 0;
-	}
+	usb_gadget_unmap_request(&udc->gadget, &mReq->req, mEp->dir);
 
-	mReq->req.status = mReq->ptr->token & TD_STATUS;
+	mReq->req.status = tmptoken & TD_STATUS;
 	if ((TD_STATUS_HALTED & mReq->req.status) != 0)
 		mReq->req.status = -1;
 	else if ((TD_STATUS_DT_ERR & mReq->req.status) != 0)
@@ -2138,7 +2173,7 @@ static int _hardware_dequeue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 	else if ((TD_STATUS_TR_ERR & mReq->req.status) != 0)
 		mReq->req.status = -1;
 
-	mReq->req.actual   = mReq->ptr->token & TD_TOTAL_BYTES;
+	mReq->req.actual   = tmptoken & TD_TOTAL_BYTES;
 	mReq->req.actual >>= ffs_nr(TD_TOTAL_BYTES);
 	mReq->req.actual   = mReq->req.length - mReq->req.actual;
 	mReq->req.actual   = mReq->req.status ? 0 : mReq->req.actual;
@@ -2235,7 +2270,7 @@ static void release_ep_request(struct ci13xxx_ep  *mEp,
 			       struct ci13xxx_req *mReq)
 {
 	struct ci13xxx_ep *mEpTemp = mEp;
-
+	struct ci13xxx *udc = _udc;
 	unsigned val;
 
 	/* MSM Specific: Clear end point specific register */
@@ -2254,13 +2289,7 @@ static void release_ep_request(struct ci13xxx_ep  *mEp,
 	}
 	mReq->req.status = -ESHUTDOWN;
 
-	if (mReq->map) {
-		dma_unmap_single(mEp->device, mReq->req.dma,
-			mReq->req.length,
-			mEp->dir ? DMA_TO_DEVICE : DMA_FROM_DEVICE);
-		mReq->req.dma = DMA_ERROR_CODE;
-		mReq->map     = 0;
-	}
+	usb_gadget_unmap_request(&udc->gadget, &mReq->req, mEp->dir);
 
 	if (mEp->multi_req) {
 		restore_original_req(mReq);
@@ -2290,6 +2319,7 @@ static int _ep_nuke(struct ci13xxx_ep *mEp)
 __releases(mEp->lock)
 __acquires(mEp->lock)
 {
+	struct td_node *node, *tmpnode, *firstnode;
 	trace("%pK", mEp);
 
 	if (mEp == NULL)
@@ -2305,6 +2335,20 @@ __acquires(mEp->lock)
 		struct ci13xxx_req *mReq =
 			list_entry(mEp->qh.queue.next,
 				   struct ci13xxx_req, queue);
+
+		firstnode = list_first_entry(&mReq->tds,
+			struct td_node, td);
+
+		list_for_each_entry_safe(node, tmpnode, &mReq->tds, td) {
+			if (node != firstnode) {
+				dma_pool_free(mEp->td_pool, node->ptr,
+					      node->dma);
+				list_del_init(&node->td);
+				node->ptr = NULL;
+				kfree(node);
+			}
+		}
+
 		list_del_init(&mReq->queue);
 
 		release_ep_request(mEp, mReq);
@@ -2335,6 +2379,7 @@ __acquires(mEp->lock)
 static int _gadget_stop_activity(struct usb_gadget *gadget)
 {
 	struct ci13xxx    *udc = container_of(gadget, struct ci13xxx, gadget);
+	struct usb_ep *ep;
 	unsigned long flags;
 
 	trace("%pK", gadget);
@@ -2356,12 +2401,23 @@ static int _gadget_stop_activity(struct usb_gadget *gadget)
 	_ep_nuke(&udc->ep0in);
 	spin_unlock_irqrestore(udc->lock, flags);
 
+
+	/* make sure to disable all endpoints */
+	gadget_for_each_ep(ep, gadget) {
+		usb_ep_disable(ep);
+	}
+
+	if (udc->status != NULL) {
+		usb_ep_free_request(&(udc->ep0in.ep), udc->status);
+		udc->status = NULL;
+	}
+#if 0
 	if (udc->ep0in.last_zptr) {
 		dma_pool_free(udc->ep0in.td_pool, udc->ep0in.last_zptr,
 				udc->ep0in.last_zdma);
 		udc->ep0in.last_zptr = NULL;
 	}
-
+#endif
 	return 0;
 }
 
@@ -2604,6 +2660,7 @@ __acquires(mEp->lock)
 	int uninitialized_var(retval);
 	int req_dequeue = 1;
 	struct ci13xxx *udc = _udc;
+	struct td_node *firstnode;
 
 	trace("%pK", mEp);
 
@@ -2615,6 +2672,9 @@ __acquires(mEp->lock)
 	list_for_each_entry_safe(mReq, mReqTemp, &mEp->qh.queue,
 			queue) {
 dequeue:
+		firstnode = list_first_entry(&mReq->tds,
+			struct td_node, td);
+
 		retval = _hardware_dequeue(mEp, mReq);
 		if (retval < 0) {
 			/*
@@ -2670,7 +2730,7 @@ dequeue:
 		list_del_init(&mReq->queue);
 done:
 
-		dbg_done(_usb_addr(mEp), mReq->ptr->token, retval);
+//		dbg_done(_usb_addr(mEp), mReq->ptr->token, retval);
 
 		if (mReq->req.complete != NULL) {
 			spin_unlock(mEp->lock);
@@ -2994,13 +3054,13 @@ static int ep_disable(struct usb_ep *ep)
 			mEp->dir = (mEp->dir == TX) ? RX : TX;
 
 	} while (mEp->dir != direction);
-
+#if 0
 	if (mEp->last_zptr) {
 		dma_pool_free(mEp->td_pool, mEp->last_zptr,
 				mEp->last_zdma);
 		mEp->last_zptr = NULL;
 	}
-
+#endif
 	mEp->desc = NULL;
 	mEp->ep.desc = NULL;
 	mEp->ep.maxpacket = USHRT_MAX;
@@ -3018,6 +3078,7 @@ static struct usb_request *ep_alloc_request(struct usb_ep *ep, gfp_t gfp_flags)
 {
 	struct ci13xxx_ep  *mEp  = container_of(ep, struct ci13xxx_ep, ep);
 	struct ci13xxx_req *mReq = NULL;
+	struct td_node *node;
 
 	trace("%pK, %i", ep, gfp_flags);
 
@@ -3027,15 +3088,21 @@ static struct usb_request *ep_alloc_request(struct usb_ep *ep, gfp_t gfp_flags)
 	}
 
 	mReq = kzalloc(sizeof(struct ci13xxx_req), gfp_flags);
-	if (mReq != NULL) {
+	node = kzalloc(sizeof(struct td_node), gfp_flags);
+	if (mReq != NULL && node != NULL) {
 		INIT_LIST_HEAD(&mReq->queue);
-		mReq->req.dma = DMA_ERROR_CODE;
+		INIT_LIST_HEAD(&mReq->tds);
+		INIT_LIST_HEAD(&node->td);
+		//mReq->req.dma = DMA_ERROR_CODE;
 
-		mReq->ptr = dma_pool_alloc(mEp->td_pool, gfp_flags,
-					   &mReq->dma);
-		if (mReq->ptr == NULL) {
+		node->ptr = dma_pool_alloc(mEp->td_pool, gfp_flags,
+					   &node->dma);
+		if (node->ptr == NULL) {
+			kfree(node);
 			kfree(mReq);
 			mReq = NULL;
+		} else {
+			list_add_tail(&node->td, &mReq->tds);
 		}
 	}
 
@@ -3053,6 +3120,7 @@ static void ep_free_request(struct usb_ep *ep, struct usb_request *req)
 {
 	struct ci13xxx_ep  *mEp  = container_of(ep,  struct ci13xxx_ep, ep);
 	struct ci13xxx_req *mReq = container_of(req, struct ci13xxx_req, req);
+	struct td_node *firstnode;
 	unsigned long flags;
 
 	trace("%pK, %pK", ep, req);
@@ -3067,8 +3135,11 @@ static void ep_free_request(struct usb_ep *ep, struct usb_request *req)
 
 	spin_lock_irqsave(mEp->lock, flags);
 
-	if (mReq->ptr)
-		dma_pool_free(mEp->td_pool, mReq->ptr, mReq->dma);
+	firstnode = list_first_entry(&mReq->tds,
+		struct td_node, td);
+
+	if (firstnode->ptr)
+		dma_pool_free(mEp->td_pool, firstnode->ptr, firstnode->dma);
 	kfree(mReq);
 
 	dbg_event(_usb_addr(mEp), "FREE", 0);
@@ -3262,12 +3333,9 @@ static int ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 
 	/* pop request */
 	list_del_init(&mReq->queue);
-	if (mReq->map) {
-		dma_unmap_single(mEp->device, mReq->req.dma, mReq->req.length,
-				 mEp->dir ? DMA_TO_DEVICE : DMA_FROM_DEVICE);
-		mReq->req.dma = DMA_ERROR_CODE;
-		mReq->map     = 0;
-	}
+
+	usb_gadget_unmap_request(&udc->gadget, req, mEp->dir);
+
 	req->status = -ECONNRESET;
 	if (mEp->multi_req) {
 		restore_original_req(mReq);
