@@ -19,6 +19,7 @@
 /******************************************************************************
  * DEFINE
  *****************************************************************************/
+#define TD_PAGE_COUNT      5
 #define CI13XXX_PAGE_SIZE  4096ul /* page size for TD's */
 #define ENDPT_MAX          (32)
 #define CTRL_PAYLOAD_MAX   (64)
@@ -126,6 +127,7 @@ struct ci13xxx_ep {
 	spinlock_t                            *lock;
 	struct device                         *device;
 	struct dma_pool                       *td_pool;
+	struct td_node                        *pending_td;
 	struct ci13xxx_td                     *last_zptr;
 	dma_addr_t                            last_zdma;
 	unsigned long                         dTD_update_fail_count;
