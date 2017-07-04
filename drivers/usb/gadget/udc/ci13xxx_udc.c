@@ -2512,8 +2512,8 @@ __acquires(mEp->lock)
 	req->buf      = udc->status_buf;
 
 	if ((setup->bRequestType & USB_RECIP_MASK) == USB_RECIP_DEVICE) {
-		/* Assume that device is bus powered for now. */
-		*((u16 *)req->buf) = _udc->gadget.remote_wakeup << 1;
+		*((u16 *)req->buf) = _udc->gadget.remote_wakeup << 1 |
+				     _udc->gadget.is_selfpowered;
 		retval = 0;
 	} else if ((setup->bRequestType & USB_RECIP_MASK) \
 		   == USB_RECIP_ENDPOINT) {
@@ -3654,6 +3654,19 @@ static int ci13xxx_stop(struct usb_gadget *gadget)
 	return 0;
 }
 
+static int ci13xxx_selfpowered(struct usb_gadget *gadget, int is_on)
+{
+	struct ci13xxx *udc = _udc;
+	struct ci13xxx_ep *hwep = &udc->ep0in;
+	unsigned long flags;
+
+	spin_lock_irqsave(hwep->lock, flags);
+	gadget->is_selfpowered = (is_on != 0);
+	spin_unlock_irqrestore(hwep->lock, flags);
+
+	return 0;
+}
+
 /**
  * Device operations part of the API to the USB controller hardware,
  * which don't involve endpoints (or i/o)
@@ -3662,6 +3675,7 @@ static int ci13xxx_stop(struct usb_gadget *gadget)
 static const struct usb_gadget_ops usb_gadget_ops = {
 	.vbus_session	= ci13xxx_vbus_session,
 	.wakeup		= ci13xxx_wakeup,
+	.set_selfpowered= ci13xxx_selfpowered,
 	.vbus_draw	= ci13xxx_vbus_draw,
 	.pullup		= ci13xxx_pullup,
 	.udc_start	= ci13xxx_start,
