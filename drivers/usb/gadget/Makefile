@@ -9,5 +9,13 @@ obj-$(CONFIG_USB_LIBCOMPOSITE)	+= libcomposite.o
 libcomposite-y			:= usbstring.o config.o epautoconf.o
 libcomposite-y			+= composite.o functions.o configfs.o u_f.o
 
-obj-$(CONFIG_USB_GADGET)	+= udc/ function/ legacy/
+obj-$(CONFIG_USB_GADGET)	+= udc/ legacy/
 obj-y				+= debug.o
+
+ifeq ($(CONFIG_USB_GADGET),y)
+ ifeq ($(CONFIG_USB_G_ANDROID),y)
+ obj-y += legacy_function/
+ else
+ obj-y += function/
+ endif
+endif

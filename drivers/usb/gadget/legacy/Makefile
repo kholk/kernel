@@ -4,7 +4,12 @@
 
 ccflags-y			:= -I$(srctree)/drivers/usb/gadget/
 ccflags-y			+= -I$(srctree)/drivers/usb/gadget/udc/
+
+ifeq ($(CONFIG_USB_G_ANDROID),y)
+ccflags-y			+= -I$(srctree)/drivers/usb/gadget/legacy_function/
+else
 ccflags-y			+= -I$(srctree)/drivers/usb/gadget/function/
+endif
 
 g_android-y			:= android.o
 g_zero-y			:= zero.o
