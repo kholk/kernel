@@ -53,6 +53,7 @@
 #include <linux/device.h>
 #include <linux/dmapool.h>
 #include <linux/dma-mapping.h>
+#include <linux/err.h>
 #include <linux/init.h>
 #include <linux/ratelimit.h>
 #include <linux/interrupt.h>
@@ -1634,7 +1635,7 @@ static int ci13xxx_wakeup(struct usb_gadget *_gadget)
 	udc->udc_driver->notify_event(udc,
 		CI13XXX_CONTROLLER_REMOTE_WAKEUP_EVENT);
 
-	if (udc->transceiver)
+	if (!IS_ERR_OR_NULL(udc->transceiver))
 		usb_phy_set_suspend(udc->transceiver, 0);
 
 	spin_lock_irqsave(udc->lock, flags);
@@ -2394,14 +2395,14 @@ __acquires(udc->lock)
 		if (udc->udc_driver->notify_event)
 			udc->udc_driver->notify_event(udc,
 			CI13XXX_CONTROLLER_RESUME_EVENT);
-		if (udc->transceiver)
+		if (!IS_ERR_OR_NULL(udc->transceiver))
 			usb_phy_set_suspend(udc->transceiver, 0);
 		udc->driver->resume(&udc->gadget);
 		udc->suspended = 0;
 	}
 
 	/*stop charging upon reset */
-	if (udc->transceiver)
+	if (!IS_ERR_OR_NULL(udc->transceiver))
 		usb_phy_set_power(udc->transceiver, 100);
 
 	retval = _gadget_stop_activity(&udc->gadget);
@@ -2439,7 +2440,7 @@ static void isr_resume_handler(struct ci13xxx *udc)
 		if (udc->udc_driver->notify_event)
 			udc->udc_driver->notify_event(udc,
 			  CI13XXX_CONTROLLER_RESUME_EVENT);
-		if (udc->transceiver)
+		if (!IS_ERR_OR_NULL(udc->transceiver))
 			usb_phy_set_suspend(udc->transceiver, 0);
 		udc->suspended = 0;
 		udc->driver->resume(&udc->gadget);
@@ -2466,7 +2467,7 @@ static void isr_suspend_handler(struct ci13xxx *udc)
 			if (udc->udc_driver->notify_event)
 				udc->udc_driver->notify_event(udc,
 				CI13XXX_CONTROLLER_SUSPEND_EVENT);
-			if (udc->transceiver)
+			if (!IS_ERR_OR_NULL(udc->transceiver))
 				usb_phy_set_suspend(udc->transceiver, 1);
 			spin_lock(udc->lock);
 			udc->suspended = 1;
@@ -3498,7 +3499,7 @@ static int ci13xxx_vbus_draw(struct usb_gadget *_gadget, unsigned mA)
 		}
 	}
 
-	if (udc->transceiver)
+	if (!IS_ERR_OR_NULL(udc->transceiver))
 		return usb_phy_set_power(udc->transceiver, mA);
 	return -ENOTSUPP;
 }
@@ -3927,7 +3928,7 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 			goto put_transceiver;
 	}
 
-	if (udc->transceiver) {
+	if (!IS_ERR_OR_NULL(udc->transceiver)) {
 		retval = otg_set_peripheral(udc->transceiver->otg,
 						&udc->gadget);
 		if (retval)
@@ -3960,12 +3961,12 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 del_udc:
 	usb_del_gadget_udc(&udc->gadget);
 remove_trans:
-	if (udc->transceiver)
+	if (!IS_ERR_OR_NULL(udc->transceiver))
 		otg_set_peripheral(udc->transceiver->otg, &udc->gadget);
 
 	err("error = %i", retval);
 put_transceiver:
-	if (udc->transceiver)
+	if (!IS_ERR_OR_NULL(udc->transceiver))
 		usb_put_phy(udc->transceiver);
 destroy_eps:
 	destroy_eps(udc);
@@ -3995,7 +3996,7 @@ static void udc_remove(void)
 
 	usb_del_gadget_udc(&udc->gadget);
 
-	if (udc->transceiver) {
+	if (!IS_ERR_OR_NULL(udc->transceiver)) {
 		otg_set_peripheral(udc->transceiver->otg, &udc->gadget);
 		usb_put_phy(udc->transceiver);
 	}
