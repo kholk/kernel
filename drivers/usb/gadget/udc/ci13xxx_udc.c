@@ -2373,14 +2373,14 @@ __acquires(udc->lock)
 
 	trace("%pK", udc);
 
+	spin_unlock(udc->lock);
+
 	if (udc == NULL) {
 		err("EINVAL");
 		return;
 	}
 
 	dbg_event(0xFF, "BUS RST", 0);
-
-	spin_unlock(udc->lock);
 
 	if (udc->suspended) {
 		if (udc->udc_driver->notify_event)
