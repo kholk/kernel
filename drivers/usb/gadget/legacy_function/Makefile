@@ -2,6 +2,7 @@
 # USB peripheral controller drivers
 #
 
+ccflags-y			+= -I$(srctree)/drivers/usb/gadget/legacy_function/
 ccflags-y			:= -I$(srctree)/drivers/usb/gadget/
 ccflags-y			+= -I$(srctree)/drivers/usb/gadget/udc/
 

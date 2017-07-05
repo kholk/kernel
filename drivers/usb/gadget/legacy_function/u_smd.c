@@ -30,6 +30,8 @@
 
 #include "u_serial.h"
 
+#include "gadget_chips.h"
+
 #define SMD_RX_QUEUE_SIZE		8
 #define SMD_RX_BUF_SIZE			2048
 

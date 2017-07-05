@@ -257,7 +257,7 @@ static ssize_t ffs_ep0_write(struct file *file, const char __user *buf,
 			     size_t len, loff_t *ptr)
 {
 	struct ffs_data *ffs = file->private_data;
-	struct usb_gadget *gadget = ffs->gadget;
+	//struct usb_gadget *gadget = ffs->gadget;
 	ssize_t ret;
 	char *data;
 

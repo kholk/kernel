@@ -33,6 +33,7 @@
 #include <linux/usb/midi.h>
 
 #include "../u_f.h"
+#include "gadget_chips.h"
 
 MODULE_AUTHOR("Ben Williamson");
 MODULE_LICENSE("GPL v2");

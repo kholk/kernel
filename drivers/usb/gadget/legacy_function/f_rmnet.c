@@ -565,7 +565,7 @@ static void frmnet_unbind(struct usb_configuration *c, struct usb_function *f)
 	frmnet_free_req(dev->notify, dev->notify_req);
 	if (dxport == USB_GADGET_XPORT_BAM2BAM_IPA) {
 		gbam_data_flush_workqueue();
-		c->cdev->gadget->bam2bam_func_enabled = false;
+//		c->cdev->gadget->bam2bam_func_enabled = false;
 	}
 	kfree(f->name);
 }
@@ -1322,10 +1322,11 @@ static int frmnet_bind_config(struct usb_configuration *c, unsigned portno)
 		kfree(f->name);
 		return status;
 	}
+/*
 	if (rmnet_ports[portno].data_xport ==
 			USB_GADGET_XPORT_BAM2BAM_IPA)
 		c->cdev->gadget->bam2bam_func_enabled = true;
-
+*/
 	pr_debug("%s: complete\n", __func__);
 
 	return status;

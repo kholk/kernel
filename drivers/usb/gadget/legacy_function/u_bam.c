@@ -28,6 +28,7 @@
 #include <linux/usb/usb_ctrl_qti.h>
 #include <linux/usb_bam.h>
 
+#include "gadget_chips.h"
 #include "usb_gadget_xport.h"
 #include "u_rmnet.h"
 

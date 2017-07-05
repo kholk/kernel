@@ -17,6 +17,15 @@
 
 #include <linux/usb/gadget.h>
 
+#define EXTRA_BUF_ALLOC	0
+
+#define CONFIGFS_ATTR_STRUCT(_item)					\
+struct _item##_attribute {						\
+	struct configfs_attribute attr;					\
+	ssize_t (*show)(struct _item *, char *);			\
+	ssize_t (*store)(struct _item *, const char *, size_t);		\
+}
+
 /*
  * NOTICE: the entries below are alphabetical and should be kept
  * that way.

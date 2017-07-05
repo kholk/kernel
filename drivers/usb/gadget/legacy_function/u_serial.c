@@ -122,6 +122,7 @@ struct gs_port {
 	int write_allocated;
 	struct gs_buf		port_write_buf;
 	wait_queue_head_t	drain_wait;	/* wait while writes drain */
+	wait_queue_head_t	close_wait;
 
 	/* REVISIT this state ... */
 	struct usb_cdc_line_coding port_line_coding;	/* 8-N-1 etc */
@@ -983,7 +984,7 @@ static void gs_close(struct tty_struct *tty, struct file *file)
 	pr_debug("gs_close: ttyGS%d (%pK,%pK) done!\n",
 			port->port_num, tty, file);
 
-	wake_up(&port->port.close_wait);
+	wake_up(&port->close_wait);
 exit:
 	spin_unlock_irq(&port->port_lock);
 }
@@ -1240,6 +1241,7 @@ gs_port_alloc(unsigned port_num, struct usb_cdc_line_coding *coding)
 	tty_buffer_set_limit(&port->port, 131072);
 	spin_lock_init(&port->port_lock);
 	init_waitqueue_head(&port->drain_wait);
+	init_waitqueue_head(&port->close_wait);
 
 	INIT_WORK(&port->push, gs_rx_push);
 
@@ -1438,7 +1440,7 @@ static void gserial_free_port(struct gs_port *port)
 {
 	cancel_work_sync(&port->push);
 	/* wait for old opens to finish */
-	wait_event(port->port.close_wait, gs_closed(port));
+	wait_event(port->close_wait, gs_closed(port));
 	WARN_ON(port->port_usb != NULL);
 	tty_port_destroy(&port->port);
 	kfree(port);

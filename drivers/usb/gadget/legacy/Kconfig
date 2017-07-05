@@ -27,6 +27,8 @@ config USB_G_ANDROID
 	select USB_F_UAC1 if SND_PCM
 	select USB_F_UAC2 if SND_PCM
 	select USB_F_UVC if MEDIA_SUPPORT
+	select USB_F_DIAG
+	select USB_F_QDSS
 	help
 	  The Android Composite Gadget supports multiple USB
 	  functions: adb, acm, mass storage, mtp, accessory
