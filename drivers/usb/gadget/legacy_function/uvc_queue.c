@@ -41,7 +41,7 @@
  * videobuf2 queue operations
  */
 
-static int uvc_queue_setup(struct vb2_queue *vq, const struct v4l2_format *fmt,
+static int uvc_queue_setup(struct vb2_queue *vq, const void *parg,
 			   unsigned int *nbuffers, unsigned int *nplanes,
 			   unsigned int sizes[], void *alloc_ctxs[])
 {
@@ -63,7 +63,7 @@ static int uvc_buffer_prepare(struct vb2_buffer *vb)
 	struct uvc_video_queue *queue = vb2_get_drv_priv(vb->vb2_queue);
 	struct uvc_buffer *buf = container_of(vb, struct uvc_buffer, buf);
 
-	if (vb->v4l2_buf.type == V4L2_BUF_TYPE_VIDEO_OUTPUT &&
+	if (vb->type == V4L2_BUF_TYPE_VIDEO_OUTPUT &&
 	    vb2_get_plane_payload(vb, 0) > vb2_plane_size(vb, 0)) {
 		uvc_trace(UVC_TRACE_CAPTURE, "[E] Bytes used out of bounds.\n");
 		return -EINVAL;
@@ -75,7 +75,7 @@ static int uvc_buffer_prepare(struct vb2_buffer *vb)
 	buf->state = UVC_BUF_STATE_QUEUED;
 	buf->mem = vb2_plane_vaddr(vb, 0);
 	buf->length = vb2_plane_size(vb, 0);
-	if (vb->v4l2_buf.type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (vb->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		buf->bytesused = 0;
 	else
 		buf->bytesused = vb2_get_plane_payload(vb, 0);
@@ -135,7 +135,7 @@ int uvcg_queue_init(struct uvc_video_queue *queue, enum v4l2_buf_type type)
 	queue->queue.drv_priv = queue;
 	queue->queue.buf_struct_size = sizeof(struct uvc_buffer);
 	queue->queue.ops = &uvc_queue_qops;
-	queue->queue.mem_ops = &vb2_vmalloc_memops;
+	//queue->queue.mem_ops = &vb2_vmalloc_memops;
 	queue->queue.timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC
 				     | V4L2_BUF_FLAG_TSTAMP_SRC_EOF;
 	ret = vb2_queue_init(&queue->queue);
@@ -146,8 +146,10 @@ int uvcg_queue_init(struct uvc_video_queue *queue, enum v4l2_buf_type type)
 	spin_lock_init(&queue->irqlock);
 	INIT_LIST_HEAD(&queue->irqqueue);
 	queue->flags = 0;
-
+#if 0
 	return 0;
+#endif
+	return -ENODEV;
 }
 
 /*
@@ -362,6 +364,7 @@ done:
 struct uvc_buffer *uvcg_queue_next_buffer(struct uvc_video_queue *queue,
 					  struct uvc_buffer *buf)
 {
+#if 0
 	struct uvc_buffer *nextbuf;
 
 	if ((queue->flags & UVC_QUEUE_DROP_INCOMPLETE) &&
@@ -378,14 +381,17 @@ struct uvc_buffer *uvcg_queue_next_buffer(struct uvc_video_queue *queue,
 	else
 		nextbuf = NULL;
 
-	buf->buf.v4l2_buf.field = V4L2_FIELD_NONE;
-	buf->buf.v4l2_buf.sequence = queue->sequence++;
-	v4l2_get_timestamp(&buf->buf.v4l2_buf.timestamp);
+	buf->buf.field = V4L2_FIELD_NONE;
+	buf->buf.sequence = queue->sequence++;
+	v4l2_get_timestamp(&buf->buf.timestamp);
 
 	vb2_set_plane_payload(&buf->buf, 0, buf->bytesused);
 	vb2_buffer_done(&buf->buf, VB2_BUF_STATE_DONE);
 
 	return nextbuf;
+#else
+return NULL;
+#endif
 }
 
 struct uvc_buffer *uvcg_queue_head(struct uvc_video_queue *queue)

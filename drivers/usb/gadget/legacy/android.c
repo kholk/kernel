@@ -305,6 +305,7 @@ static const char *pm_qos_to_string(enum android_pm_qos_state state)
 
 static void android_pm_qos_update_latency(struct android_dev *dev, s32 latency)
 {
+#if 0
 	static int last_vote = -1;
 
 	if (latency == last_vote || !latency)
@@ -336,6 +337,7 @@ static void android_pm_qos_update_latency(struct android_dev *dev, s32 latency)
 		pm_qos_update_request(&dev->pm_qos_req_dma, latency);
 		last_vote = latency;
 	}
+#endif
 }
 
 #define DOWN_PM_QOS_SAMPLE_SEC		5
@@ -346,6 +348,7 @@ static void android_pm_qos_update_latency(struct android_dev *dev, s32 latency)
 
 static void android_pm_qos_work(struct work_struct *data)
 {
+#if 0
 	struct android_dev *dev = container_of(data, struct android_dev,
 							pm_qos_work.work);
 	struct usb_gadget *gadget = dev->cdev->gadget;
@@ -409,6 +412,7 @@ static void android_pm_qos_work(struct work_struct *data)
 
 	schedule_delayed_work(&dev->pm_qos_work,
 			msecs_to_jiffies(1000*next_sample_delay_sec));
+#endif
 }
 
 static void android_work(struct work_struct *data)
@@ -1582,6 +1586,7 @@ struct video_function_config {
 static int video_function_init(struct android_usb_function *f,
 			       struct usb_composite_dev *cdev)
 {
+#if 0
 	struct f_uvc_opts *uvc_opts;
 	struct video_function_config *config;
 
@@ -1615,6 +1620,10 @@ static int video_function_init(struct android_usb_function *f,
 	}
 
 	return 0;
+#else
+	pr_err("Android gadget: Video function is not implemented.\n");
+	return -ENODEV;
+#endif
 }
 
 static void video_function_cleanup(struct android_usb_function *f)
@@ -3279,13 +3288,7 @@ static struct android_usb_function *default_functions[] = {
 	&ffs_function,
 	&mbim_function,
 	&ecm_qc_function,
-#ifdef CONFIG_SND_PCM
-	&audio_function,
-	&uac2_function,
-#endif
-#ifdef CONFIG_MEDIA_SUPPORT
-	&video_function,
-#endif
+
 	&rmnet_function,
 	&gps_function,
 	&diag_function,
@@ -3301,7 +3304,6 @@ static struct android_usb_function *default_functions[] = {
 	&ncm_function,
 	&mass_storage_function,
 	&accessory_function,
-	&audio_source_function,
 	&charger_function,
 #ifdef CONFIG_SND_RAWMIDI
 	&midi_function,
@@ -3309,11 +3311,24 @@ static struct android_usb_function *default_functions[] = {
 	NULL
 };
 
+static struct android_usb_function *additional_functions[] = {
+#ifdef CONFIG_SND_PCM
+	&audio_function,
+	&uac2_function,
+#endif
+#ifdef CONFIG_MEDIA_SUPPORT
+	&video_function,
+#endif
+	&audio_source_function,
+};
+
 static void android_cleanup_functions(struct android_usb_function **functions)
 {
 	struct android_usb_function *f;
 	struct device_attribute **attrs;
 	struct device_attribute *attr;
+
+	f = additional_functions[0];
 
 	while (*functions) {
 		f = *functions++;
@@ -4388,18 +4403,18 @@ static int android_probe(struct platform_device *pdev)
 		dev_dbg(&pdev->dev, "failed to get mem resource\n");
 	}
 
-	if (pdata)
-		android_usb_driver.gadget_driver.usb_core_id =
-						pdata->usb_core_id;
-	ret = android_create_device(android_dev,
-			android_usb_driver.gadget_driver.usb_core_id);
+//	if (pdata)
+//		android_usb_driver.gadget_driver.usb_core_id =
+//						pdata->usb_core_id;
+	ret = android_create_device(android_dev, 0);
+//			android_usb_driver.gadget_driver.usb_core_id);
 	if (ret) {
 		pr_err("%s(): android_create_device failed\n", __func__);
 		goto err_dev;
 	}
 
-	pr_debug("%s(): registering android_usb_driver with core id:%d\n",
-		__func__, android_usb_driver.gadget_driver.usb_core_id);
+//	pr_debug("%s(): registering android_usb_driver with core id:%d\n",
+//		__func__, android_usb_driver.gadget_driver.usb_core_id);
 	ret = usb_composite_probe(&android_usb_driver);
 	if (ret) {
 		/* Perhaps UDC hasn't probed yet, try again later */
