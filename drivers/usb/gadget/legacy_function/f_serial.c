@@ -919,7 +919,7 @@ static int gser_bind(struct usb_configuration *c, struct usb_function *f)
 	/* allocate notification */
 	gser->notify_req = gs_alloc_req(ep,
 			sizeof(struct usb_cdc_notification) + 2,
-			(cdev->gadget->extra_buf_alloc), GFP_KERNEL);
+			EXTRA_BUF_ALLOC, GFP_KERNEL);
 	if (!gser->notify_req)
 		goto fail;
 

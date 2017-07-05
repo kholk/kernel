@@ -422,7 +422,7 @@ static void gbam_write_data_tohost(struct gbam_port *port)
 		 * bytes are already there, otherwise allocate new buffer
 		 * with extra bytes and do memcpy.
 		 */
-		if (port->gadget->extra_buf_alloc)
+		if (EXTRA_BUF_ALLOC)
 			extra_alloc = EXTRA_ALLOCATION_SIZE_U_BAM;
 		tail_room = skb_tailroom(skb);
 		if (tail_room < extra_alloc) {

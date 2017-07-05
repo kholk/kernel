@@ -2915,7 +2915,7 @@ int fsg_common_set_num_buffers(struct fsg_common *common, unsigned int n)
 	size_t extra_buf_alloc = 0;
 
 	if (common->gadget)
-		extra_buf_alloc = common->gadget->extra_buf_alloc;
+		extra_buf_alloc = EXTRA_BUF_ALLOC;
 
 	rc = fsg_num_buffers_validate(n);
 	if (rc != 0)

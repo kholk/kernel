@@ -1512,7 +1512,7 @@ mbim_bind(struct usb_configuration *c, struct usb_function *f)
 
 	/* allocate notification request and buffer */
 	mbim->not_port.notify_req = mbim_alloc_req(ep, NCM_STATUS_BYTECOUNT,
-				cdev->gadget->extra_buf_alloc);
+				EXTRA_BUF_ALLOC);
 	if (!mbim->not_port.notify_req) {
 		pr_info("failed to allocate notify request\n");
 		goto fail;

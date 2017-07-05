@@ -1326,7 +1326,7 @@ static int ncm_bind(struct usb_configuration *c, struct usb_function *f)
 	if (!ncm->notify_req)
 		goto fail;
 	ncm->notify_req->buf = kmalloc(NCM_STATUS_BYTECOUNT
-			+ (cdev->gadget->extra_buf_alloc), GFP_KERNEL);
+			+ EXTRA_BUF_ALLOC, GFP_KERNEL);
 	if (!ncm->notify_req->buf)
 		goto fail;
 	ncm->notify_req->context = ncm;

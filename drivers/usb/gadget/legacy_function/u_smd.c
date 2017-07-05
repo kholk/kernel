@@ -1013,7 +1013,7 @@ int gsmd_setup(struct usb_gadget *g, unsigned count)
 				__func__);
 		return -ENOMEM;
 	}
-	extra_sz = g->extra_buf_alloc;
+	extra_sz = EXTRA_BUF_ALLOC;
 
 	for (i = 0; i < count; i++) {
 		mutex_init(&smd_ports[i].lock);

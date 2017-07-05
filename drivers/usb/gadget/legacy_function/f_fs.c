@@ -32,6 +32,7 @@
 #include <linux/mmu_context.h>
 #include <linux/poll.h>
 
+#include "gadget_chips.h"
 #include "u_fs.h"
 #include "u_f.h"
 #include "u_os_desc.h"
@@ -353,7 +354,7 @@ static ssize_t ffs_ep0_write(struct file *file, const char __user *buf,
 
 		spin_unlock_irq(&ffs->ev.waitq.lock);
 
-		data = ffs_prepare_buffer(buf, len, gadget->extra_buf_alloc);
+		data = ffs_prepare_buffer(buf, len, EXTRA_BUF_ALLOC);
 		if (IS_ERR(data)) {
 			ret = PTR_ERR(data);
 			break;
@@ -787,7 +788,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 			   usb_ep_align_maybe(gadget, ep->ep, io_data->len) :
 			   io_data->len;
 
-		extra_buf_alloc = gadget->extra_buf_alloc;
+		extra_buf_alloc = EXTRA_BUF_ALLOC;
 		spin_unlock_irq(&epfile->ffs->eps_lock);
 
 		if (!io_data->read)

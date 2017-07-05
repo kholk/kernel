@@ -1164,7 +1164,7 @@ static int frmnet_bind(struct usb_configuration *c, struct usb_function *f)
 
 	dev->notify_req = frmnet_alloc_req(ep,
 				sizeof(struct usb_cdc_notification),
-				cdev->gadget->extra_buf_alloc,
+				EXTRA_BUF_ALLOC,
 				GFP_KERNEL);
 	if (IS_ERR(dev->notify_req)) {
 		pr_err("%s: unable to allocate memory for notify req\n",

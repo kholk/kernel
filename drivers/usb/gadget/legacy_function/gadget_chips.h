@@ -17,6 +17,8 @@
 
 #include <linux/usb/gadget.h>
 
+#define EXTRA_BUF_ALLOC	0
+
 /*
  * NOTICE: the entries below are alphabetical and should be kept
  * that way.

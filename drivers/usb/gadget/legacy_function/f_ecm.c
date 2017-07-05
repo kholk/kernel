@@ -775,7 +775,7 @@ ecm_bind(struct usb_configuration *c, struct usb_function *f)
 	if (!ecm->notify_req)
 		goto fail;
 	ecm->notify_req->buf = kmalloc(ECM_STATUS_BYTECOUNT +
-			cdev->gadget->extra_buf_alloc, GFP_KERNEL);
+			EXTRA_BUF_ALLOC, GFP_KERNEL);
 	if (!ecm->notify_req->buf)
 		goto fail;
 	ecm->notify_req->context = ecm;

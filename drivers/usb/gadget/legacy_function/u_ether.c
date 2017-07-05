@@ -850,7 +850,7 @@ static void tx_complete(struct usb_ep *ep, struct usb_request *req)
 		/* Is aggregation already enabled and buffers allocated ? */
 		if (dev->port_usb->multi_pkt_xfer && dev->tx_req_bufsize) {
 			req->buf = kzalloc(dev->tx_req_bufsize
-				+ dev->gadget->extra_buf_alloc, GFP_ATOMIC);
+				+ EXTRA_BUF_ALLOC, GFP_ATOMIC);
 			req->context = NULL;
 		} else {
 			req->buf = NULL;
@@ -890,7 +890,7 @@ static int alloc_tx_buffer(struct eth_dev *dev)
 		req = container_of(act, struct usb_request, list);
 		if (!req->buf) {
 			req->buf = kzalloc(dev->tx_req_bufsize
-				+ dev->gadget->extra_buf_alloc, GFP_ATOMIC);
+				+ EXTRA_BUF_ALLOC, GFP_ATOMIC);
 			if (!req->buf)
 				goto free_buf;
 		}
@@ -1228,7 +1228,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		 * bytes are already there, otherwise allocate new buffer
 		 * with extra bytes and do memcpy to align skb as well.
 		 */
-		if (dev->gadget->extra_buf_alloc)
+		if (EXTRA_BUF_ALLOC)
 			extra_alloc = EXTRA_ALLOCATION_SIZE_U_ETH;
 		tail_room = skb_tailroom(skb);
 		if (do_align || tail_room < extra_alloc) {

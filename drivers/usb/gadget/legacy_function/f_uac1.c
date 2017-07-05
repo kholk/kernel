@@ -1056,7 +1056,7 @@ static int f_audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 					return -ENOMEM;
 				}
 				req->buf = kzalloc(req_capture_buf_size +
-						cdev->gadget->extra_buf_alloc,
+						EXTRA_BUF_ALLOC,
 						GFP_ATOMIC);
 				if (!req->buf)
 					return -ENOMEM;
