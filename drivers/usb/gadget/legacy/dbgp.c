@@ -120,7 +120,7 @@ release_req:
 	usb_ep_free_request(dbgp.o_ep, req);
 	dbgp_disable_ep();
 fail:
-	dev_dbg(&dbgp.gadget->dev,
+	dev_err(&dbgp.gadget->dev,
 		"complete: failure (%d:%d) ==> %d\n", stp, err, status);
 }
 
@@ -158,7 +158,7 @@ fail_3:
 fail_2:
 	usb_ep_free_request(dbgp.o_ep, req);
 fail_1:
-	dev_dbg(&dbgp.gadget->dev,
+	dev_err(&dbgp.gadget->dev,
 		"enable ep req: failure (%d:%d)\n", stp, err);
 	return err;
 }
@@ -200,7 +200,7 @@ fail_3:
 fail_2:
 	__disable_ep(dbgp.i_ep);
 fail_1:
-	dev_dbg(&dbgp.gadget->dev, "enable ep: failure (%d:%d)\n", stp, err);
+	dev_err(&dbgp.gadget->dev, "enable ep: failure (%d:%d)\n", stp, err);
 	return err;
 }
 #endif
@@ -269,7 +269,7 @@ static int dbgp_configure_endpoints(struct usb_gadget *gadget)
 	return 0;
 
 fail_1:
-	dev_dbg(&dbgp.gadget->dev, "ep config: failure (%d)\n", stp);
+	dev_err(&dbgp.gadget->dev, "ep config: failure (%d)\n", stp);
 	return -ENODEV;
 }
 
@@ -317,11 +317,11 @@ static int dbgp_bind(struct usb_gadget *gadget,
 		goto fail;
 	}
 
-	dev_dbg(&dbgp.gadget->dev, "bind: success\n");
+	dev_err(&dbgp.gadget->dev, "bind: success\n");
 	return 0;
 
 fail:
-	dev_dbg(&gadget->dev, "bind: failure (%d:%d)\n", stp, err);
+	dev_err(&gadget->dev, "bind: failure (%d:%d)\n", stp, err);
 	dbgp_unbind(gadget);
 	return err;
 }
@@ -329,7 +329,7 @@ fail:
 static void dbgp_setup_complete(struct usb_ep *ep,
 				struct usb_request *req)
 {
-	dev_dbg(&dbgp.gadget->dev, "setup complete: %d, %d/%d\n",
+	dev_err(&dbgp.gadget->dev, "setup complete: %d, %d/%d\n",
 		req->status, req->actual, req->length);
 }
 
@@ -347,13 +347,13 @@ static int dbgp_setup(struct usb_gadget *gadget,
 	if (request == USB_REQ_GET_DESCRIPTOR) {
 		switch (value>>8) {
 		case USB_DT_DEVICE:
-			dev_dbg(&dbgp.gadget->dev, "setup: desc device\n");
+			dev_err(&dbgp.gadget->dev, "setup: desc device\n");
 			len = sizeof device_desc;
 			data = &device_desc;
 			device_desc.bMaxPacketSize0 = gadget->ep0->maxpacket;
 			break;
 		case USB_DT_DEBUG:
-			dev_dbg(&dbgp.gadget->dev, "setup: desc debug\n");
+			dev_err(&dbgp.gadget->dev, "setup: desc debug\n");
 			len = sizeof dbg_desc;
 			data = &dbg_desc;
 			break;
@@ -363,7 +363,7 @@ static int dbgp_setup(struct usb_gadget *gadget,
 		err = 0;
 	} else if (request == USB_REQ_SET_FEATURE &&
 		   value == USB_DEVICE_DEBUG_MODE) {
-		dev_dbg(&dbgp.gadget->dev, "setup: feat debug\n");
+		dev_err(&dbgp.gadget->dev, "setup: feat debug\n");
 #ifdef CONFIG_USB_G_DBGP_PRINTK
 		err = dbgp_enable_ep();
 #else
@@ -387,7 +387,7 @@ static int dbgp_setup(struct usb_gadget *gadget,
 	return usb_ep_queue(gadget->ep0, req, GFP_ATOMIC);
 
 fail:
-	dev_dbg(&dbgp.gadget->dev,
+	dev_err(&dbgp.gadget->dev,
 		"setup: failure req %x v %x\n", request, value);
 	return err;
 }

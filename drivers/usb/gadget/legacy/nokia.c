@@ -160,19 +160,19 @@ static int nokia_bind_config(struct usb_configuration *c)
 	if (!IS_ERR(fi_phonet)) {
 		f_phonet = usb_get_function(fi_phonet);
 		if (IS_ERR(f_phonet))
-			pr_debug("could not get phonet function\n");
+			pr_err("could not get phonet function\n");
 	}
 
 	if (!IS_ERR(fi_obex1)) {
 		f_obex1 = usb_get_function(fi_obex1);
 		if (IS_ERR(f_obex1))
-			pr_debug("could not get obex function 0\n");
+			pr_err("could not get obex function 0\n");
 	}
 
 	if (!IS_ERR(fi_obex2)) {
 		f_obex2 = usb_get_function(fi_obex2);
 		if (IS_ERR(f_obex2))
-			pr_debug("could not get obex function 1\n");
+			pr_err("could not get obex function 1\n");
 	}
 
 	f_acm = usb_get_function(fi_acm);
@@ -196,19 +196,19 @@ static int nokia_bind_config(struct usb_configuration *c)
 	if (!IS_ERR_OR_NULL(f_phonet)) {
 		phonet_stat = usb_add_function(c, f_phonet);
 		if (phonet_stat)
-			pr_debug("could not add phonet function\n");
+			pr_err("could not add phonet function\n");
 	}
 
 	if (!IS_ERR_OR_NULL(f_obex1)) {
 		obex1_stat = usb_add_function(c, f_obex1);
 		if (obex1_stat)
-			pr_debug("could not add obex function 0\n");
+			pr_err("could not add obex function 0\n");
 	}
 
 	if (!IS_ERR_OR_NULL(f_obex2)) {
 		obex2_stat = usb_add_function(c, f_obex2);
 		if (obex2_stat)
-			pr_debug("could not add obex function 1\n");
+			pr_err("could not add obex function 1\n");
 	}
 
 	status = usb_add_function(c, f_acm);
@@ -217,7 +217,7 @@ static int nokia_bind_config(struct usb_configuration *c)
 
 	status = usb_add_function(c, f_ecm);
 	if (status) {
-		pr_debug("could not bind ecm config %d\n", status);
+		pr_err("could not bind ecm config %d\n", status);
 		goto err_ecm;
 	}
 
@@ -291,15 +291,15 @@ static int nokia_bind(struct usb_composite_dev *cdev)
 
 	fi_phonet = usb_get_function_instance("phonet");
 	if (IS_ERR(fi_phonet))
-		pr_debug("could not find phonet function\n");
+		pr_err("could not find phonet function\n");
 
 	fi_obex1 = usb_get_function_instance("obex");
 	if (IS_ERR(fi_obex1))
-		pr_debug("could not find obex function 1\n");
+		pr_err("could not find obex function 1\n");
 
 	fi_obex2 = usb_get_function_instance("obex");
 	if (IS_ERR(fi_obex2))
-		pr_debug("could not find obex function 2\n");
+		pr_err("could not find obex function 2\n");
 
 	fi_acm = usb_get_function_instance("acm");
 	if (IS_ERR(fi_acm)) {

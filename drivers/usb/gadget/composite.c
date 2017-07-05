@@ -387,7 +387,7 @@ static int usb_func_wakeup_int(struct usb_function *func)
 	int ret;
 	struct usb_gadget *gadget;
 
-	pr_debug("%s - %s function wakeup\n",
+	pr_err("%s - %s function wakeup\n",
 		__func__, func->name ? func->name : "");
 
 	if (!func || !func->config || !func->config->cdev ||
@@ -414,7 +414,7 @@ int usb_func_wakeup(struct usb_function *func)
 	int ret;
 	unsigned long flags;
 
-	pr_debug("%s function wakeup\n",
+	pr_err("%s function wakeup\n",
 		func->name ? func->name : "");
 
 	spin_lock_irqsave(&func->config->cdev->lock, flags);
@@ -447,7 +447,7 @@ int usb_func_ep_queue(struct usb_function *func, struct usb_ep *ep,
 		goto done;
 	}
 
-	pr_debug("Function %s queueing new data into ep %u\n",
+	pr_err("Function %s queueing new data into ep %u\n",
 		func->name ? func->name : "", ep->address);
 
 	gadget = func->config->cdev->gadget;
@@ -455,7 +455,7 @@ int usb_func_ep_queue(struct usb_function *func, struct usb_ep *ep,
 	if (func->func_is_suspended && func->func_wakeup_allowed) {
 		ret = usb_gadget_func_wakeup(gadget, func->intf_id);
 		if (ret == -EAGAIN) {
-			pr_debug("bus suspended func wakeup for %s delayed until bus resume.\n",
+			pr_err("bus suspended func wakeup for %s delayed until bus resume.\n",
 				func->name ? func->name : "");
 		} else if (ret < 0 && ret != -ENOTSUPP) {
 			pr_err("Failed to wake function %s from suspend state. ret=%d.\n",

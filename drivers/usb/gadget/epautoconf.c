@@ -238,7 +238,7 @@ struct usb_ep *usb_ep_autoconfig_by_name(
 		desc->bEndpointAddress &= USB_DIR_IN;
 		desc->bEndpointAddress |= ep->ep_num;
 		ep->address = desc->bEndpointAddress;
-		pr_debug("Allocating ep address:%x\n", ep->address);
+		pr_err("Allocating ep address:%x\n", ep->address);
 		ep->desc = NULL;
 		ep->comp_desc = NULL;
 		return ep;

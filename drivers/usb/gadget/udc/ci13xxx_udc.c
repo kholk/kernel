@@ -378,12 +378,12 @@ static int hw_device_state(u32 dma)
 	if (dma) {
 		if (!(udc->udc_driver->flags & CI13XXX_DISABLE_STREAMING)) {
 			hw_cwrite(CAP_USBMODE, USBMODE_SDIS, 0);
-			pr_debug("%s(): streaming mode is enabled. USBMODE:%x\n",
+			pr_err("%s(): streaming mode is enabled. USBMODE:%x\n",
 				 __func__, hw_cread(CAP_USBMODE, ~0));
 
 		} else {
 			hw_cwrite(CAP_USBMODE, USBMODE_SDIS, USBMODE_SDIS);
-			pr_debug("%s(): streaming mode is disabled. USBMODE:%x\n",
+			pr_err("%s(): streaming mode is disabled. USBMODE:%x\n",
 				__func__, hw_cread(CAP_USBMODE, ~0));
 		}
 
@@ -393,7 +393,7 @@ static int hw_device_state(u32 dma)
 		/* Set BIT(31) to enable AHB2AHB Bypass functionality */
 		if (udc->udc_driver->flags & CI13XXX_ENABLE_AHB2AHB_BYPASS) {
 			hw_awrite(ABS_AHBMODE, AHB2AHB_BYPASS, AHB2AHB_BYPASS);
-			pr_debug("%s(): ByPass Mode is enabled. AHBMODE:%x\n",
+			pr_err("%s(): ByPass Mode is enabled. AHBMODE:%x\n",
 					__func__, hw_aread(ABS_AHBMODE, ~0));
 		}
 
@@ -407,7 +407,7 @@ static int hw_device_state(u32 dma)
 		/* Clear BIT(31) to disable AHB2AHB Bypass functionality */
 		if (udc->udc_driver->flags & CI13XXX_ENABLE_AHB2AHB_BYPASS) {
 			hw_awrite(ABS_AHBMODE, AHB2AHB_BYPASS, 0);
-			pr_debug("%s(): ByPass Mode is disabled. AHBMODE:%x\n",
+			pr_err("%s(): ByPass Mode is disabled. AHBMODE:%x\n",
 					__func__, hw_aread(ABS_AHBMODE, ~0));
 		}
 	}
@@ -1896,7 +1896,7 @@ static void ep_prime_timer_func(unsigned long data)
 	spin_lock_irqsave(mep->lock, flags);
 
 	if (_udc && (!_udc->vbus_active || _udc->suspended)) {
-		pr_debug("ep%d%s prime timer when vbus_active=%d,suspend=%d\n",
+		pr_err("ep%d%s prime timer when vbus_active=%d,suspend=%d\n",
 			mep->num, mep->dir ? "IN" : "OUT",
 			_udc->vbus_active, _udc->suspended);
 		goto out;
@@ -2019,9 +2019,9 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		if (!udc->gadget.remote_wakeup) {
 			mReq->req.status = -EAGAIN;
 
-			dev_dbg(mEp->device, "%s: queue failed (suspend).",
+			dev_err(mEp->device, "%s: queue failed (suspend).",
 					__func__);
-			dev_dbg(mEp->device, "%s: Remote wakeup is not supported. ept #%d\n",
+			dev_err(mEp->device, "%s: Remote wakeup is not supported. ept #%d\n",
 					__func__, mEp->num);
 
 			return -EAGAIN;
@@ -2087,7 +2087,7 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 				mReq_active = mReq_next;
 				dbg_event(_usb_addr(mEp), "ReQUE",
 					  mReq_next->ptr->token);
-				pr_debug("!!ReQ(%u-%u-%x)-%u!!\n", mEp->num,
+				pr_err("!!ReQ(%u-%u-%x)-%u!!\n", mEp->num,
 					 mEp->dir, mReq_next->ptr->token, i);
 				break;
 			}
@@ -3304,9 +3304,9 @@ static int ep_queue(struct usb_ep *ep, struct usb_request *req,
 		/* Remote Wakeup */
 		if (!udc->gadget.remote_wakeup) {
 
-			dev_dbg(mEp->device, "%s: queue failed (suspend).",
+			dev_err(mEp->device, "%s: queue failed (suspend).",
 					__func__);
-			dev_dbg(mEp->device, "%s: Remote wakeup is not supported. ept #%d\n",
+			dev_err(mEp->device, "%s: Remote wakeup is not supported. ept #%d\n",
 					__func__, mEp->num);
 
 			retval = -EAGAIN;

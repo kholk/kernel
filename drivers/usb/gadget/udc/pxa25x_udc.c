@@ -2158,7 +2158,7 @@ static int pxa25x_udc_probe(struct platform_device *pdev)
 	if (IS_ERR(dev->clk))
 		return PTR_ERR(dev->clk);
 
-	pr_debug("%s: IRQ %d%s%s\n", driver_name, irq,
+	pr_err("%s: IRQ %d%s%s\n", driver_name, irq,
 		dev->has_cfr ? "" : " (!cfr)",
 		SIZE_STR "(pio)"
 		);
@@ -2173,7 +2173,7 @@ static int pxa25x_udc_probe(struct platform_device *pdev)
 		retval = devm_gpio_request(&pdev->dev, dev->mach->gpio_pullup,
 					   "pca25x_udc GPIO PULLUP");
 		if (retval) {
-			dev_dbg(&pdev->dev,
+			dev_err(&pdev->dev,
 				"can't get pullup gpio %d, err: %d\n",
 				dev->mach->gpio_pullup, retval);
 			goto err;

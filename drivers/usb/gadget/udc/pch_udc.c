@@ -1299,7 +1299,7 @@ static void pch_vbus_gpio_work_fall(struct work_struct *irq_work)
 		vbus = pch_vbus_gpio_get_value(dev);
 
 		if ((vbus_saved == vbus) && (vbus == 0)) {
-			dev_dbg(&dev->pdev->dev, "VBUS fell");
+			dev_err(&dev->pdev->dev, "VBUS fell");
 			if (dev->driver
 				&& dev->driver->disconnect) {
 				dev->driver->disconnect(
@@ -1337,7 +1337,7 @@ static void pch_vbus_gpio_work_rise(struct work_struct *irq_work)
 	vbus = pch_vbus_gpio_get_value(dev);
 
 	if (vbus == 1) {
-		dev_dbg(&dev->pdev->dev, "VBUS rose");
+		dev_err(&dev->pdev->dev, "VBUS rose");
 		pch_udc_reconnect(dev);
 		return;
 	}
@@ -2730,12 +2730,12 @@ static void pch_udc_dev_isr(struct pch_udc_dev *dev, u32 dev_intr)
 	/* USB Reset Interrupt */
 	if (dev_intr & UDC_DEVINT_UR) {
 		pch_udc_svc_ur_interrupt(dev);
-		dev_dbg(&dev->pdev->dev, "USB_RESET\n");
+		dev_err(&dev->pdev->dev, "USB_RESET\n");
 	}
 	/* Enumeration Done Interrupt */
 	if (dev_intr & UDC_DEVINT_ENUM) {
 		pch_udc_svc_enum_interrupt(dev);
-		dev_dbg(&dev->pdev->dev, "USB_ENUM\n");
+		dev_err(&dev->pdev->dev, "USB_ENUM\n");
 	}
 	/* Set Interface Interrupt */
 	if (dev_intr & UDC_DEVINT_SI)
@@ -2766,17 +2766,17 @@ static void pch_udc_dev_isr(struct pch_udc_dev *dev, u32 dev_intr)
 			&& !dev->vbus_gpio.intr)
 			schedule_work(&dev->vbus_gpio.irq_work_fall);
 
-		dev_dbg(&dev->pdev->dev, "USB_SUSPEND\n");
+		dev_err(&dev->pdev->dev, "USB_SUSPEND\n");
 	}
 	/* Clear the SOF interrupt, if enabled */
 	if (dev_intr & UDC_DEVINT_SOF)
-		dev_dbg(&dev->pdev->dev, "SOF\n");
+		dev_err(&dev->pdev->dev, "SOF\n");
 	/* ES interrupt, IDLE > 3ms on the USB */
 	if (dev_intr & UDC_DEVINT_ES)
-		dev_dbg(&dev->pdev->dev, "ES\n");
+		dev_err(&dev->pdev->dev, "ES\n");
 	/* RWKP interrupt */
 	if (dev_intr & UDC_DEVINT_RWKP)
-		dev_dbg(&dev->pdev->dev, "RWKP\n");
+		dev_err(&dev->pdev->dev, "RWKP\n");
 }
 
 /**
@@ -2796,7 +2796,7 @@ static irqreturn_t pch_udc_isr(int irq, void *pdev)
 	/* For a hot plug, this find that the controller is hung up. */
 	if (dev_intr == ep_intr)
 		if (dev_intr == pch_udc_readl(dev, UDC_DEVCFG_ADDR)) {
-			dev_dbg(&dev->pdev->dev, "UDC: Hung up\n");
+			dev_err(&dev->pdev->dev, "UDC: Hung up\n");
 			/* The controller is reset */
 			pch_udc_writel(dev, UDC_SRST, UDC_SRST_ADDR);
 			return IRQ_HANDLED;

@@ -318,7 +318,7 @@ nonblock:
 		break;
 	// case STATE_EP_DISABLED:		/* "can't happen" */
 	default:				/* error! */
-		pr_debug ("%s: ep %p not available, state %d\n",
+		pr_err ("%s: ep %p not available, state %d\n",
 				shortname, epdata, epdata->state);
 	}
 	mutex_unlock(&epdata->lock);
@@ -1862,7 +1862,7 @@ dev_config (struct file *fd, const char __user *buf, size_t len, loff_t *ptr)
 
 fail:
 	spin_unlock_irq (&dev->lock);
-	pr_debug ("%s: %s fail %Zd, %p\n", shortname, __func__, value, dev);
+	pr_err ("%s: %s fail %Zd, %p\n", shortname, __func__, value, dev);
 	kfree (dev->buf);
 	dev->buf = NULL;
 	return value;
@@ -2069,7 +2069,7 @@ module_init (init);
 
 static void __exit cleanup (void)
 {
-	pr_debug ("unregister %s\n", shortname);
+	pr_err ("unregister %s\n", shortname);
 	unregister_filesystem (&gadgetfs_type);
 }
 module_exit (cleanup);

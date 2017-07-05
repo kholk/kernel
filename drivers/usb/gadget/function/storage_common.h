@@ -26,7 +26,7 @@
 			func("%s: " fmt, (lun)->name, ## args);		\
 	} while (0)
 
-#define LDBG(lun, fmt, args...)		_LMSG(pr_debug, lun, fmt, ## args)
+#define LDBG(lun, fmt, args...)		_LMSG(pr_err, lun, fmt, ## args)
 #define LERROR(lun, fmt, args...)	_LMSG(pr_err, lun, fmt, ## args)
 #define LWARN(lun, fmt, args...)	_LMSG(pr_warn, lun, fmt, ## args)
 #define LINFO(lun, fmt, args...)	_LMSG(pr_info, lun, fmt, ## args)

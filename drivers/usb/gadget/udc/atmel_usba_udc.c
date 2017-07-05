@@ -1729,7 +1729,7 @@ static irqreturn_t usba_udc_irq(int irq, void *devid)
 		 * but it's clearly harmless...
 		 */
 		if (!(usba_ep_readl(ep0, CFG) & USBA_EPT_MAPPED))
-			dev_dbg(&udc->pdev->dev,
+			dev_err(&udc->pdev->dev,
 				 "ODD: EP0 configuration is invalid!\n");
 	}
 

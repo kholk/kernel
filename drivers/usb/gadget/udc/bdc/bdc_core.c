@@ -39,7 +39,7 @@ static int poll_oip(struct bdc *bdc, int usec)
 	while (usec) {
 		status = bdc_readl(bdc->regs, BDC_BDCSC);
 		if (BDC_CSTS(status) != BDC_OIP) {
-			dev_dbg(bdc->dev,
+			dev_err(bdc->dev,
 				"poll_oip complete status=%d",
 				BDC_CSTS(status));
 			return 0;
@@ -58,7 +58,7 @@ int bdc_stop(struct bdc *bdc)
 	int ret;
 	u32 temp;
 
-	dev_dbg(bdc->dev, "%s ()\n\n", __func__);
+	dev_err(bdc->dev, "%s ()\n\n", __func__);
 	temp = bdc_readl(bdc->regs, BDC_BDCSC);
 	/* Check if BDC is already halted */
 	if (BDC_CSTS(temp) == BDC_HLT) {
@@ -82,7 +82,7 @@ int bdc_reset(struct bdc *bdc)
 	u32 temp;
 	int ret;
 
-	dev_dbg(bdc->dev, "%s ()\n", __func__);
+	dev_err(bdc->dev, "%s ()\n", __func__);
 	/* First halt the controller */
 	ret = bdc_stop(bdc);
 	if (ret)
@@ -105,7 +105,7 @@ int bdc_run(struct bdc *bdc)
 	u32 temp;
 	int ret;
 
-	dev_dbg(bdc->dev, "%s ()\n", __func__);
+	dev_err(bdc->dev, "%s ()\n", __func__);
 	temp = bdc_readl(bdc->regs, BDC_BDCSC);
 	/* if BDC is already in running state then do not do anything */
 	if (BDC_CSTS(temp) == BDC_NOR) {
@@ -143,7 +143,7 @@ void bdc_softconn(struct bdc *bdc)
 	uspc &= ~BDC_PST_MASK;
 	uspc |= BDC_LINK_STATE_RX_DET;
 	uspc |= BDC_SWS;
-	dev_dbg(bdc->dev, "%s () uspc=%08x\n", __func__, uspc);
+	dev_err(bdc->dev, "%s () uspc=%08x\n", __func__, uspc);
 	bdc_writel(bdc->regs, BDC_USPC, uspc);
 }
 
@@ -155,7 +155,7 @@ void bdc_softdisconn(struct bdc *bdc)
 	uspc = bdc_readl(bdc->regs, BDC_USPC);
 	uspc |= BDC_SDC;
 	uspc &= ~BDC_SCN;
-	dev_dbg(bdc->dev, "%s () uspc=%x\n", __func__, uspc);
+	dev_err(bdc->dev, "%s () uspc=%x\n", __func__, uspc);
 	bdc_writel(bdc->regs, BDC_USPC, uspc);
 }
 
@@ -167,14 +167,14 @@ static int scratchpad_setup(struct bdc *bdc)
 	u32 upp32;
 
 	sp_buff_size = BDC_SPB(bdc_readl(bdc->regs, BDC_BDCCFG0));
-	dev_dbg(bdc->dev, "%s() sp_buff_size=%d\n", __func__, sp_buff_size);
+	dev_err(bdc->dev, "%s() sp_buff_size=%d\n", __func__, sp_buff_size);
 	if (!sp_buff_size) {
-		dev_dbg(bdc->dev, "Scratchpad buffer not needed\n");
+		dev_err(bdc->dev, "Scratchpad buffer not needed\n");
 		return 0;
 	}
 	/* Refer to BDC spec, Table 4 for description of SPB */
 	sp_buff_size = 1 << (sp_buff_size + 5);
-	dev_dbg(bdc->dev, "Allocating %d bytes for scratchpad\n", sp_buff_size);
+	dev_err(bdc->dev, "Allocating %d bytes for scratchpad\n", sp_buff_size);
 	bdc->scratchpad.buff  =  dma_zalloc_coherent(bdc->dev, sp_buff_size,
 					&bdc->scratchpad.sp_dma, GFP_KERNEL);
 
@@ -200,7 +200,7 @@ fail:
 /* Allocate the status report ring */
 static int setup_srr(struct bdc *bdc, int interrupter)
 {
-	dev_dbg(bdc->dev, "%s() NUM_SR_ENTRIES:%d\n", __func__, NUM_SR_ENTRIES);
+	dev_err(bdc->dev, "%s() NUM_SR_ENTRIES:%d\n", __func__, NUM_SR_ENTRIES);
 	/* Reset the SRR */
 	bdc_writel(bdc->regs, BDC_SRRINT(0), BDC_SRR_RWS | BDC_SRR_RST);
 	bdc->srr.dqp_index = 0;
@@ -225,7 +225,7 @@ static void bdc_mem_init(struct bdc *bdc, bool reinit)
 	u32 upp32;
 	u32 temp;
 
-	dev_dbg(bdc->dev, "%s ()\n", __func__);
+	dev_err(bdc->dev, "%s ()\n", __func__);
 	bdc->ep0_state = WAIT_FOR_SETUP;
 	bdc->dev_addr = 0;
 	bdc->srr.eqp_index = 0;
@@ -238,11 +238,11 @@ static void bdc_mem_init(struct bdc *bdc, bool reinit)
 	temp = BDC_SRR_RWS | BDC_SRR_RST;
 	/* Reset the SRR */
 	bdc_writel(bdc->regs, BDC_SRRINT(0), temp);
-	dev_dbg(bdc->dev, "bdc->srr.sr_bds =%p\n", bdc->srr.sr_bds);
+	dev_err(bdc->dev, "bdc->srr.sr_bds =%p\n", bdc->srr.sr_bds);
 	temp = lower_32_bits(bdc->srr.dma_addr);
 	size = fls(NUM_SR_ENTRIES) - 2;
 	temp |= size;
-	dev_dbg(bdc->dev, "SRRBAL[0]=%08x NUM_SR_ENTRIES:%d size:%d\n",
+	dev_err(bdc->dev, "SRRBAL[0]=%08x NUM_SR_ENTRIES:%d size:%d\n",
 						temp, NUM_SR_ENTRIES, size);
 
 	low32 = lower_32_bits(temp);
@@ -266,14 +266,14 @@ static void bdc_mem_init(struct bdc *bdc, bool reinit)
 	bdc_writel(bdc->regs, BDC_INTCTLS(0), temp);
 
 	usb2_pm = bdc_readl(bdc->regs, BDC_USPPM2);
-	dev_dbg(bdc->dev, "usb2_pm=%08x", usb2_pm);
+	dev_err(bdc->dev, "usb2_pm=%08x", usb2_pm);
 	/* Enable hardware LPM Enable */
 	usb2_pm |= BDC_HLE;
 	bdc_writel(bdc->regs, BDC_USPPM2, usb2_pm);
 
 	/* readback for debug */
 	usb2_pm = bdc_readl(bdc->regs, BDC_USPPM2);
-	dev_dbg(bdc->dev, "usb2_pm=%08x\n", usb2_pm);
+	dev_err(bdc->dev, "usb2_pm=%08x\n", usb2_pm);
 
 	/* Disable any unwanted SR's on SRR */
 	temp = bdc_readl(bdc->regs, BDC_BDCSC);
@@ -311,7 +311,7 @@ static void bdc_mem_init(struct bdc *bdc, bool reinit)
 /* Free the dynamic memory */
 static void bdc_mem_free(struct bdc *bdc)
 {
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	/* Free SRR */
 	if (bdc->srr.sr_bds)
 		dma_free_coherent(bdc->dev,
@@ -343,7 +343,7 @@ int bdc_reinit(struct bdc *bdc)
 {
 	int ret;
 
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	ret = bdc_stop(bdc);
 	if (ret)
 		goto out;
@@ -367,7 +367,7 @@ static int bdc_mem_alloc(struct bdc *bdc)
 	u32 page_size;
 	unsigned int num_ieps, num_oeps;
 
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"%s() NUM_BDS_PER_TABLE:%d\n", __func__,
 		NUM_BDS_PER_TABLE);
 	page_size = BDC_PGS(bdc_readl(bdc->regs, BDC_BDCCFG0));
@@ -375,7 +375,7 @@ static int bdc_mem_alloc(struct bdc *bdc)
 	page_size = 1 << page_size;
 	/* KB */
 	page_size <<= 10;
-	dev_dbg(bdc->dev, "page_size=%d\n", page_size);
+	dev_err(bdc->dev, "page_size=%d\n", page_size);
 
 	/* Create a pool of bd tables */
 	bdc->bd_table_pool =
@@ -393,7 +393,7 @@ static int bdc_mem_alloc(struct bdc *bdc)
 	num_oeps = NUM_NCS(bdc_readl(bdc->regs, BDC_FSCNOC));
 	/* +2: 1 for ep0 and the other is rsvd i.e. bdc_ep[0] is rsvd */
 	bdc->num_eps = num_ieps + num_oeps + 2;
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"ieps:%d eops:%d num_eps:%d\n",
 		num_ieps, num_oeps, bdc->num_eps);
 	/* allocate array of ep pointers */
@@ -402,7 +402,7 @@ static int bdc_mem_alloc(struct bdc *bdc)
 	if (!bdc->bdc_ep_array)
 		goto fail;
 
-	dev_dbg(bdc->dev, "Allocating sr report0\n");
+	dev_err(bdc->dev, "Allocating sr report0\n");
 	if (setup_srr(bdc, 0))
 		goto fail;
 
@@ -417,7 +417,7 @@ fail:
 /* opposite to bdc_hw_init */
 static void bdc_hw_exit(struct bdc *bdc)
 {
-	dev_dbg(bdc->dev, "%s ()\n", __func__);
+	dev_err(bdc->dev, "%s ()\n", __func__);
 	bdc_mem_free(bdc);
 }
 
@@ -426,7 +426,7 @@ static int bdc_hw_init(struct bdc *bdc)
 {
 	int ret;
 
-	dev_dbg(bdc->dev, "%s ()\n", __func__);
+	dev_err(bdc->dev, "%s ()\n", __func__);
 	ret = bdc_reset(bdc);
 	if (ret) {
 		dev_err(bdc->dev, "err resetting bdc abort bdc init%d\n", ret);
@@ -439,7 +439,7 @@ static int bdc_hw_init(struct bdc *bdc)
 	}
 	bdc_mem_init(bdc, 0);
 	bdc_dbg_regs(bdc);
-	dev_dbg(bdc->dev, "HW Init done\n");
+	dev_err(bdc->dev, "HW Init done\n");
 
 	return 0;
 }
@@ -453,7 +453,7 @@ static int bdc_probe(struct platform_device *pdev)
 	u32 temp;
 	struct device *dev = &pdev->dev;
 
-	dev_dbg(dev, "%s()\n", __func__);
+	dev_err(dev, "%s()\n", __func__);
 	bdc = devm_kzalloc(dev, sizeof(*bdc), GFP_KERNEL);
 	if (!bdc)
 		return -ENOMEM;
@@ -473,19 +473,19 @@ static int bdc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, bdc);
 	bdc->irq = irq;
 	bdc->dev = dev;
-	dev_dbg(bdc->dev, "bdc->regs: %p irq=%d\n", bdc->regs, bdc->irq);
+	dev_err(bdc->dev, "bdc->regs: %p irq=%d\n", bdc->regs, bdc->irq);
 
 	temp = bdc_readl(bdc->regs, BDC_BDCSC);
 	if ((temp & BDC_P64) &&
 			!dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64))) {
-		dev_dbg(bdc->dev, "Using 64-bit address\n");
+		dev_err(bdc->dev, "Using 64-bit address\n");
 	} else {
 		ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
 		if (ret) {
 			dev_err(bdc->dev, "No suitable DMA config available, abort\n");
 			return -ENOTSUPP;
 		}
-		dev_dbg(bdc->dev, "Using 32-bit address\n");
+		dev_err(bdc->dev, "Using 32-bit address\n");
 	}
 	ret = bdc_hw_init(bdc);
 	if (ret) {
@@ -510,7 +510,7 @@ static int bdc_remove(struct platform_device *pdev)
 	struct bdc *bdc;
 
 	bdc  = platform_get_drvdata(pdev);
-	dev_dbg(bdc->dev, "%s ()\n", __func__);
+	dev_err(bdc->dev, "%s ()\n", __func__);
 	bdc_udc_exit(bdc);
 	bdc_hw_exit(bdc);
 

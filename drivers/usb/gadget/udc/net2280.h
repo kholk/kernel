@@ -318,7 +318,7 @@ static inline void net2280_led_shutdown(struct net2280 *dev)
 /*-------------------------------------------------------------------------*/
 
 #define ep_dbg(ndev, fmt, args...) \
-	dev_dbg((&((ndev)->pdev->dev)), fmt, ##args)
+	dev_err((&((ndev)->pdev->dev)), fmt, ##args)
 
 #define ep_vdbg(ndev, fmt, args...) \
 	dev_vdbg((&((ndev)->pdev->dev)), fmt, ##args)

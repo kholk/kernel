@@ -967,7 +967,7 @@ struct eth_dev *gether_setup_name(struct usb_gadget *g,
 
 	status = register_netdev(net);
 	if (status < 0) {
-		dev_dbg(&g->dev, "register_netdev failed, %d\n", status);
+		dev_err(&g->dev, "register_netdev failed, %d\n", status);
 		free_netdev(net);
 		dev = ERR_PTR(status);
 	} else {
@@ -1037,7 +1037,7 @@ int gether_register_netdev(struct net_device *net)
 	g = dev->gadget;
 	status = register_netdev(net);
 	if (status < 0) {
-		dev_dbg(&g->dev, "register_netdev failed, %d\n", status);
+		dev_err(&g->dev, "register_netdev failed, %d\n", status);
 		return status;
 	} else {
 		INFO(dev, "HOST MAC %pM\n", dev->host_mac);

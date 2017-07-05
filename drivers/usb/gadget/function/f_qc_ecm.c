@@ -507,7 +507,7 @@ static int ecm_qc_setup(struct usb_function *f,
 	/* composite driver infrastructure handles everything except
 	 * CDC class messages; interface activation uses set_alt().
 	 */
-	pr_debug("Enter\n");
+	pr_err("Enter\n");
 	switch ((ctrl->bRequestType << 8) | ctrl->bRequest) {
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_SET_ETHERNET_PACKET_FILTER:
@@ -734,14 +734,14 @@ static void ecm_qc_suspend(struct usb_function *f)
 		remote_wakeup_allowed =
 			f->config->cdev->gadget->remote_wakeup;
 
-	pr_debug("%s(): remote_wakeup:%d\n:", __func__, remote_wakeup_allowed);
+	pr_err("%s(): remote_wakeup:%d\n:", __func__, remote_wakeup_allowed);
 	if (!remote_wakeup_allowed)
 		__ecm->ecm_mdm_ready_trigger = false;
 
 	bam_data_suspend(&ecm->bam_port, ecm->port_num, USB_FUNC_ECM,
 			remote_wakeup_allowed);
 
-	pr_debug("ecm suspended\n");
+	pr_err("ecm suspended\n");
 }
 
 static void ecm_qc_resume(struct usb_function *f)
@@ -768,7 +768,7 @@ static void ecm_qc_resume(struct usb_function *f)
 		ecm_qc_notify(ecm);
 	}
 
-	pr_debug("ecm resumed\n");
+	pr_err("ecm resumed\n");
 }
 
 /*-------------------------------------------------------------------------*/
@@ -827,7 +827,7 @@ void ecm_mdm_ready(void)
 		return;
 	}
 
-	pr_debug("set ecm_ready_trigger\n");
+	pr_err("set ecm_ready_trigger\n");
 	ecm->ecm_mdm_ready_trigger = true;
 	ecm->is_open = true;
 	ecm_qc_notify(ecm);
@@ -862,7 +862,7 @@ ecm_qc_bind(struct usb_configuration *c, struct usb_function *f)
 
 	status = usb_interface_id(c, f);
 	if (status < 0) {
-		pr_debug("no more interface IDs can be allocated\n");
+		pr_err("no more interface IDs can be allocated\n");
 		goto fail;
 	}
 
@@ -877,7 +877,7 @@ ecm_qc_bind(struct usb_configuration *c, struct usb_function *f)
 	/* allocate instance-specific endpoints */
 	ep = usb_ep_autoconfig(cdev->gadget, &ecm_qc_fs_in_desc);
 	if (!ep) {
-		pr_debug("can not allocate endpoint (fs_in)\n");
+		pr_err("can not allocate endpoint (fs_in)\n");
 		goto fail;
 	}
 
@@ -886,7 +886,7 @@ ecm_qc_bind(struct usb_configuration *c, struct usb_function *f)
 
 	ep = usb_ep_autoconfig(cdev->gadget, &ecm_qc_fs_out_desc);
 	if (!ep) {
-		pr_debug("can not allocate endpoint (fs_out)\n");
+		pr_err("can not allocate endpoint (fs_out)\n");
 		goto fail;
 	}
 
@@ -899,7 +899,7 @@ ecm_qc_bind(struct usb_configuration *c, struct usb_function *f)
 	 */
 	ep = usb_ep_autoconfig(cdev->gadget, &ecm_qc_fs_notify_desc);
 	if (!ep) {
-		pr_debug("can not allocate endpoint (fs_notify)\n");
+		pr_err("can not allocate endpoint (fs_notify)\n");
 		goto fail;
 	}
 	ecm->notify = ep;
@@ -910,7 +910,7 @@ ecm_qc_bind(struct usb_configuration *c, struct usb_function *f)
 	/* allocate notification request and buffer */
 	ecm->notify_req = usb_ep_alloc_request(ep, GFP_KERNEL);
 	if (!ecm->notify_req) {
-		pr_debug("can not allocate notification request\n");
+		pr_err("can not allocate notification request\n");
 		goto fail;
 	}
 	ecm->notify_req->buf = kmalloc(ECM_QC_STATUS_BYTECOUNT, GFP_KERNEL);
@@ -1053,7 +1053,7 @@ ecm_qc_bind_config(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 	if (!can_support_ecm(c->cdev->gadget) || !ethaddr)
 		return -EINVAL;
 
-	pr_debug("data transport type is %s\n", xport_name);
+	pr_err("data transport type is %s\n", xport_name);
 
 	/* maybe allocate device-global string IDs */
 	if (ecm_qc_string_defs[0].id == 0) {
@@ -1087,7 +1087,7 @@ ecm_qc_bind_config(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 	__ecm = ecm;
 
 	ecm->xport = str_to_xport(xport_name);
-	pr_debug("set xport = %d\n", ecm->xport);
+	pr_err("set xport = %d\n", ecm->xport);
 
 	/* export host's Ethernet address in CDC format */
 	if (ecm->xport == USB_GADGET_XPORT_BAM2BAM_IPA) {
@@ -1134,7 +1134,7 @@ ecm_qc_bind_config(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 	if (ecm->xport != USB_GADGET_XPORT_BAM2BAM_IPA)
 		return status;
 
-	pr_debug("setting ecm_ipa, host_ethaddr=%pM, device_ethaddr=%pM",
+	pr_err("setting ecm_ipa, host_ethaddr=%pM, device_ethaddr=%pM",
 			ipa_params.host_ethaddr, ipa_params.device_ethaddr);
 	status = ecm_ipa_init(&ipa_params);
 	if (status) {
@@ -1144,7 +1144,7 @@ ecm_qc_bind_config(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 		__ecm = NULL;
 
 	} else {
-		pr_debug("ecm_ipa successful created\n");
+		pr_err("ecm_ipa successful created\n");
 	}
 
 	return status;
@@ -1154,7 +1154,7 @@ static int ecm_qc_init(void)
 {
 	int ret;
 
-	pr_debug("initialize ecm qc port instance\n");
+	pr_err("initialize ecm qc port instance\n");
 
 	ret = bam_data_setup(USB_FUNC_ECM, ECM_QC_NO_PORTS);
 	if (ret) {

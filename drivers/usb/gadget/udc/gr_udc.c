@@ -99,7 +99,7 @@ static void gr_dbgprint_request(const char *str, struct gr_ep *ep,
 	int rowlen = 32;
 	int plen = min(rowlen, buflen);
 
-	dev_dbg(ep->dev->dev, "%s: 0x%p, %d bytes data%s:\n", str, req, buflen,
+	dev_err(ep->dev->dev, "%s: 0x%p, %d bytes data%s:\n", str, req, buflen,
 		(buflen > plen ? " (truncated)" : ""));
 	print_hex_dump_debug("   ", DUMP_PREFIX_NONE,
 			     rowlen, 4, req->req.buf, plen, false);
@@ -332,7 +332,7 @@ static void gr_finish_request(struct gr_ep *ep, struct gr_request *req,
 
 		if (req->req.actual > req->req.length) {
 			/* We got more data than was requested */
-			dev_dbg(ep->dev->dev, "Overflow for ep %s\n",
+			dev_err(ep->dev->dev, "Overflow for ep %s\n",
 				ep->ep.name);
 			gr_dbgprint_request("OVFL", ep, req);
 			req->req.status = -EOVERFLOW;
@@ -737,13 +737,13 @@ static int gr_ep_halt_wedge(struct gr_ep *ep, int halt, int wedge, int fromhost)
 		if (halt && !fromhost) {
 			/* ep0 halt from gadget - generate protocol stall */
 			gr_control_stall(ep->dev);
-			dev_dbg(ep->dev->dev, "EP: stall ep0\n");
+			dev_err(ep->dev->dev, "EP: stall ep0\n");
 			return 0;
 		}
 		return -EINVAL;
 	}
 
-	dev_dbg(ep->dev->dev, "EP: %s halt %s\n",
+	dev_err(ep->dev->dev, "EP: %s halt %s\n",
 		(halt ? (wedge ? "wedge" : "set") : "clear"), ep->ep.name);
 
 	epctrl = gr_read32(&ep->regs->epctrl);
@@ -912,7 +912,7 @@ static int gr_device_request(struct gr_udc *dev, u8 type, u8 request,
 
 	switch (request) {
 	case USB_REQ_SET_ADDRESS:
-		dev_dbg(dev->dev, "STATUS: address %d\n", value & 0xff);
+		dev_err(dev->dev, "STATUS: address %d\n", value & 0xff);
 		gr_set_address(dev, value & 0xff);
 		if (value)
 			usb_gadget_set_state(&dev->gadget, USB_STATE_ADDRESS);
@@ -1086,7 +1086,7 @@ static void gr_ep0_setup(struct gr_udc *dev, struct gr_request *req)
 	if (dev->ep0state == GR_EP0_ISTATUS) {
 		gr_set_ep0state(dev, GR_EP0_SETUP);
 		if (req->req.actual > 0)
-			dev_dbg(dev->dev,
+			dev_err(dev->dev,
 				"Unexpected setup packet at state %s\n",
 				gr_ep0state_string(GR_EP0_ISTATUS));
 		else
@@ -1099,7 +1099,7 @@ static void gr_ep0_setup(struct gr_udc *dev, struct gr_request *req)
 		gr_set_ep0state(dev, GR_EP0_SETUP);
 		goto out;
 	} else if (!req->req.actual) {
-		dev_dbg(dev->dev, "Unexpected ZLP at state %s\n",
+		dev_err(dev->dev, "Unexpected ZLP at state %s\n",
 			gr_ep0state_string(dev->ep0state));
 		goto out;
 	}
@@ -1160,11 +1160,11 @@ static void gr_ep0_setup(struct gr_udc *dev, struct gr_request *req)
 	if ((type & USB_TYPE_MASK) == USB_TYPE_STANDARD &&
 	    request == USB_REQ_SET_CONFIGURATION) {
 		if (!value) {
-			dev_dbg(dev->dev, "STATUS: deconfigured\n");
+			dev_err(dev->dev, "STATUS: deconfigured\n");
 			usb_gadget_set_state(&dev->gadget, USB_STATE_ADDRESS);
 		} else if (status >= 0) {
 			/* Not configured unless gadget OK:s it */
-			dev_dbg(dev->dev, "STATUS: configured: %d\n", value);
+			dev_err(dev->dev, "STATUS: configured: %d\n", value);
 			usb_gadget_set_state(&dev->gadget,
 					     USB_STATE_CONFIGURED);
 		}
@@ -1342,21 +1342,21 @@ static int gr_handle_state_changes(struct gr_udc *dev)
 
 	/* VBUS valid detected */
 	if (!powstate && (status & GR_STATUS_VB)) {
-		dev_dbg(dev->dev, "STATUS: vbus valid detected\n");
+		dev_err(dev->dev, "STATUS: vbus valid detected\n");
 		gr_vbus_connected(dev, status);
 		handled = 1;
 	}
 
 	/* Disconnect */
 	if (powstate && !(status & GR_STATUS_VB)) {
-		dev_dbg(dev->dev, "STATUS: vbus invalid detected\n");
+		dev_err(dev->dev, "STATUS: vbus invalid detected\n");
 		gr_vbus_disconnected(dev);
 		handled = 1;
 	}
 
 	/* USB reset detected */
 	if (status & GR_STATUS_UR) {
-		dev_dbg(dev->dev, "STATUS: USB reset - speed is %s\n",
+		dev_err(dev->dev, "STATUS: USB reset - speed is %s\n",
 			GR_SPEED_STR(status));
 		gr_write32(&dev->regs->status, GR_STATUS_UR);
 		gr_udc_usbreset(dev, status);
@@ -1365,7 +1365,7 @@ static int gr_handle_state_changes(struct gr_udc *dev)
 
 	/* Speed change */
 	if (dev->gadget.speed != GR_SPEED(status)) {
-		dev_dbg(dev->dev, "STATUS: USB Speed change to %s\n",
+		dev_err(dev->dev, "STATUS: USB Speed change to %s\n",
 			GR_SPEED_STR(status));
 		dev->gadget.speed = GR_SPEED(status);
 		handled = 1;
@@ -1373,7 +1373,7 @@ static int gr_handle_state_changes(struct gr_udc *dev)
 
 	/* Going into suspend */
 	if ((dev->ep0state != GR_EP0_SUSPEND) && !(status & GR_STATUS_SU)) {
-		dev_dbg(dev->dev, "STATUS: USB suspend\n");
+		dev_err(dev->dev, "STATUS: USB suspend\n");
 		gr_set_ep0state(dev, GR_EP0_SUSPEND);
 		dev->suspended_from = dev->gadget.state;
 		usb_gadget_set_state(&dev->gadget, USB_STATE_SUSPENDED);
@@ -1391,7 +1391,7 @@ static int gr_handle_state_changes(struct gr_udc *dev)
 
 	/* Coming out of suspend */
 	if ((dev->ep0state == GR_EP0_SUSPEND) && (status & GR_STATUS_SU)) {
-		dev_dbg(dev->dev, "STATUS: USB resume\n");
+		dev_err(dev->dev, "STATUS: USB resume\n");
 		if (dev->suspended_from == USB_STATE_POWERED)
 			gr_set_ep0state(dev, GR_EP0_DISCONNECT);
 		else
@@ -1611,7 +1611,7 @@ static int gr_ep_enable(struct usb_ep *_ep,
 
 	spin_unlock(&ep->dev->lock);
 
-	dev_dbg(ep->dev->dev, "EP: %s enabled - %s with %d bytes/buffer\n",
+	dev_err(ep->dev->dev, "EP: %s enabled - %s with %d bytes/buffer\n",
 		ep->ep.name, gr_modestring[mode], ep->bytes_per_buffer);
 	return 0;
 }
@@ -1636,7 +1636,7 @@ static int gr_ep_disable(struct usb_ep *_ep)
 	if (dev->ep0state == GR_EP0_SUSPEND)
 		return -EBUSY;
 
-	dev_dbg(ep->dev->dev, "EP: disable %s\n", ep->ep.name);
+	dev_err(ep->dev->dev, "EP: disable %s\n", ep->ep.name);
 
 	spin_lock_irqsave(&dev->lock, flags);
 

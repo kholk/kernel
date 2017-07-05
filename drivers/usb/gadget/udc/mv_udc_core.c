@@ -144,7 +144,7 @@ static int process_ep_req(struct mv_udc *udc, int index,
 
 	for (i = 0; i < curr_req->dtd_count; i++) {
 		if (curr_dtd->size_ioc_sts & DTD_STATUS_ACTIVE) {
-			dev_dbg(&udc->dev->dev, "%s, dTD not completed\n",
+			dev_err(&udc->dev->dev, "%s, dTD not completed\n",
 				udc->eps[index].name);
 			return 1;
 		}
@@ -158,7 +158,7 @@ static int process_ep_req(struct mv_udc *udc, int index,
 
 			if (remaining_length) {
 				if (direction) {
-					dev_dbg(&udc->dev->dev,
+					dev_err(&udc->dev->dev,
 						"TX dTD remains data\n");
 					retval = -EPROTO;
 					break;
@@ -1076,7 +1076,7 @@ static int mv_udc_enable_internal(struct mv_udc *udc)
 	if (udc->active)
 		return 0;
 
-	dev_dbg(&udc->dev->dev, "enable udc\n");
+	dev_err(&udc->dev->dev, "enable udc\n");
 	udc_clock_enable(udc);
 	if (udc->pdata->phy_init) {
 		retval = udc->pdata->phy_init(udc->phy_regs);
@@ -1103,7 +1103,7 @@ static int mv_udc_enable(struct mv_udc *udc)
 static void mv_udc_disable_internal(struct mv_udc *udc)
 {
 	if (udc->active) {
-		dev_dbg(&udc->dev->dev, "disable udc\n");
+		dev_err(&udc->dev->dev, "disable udc\n");
 		if (udc->pdata->phy_deinit)
 			udc->pdata->phy_deinit(udc->phy_regs);
 		udc_clock_disable(udc);
@@ -1163,7 +1163,7 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 
 	udc->vbus_active = (is_active != 0);
 
-	dev_dbg(&udc->dev->dev, "%s: softconnect %d, vbus_active %d\n",
+	dev_err(&udc->dev->dev, "%s: softconnect %d, vbus_active %d\n",
 		__func__, udc->softconnect, udc->vbus_active);
 
 	if (udc->driver && udc->softconnect && udc->vbus_active) {
@@ -1200,7 +1200,7 @@ static int mv_udc_pullup(struct usb_gadget *gadget, int is_on)
 
 	udc->softconnect = (is_on != 0);
 
-	dev_dbg(&udc->dev->dev, "%s: softconnect %d, vbus_active %d\n",
+	dev_err(&udc->dev->dev, "%s: softconnect %d, vbus_active %d\n",
 			__func__, udc->softconnect, udc->vbus_active);
 
 	if (udc->driver && udc->softconnect && udc->vbus_active) {
@@ -1671,7 +1671,7 @@ static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 
 	nuke(&udc->eps[ep_num * 2 + EP_DIR_OUT], -ESHUTDOWN);
 
-	dev_dbg(&udc->dev->dev, "SETUP %02x.%02x v%04x i%04x l%04x\n",
+	dev_err(&udc->dev->dev, "SETUP %02x.%02x v%04x i%04x l%04x\n",
 			setup->bRequestType, setup->bRequest,
 			setup->wValue, setup->wIndex, setup->wLength);
 	/* We process some standard setup requests here */

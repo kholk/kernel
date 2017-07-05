@@ -381,7 +381,7 @@ static void dr_controller_stop(struct fsl_udc *udc)
 {
 	unsigned int tmp;
 
-	pr_debug("%s\n", __func__);
+	pr_err("%s\n", __func__);
 
 	/* if we're in OTG mode, and the Host is currently using the port,
 	 * stop now and don't rip the controller out from under the
@@ -389,7 +389,7 @@ static void dr_controller_stop(struct fsl_udc *udc)
 	 */
 	if (udc->gadget.is_otg) {
 		if (!(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)) {
-			pr_debug("udc: Leaving early\n");
+			pr_err("udc: Leaving early\n");
 			return;
 		}
 	}
@@ -1074,7 +1074,7 @@ static int fsl_ep_fifo_status(struct usb_ep *_ep)
 		size = (qh->size_ioc_int_sts & DTD_PACKET_SIZE)
 		    >> DTD_LENGTH_BIT_POS;
 
-	pr_debug("%s %u\n", __func__, size);
+	pr_err("%s %u\n", __func__, size);
 	return size;
 }
 
@@ -2614,7 +2614,7 @@ static int fsl_udc_otg_suspend(struct device *dev, pm_message_t state)
 
 	mode = fsl_readl(&dr_regs->usbmode) & USB_MODE_CTRL_MODE_MASK;
 
-	pr_debug("%s(): mode 0x%x stopped %d\n", __func__, mode, udc->stopped);
+	pr_err("%s(): mode 0x%x stopped %d\n", __func__, mode, udc->stopped);
 
 	/*
 	 * If the controller is already stopped, then this must be a
@@ -2622,13 +2622,13 @@ static int fsl_udc_otg_suspend(struct device *dev, pm_message_t state)
 	 * controller stopped at PM resume time.
 	 */
 	if (udc->stopped) {
-		pr_debug("gadget already stopped, leaving early\n");
+		pr_err("gadget already stopped, leaving early\n");
 		udc->already_stopped = 1;
 		return 0;
 	}
 
 	if (mode != USB_MODE_CTRL_MODE_DEVICE) {
-		pr_debug("gadget not in device mode, leaving early\n");
+		pr_err("gadget not in device mode, leaving early\n");
 		return 0;
 	}
 
@@ -2645,7 +2645,7 @@ static int fsl_udc_otg_suspend(struct device *dev, pm_message_t state)
 
 static int fsl_udc_otg_resume(struct device *dev)
 {
-	pr_debug("%s(): stopped %d  already_stopped %d\n", __func__,
+	pr_err("%s(): stopped %d  already_stopped %d\n", __func__,
 		 udc_controller->stopped, udc_controller->already_stopped);
 
 	/*
@@ -2654,7 +2654,7 @@ static int fsl_udc_otg_resume(struct device *dev)
 	 */
 	if (udc_controller->already_stopped) {
 		udc_controller->already_stopped = 0;
-		pr_debug("gadget was already stopped, leaving early\n");
+		pr_err("gadget was already stopped, leaving early\n");
 		return 0;
 	}
 

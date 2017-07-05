@@ -597,7 +597,7 @@ rndis_qc_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	/* composite driver infrastructure handles everything except
 	 * CDC class messages; interface activation uses set_alt().
 	 */
-	pr_debug("%s: Enter\n", __func__);
+	pr_err("%s: Enter\n", __func__);
 	switch ((ctrl->bRequestType << 8) | ctrl->bRequest) {
 
 	/* RNDIS uses the CDC command encapsulation mechanism to implement
@@ -819,12 +819,12 @@ static void rndis_qc_suspend(struct usb_function *f)
 		 * already updated due to receiving of PACKET_FILTER.
 		 */
 		rndis_flow_control(rndis->params, true);
-		pr_debug("%s(): Disconnecting\n", __func__);
+		pr_err("%s(): Disconnecting\n", __func__);
 	}
 
 	ipa_data_suspend(&rndis->bam_port, USB_IPA_FUNC_RNDIS,
 			remote_wakeup_allowed);
-	pr_debug("rndis suspended\n");
+	pr_err("rndis suspended\n");
 }
 
 static void rndis_qc_resume(struct usb_function *f)
@@ -832,11 +832,11 @@ static void rndis_qc_resume(struct usb_function *f)
 	struct f_rndis_qc	*rndis = func_to_rndis_qc(f);
 	bool remote_wakeup_allowed;
 
-	pr_debug("%s: rndis resumed\n", __func__);
+	pr_err("%s: rndis resumed\n", __func__);
 
 	/* Nothing to do if DATA interface wasn't initialized */
 	if (!rndis->bam_port.cdev) {
-		pr_debug("data interface was not up\n");
+		pr_err("data interface was not up\n");
 		return;
 	}
 
@@ -860,7 +860,7 @@ static void rndis_qc_resume(struct usb_function *f)
 		rndis_flow_control(rndis->params, false);
 	}
 
-	pr_debug("%s: RNDIS resume completed\n", __func__);
+	pr_err("%s: RNDIS resume completed\n", __func__);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -1037,14 +1037,14 @@ rndis_qc_bind(struct usb_configuration *c, struct usb_function *f)
 			rndis->manufacturer))
 		goto fail;
 
-	pr_debug("%s(): max_pkt_per_xfer:%d\n", __func__,
+	pr_err("%s(): max_pkt_per_xfer:%d\n", __func__,
 				rndis->ul_max_pkt_per_xfer);
 	rndis_set_max_pkt_xfer(rndis->params, rndis->ul_max_pkt_per_xfer);
 
 	/* In case of aggregated packets QC device will request
 	 * aliment to 4 (2^2).
 	 */
-	pr_debug("%s(): pkt_alignment_factor:%d\n", __func__,
+	pr_err("%s(): pkt_alignment_factor:%d\n", __func__,
 				rndis->pkt_alignment_factor);
 	rndis_set_pkt_alignment_factor(rndis->params,
 				rndis->pkt_alignment_factor);
@@ -1100,7 +1100,7 @@ rndis_qc_unbind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct f_rndis_qc		*rndis = func_to_rndis_qc(f);
 
-	pr_debug("rndis_qc_unbind: free\n");
+	pr_err("rndis_qc_unbind: free\n");
 	rndis_deregister(rndis->params);
 
 	if (gadget_is_dualspeed(c->cdev->gadget))
@@ -1158,7 +1158,7 @@ void rndis_net_ready_notify(void)
 		return;
 	}
 
-	pr_debug("%s: Set net_ready_trigger", __func__);
+	pr_err("%s: Set net_ready_trigger", __func__);
 	rndis->net_ready_trigger = true;
 	spin_unlock_irqrestore(&rndis_lock, flags);
 	ipa_data_start_rx_tx(USB_IPA_FUNC_RNDIS);
@@ -1200,7 +1200,7 @@ usb_function *rndis_qc_bind_config_vendor(struct usb_function_instance *fi,
 	/* export host's Ethernet address in CDC format */
 	random_ether_addr(rndis_ipa_params.host_ethaddr);
 	random_ether_addr(rndis_ipa_params.device_ethaddr);
-	pr_debug("setting host_ethaddr=%pM, device_ethaddr=%pM\n",
+	pr_err("setting host_ethaddr=%pM, device_ethaddr=%pM\n",
 		rndis_ipa_params.host_ethaddr,
 		rndis_ipa_params.device_ethaddr);
 	rndis_ipa_supported = true;
@@ -1322,7 +1322,7 @@ static long rndis_qc_ioctl(struct file *fp, unsigned cmd, unsigned long arg)
 			pr_err("copying to user space failed\n");
 			ret = -EFAULT;
 		}
-		pr_debug("Sent max packet size %d\n",
+		pr_err("Sent max packet size %d\n",
 				rndis->max_pkt_size);
 		break;
 	default:
@@ -1377,7 +1377,7 @@ static int qcrndis_set_inst_name(struct usb_function_instance *fi,
 	if (name_len > MAX_INST_NAME_LEN)
 		return -ENAMETOOLONG;
 
-	pr_debug("initialize rndis QC instance\n");
+	pr_err("initialize rndis QC instance\n");
 	rndis = kzalloc(sizeof(*rndis), GFP_KERNEL);
 	if (!rndis) {
 		pr_err("%s: fail allocate and initialize new instance\n",

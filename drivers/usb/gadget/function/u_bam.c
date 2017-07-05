@@ -231,13 +231,13 @@ static int gbam_alloc_requests(struct usb_ep *ep, struct list_head *head,
 	int i;
 	struct usb_request *req;
 
-	pr_debug("%s: ep:%pK head:%pK num:%d cb:%pK", __func__,
+	pr_err("%s: ep:%pK head:%pK num:%d cb:%pK", __func__,
 			ep, head, num, cb);
 
 	for (i = 0; i < num; i++) {
 		req = usb_ep_alloc_request(ep, flags);
 		if (!req) {
-			pr_debug("%s: req allocated:%d\n", __func__, i);
+			pr_err("%s: req allocated:%d\n", __func__, i);
 			return list_empty(head) ? -ENOMEM : 0;
 		}
 		req->complete = cb;
@@ -274,7 +274,7 @@ static struct sk_buff *gbam_alloc_skb_from_pool(struct gbam_port *port)
 		 * Therefore, in steady state this dynamic allocation will
 		 * stop when the pool will arrive to its optimal size.
 		 */
-		pr_debug("%s: allocate skb\n", __func__);
+		pr_err("%s: allocate skb\n", __func__);
 		skb = alloc_skb(bam_mux_rx_req_size + BAM_MUX_HDR, GFP_ATOMIC);
 
 		if (!skb)
@@ -304,7 +304,7 @@ static struct sk_buff *gbam_alloc_skb_from_pool(struct gbam_port *port)
 			sizeof(skb_buf_dma_addr));
 
 	} else {
-		pr_debug("%s: pull skb from pool\n", __func__);
+		pr_err("%s: pull skb from pool\n", __func__);
 		skb = __skb_dequeue(&d->rx_skb_idle);
 		if (skb_headroom(skb) < BAM_MUX_HDR)
 			skb_reserve(skb, BAM_MUX_HDR);
@@ -425,7 +425,7 @@ static void gbam_write_data_tohost(struct gbam_port *port)
 			extra_alloc = EXTRA_ALLOCATION_SIZE_U_BAM;
 		tail_room = skb_tailroom(skb);
 		if (tail_room < extra_alloc) {
-			pr_debug("%s: tail_room  %d less than %d\n", __func__,
+			pr_err("%s: tail_room  %d less than %d\n", __func__,
 					tail_room, extra_alloc);
 			new_skb = skb_copy_expand(skb, 0, extra_alloc -
 					tail_room, GFP_ATOMIC);
@@ -491,7 +491,7 @@ void gbam_data_recv_cb(void *p, struct sk_buff *skb)
 	if (!skb)
 		return;
 
-	pr_debug("%s: p:%pK#%d d:%pK skb_len:%d\n", __func__,
+	pr_err("%s: p:%pK#%d d:%pK skb_len:%d\n", __func__,
 			port, port->port_num, d, skb->len);
 
 	spin_lock_irqsave(&port->port_lock_dl, flags);
@@ -532,7 +532,7 @@ void gbam_data_write_done(void *p, struct sk_buff *skb)
 	d->pending_bytes_with_bam -= skb->len;
 	gbam_free_skb_to_pool(port, skb);
 
-	pr_debug("%s:port:%pK d:%pK tom:%lu ppkt:%u pbytes:%u pno:%d\n",
+	pr_err("%s:port:%pK d:%pK tom:%lu ppkt:%u pbytes:%u pno:%d\n",
 			__func__,
 			port, d, d->to_modem, d->pending_pkts_with_bam,
 			d->pending_bytes_with_bam, port->port_num);
@@ -609,7 +609,7 @@ static void gbam_data_write_tobam(struct work_struct *w)
 		d->pending_bytes_with_bam += skb->len;
 		d->to_modem++;
 
-		pr_debug("%s: port:%pK d:%pK tom:%lu ppkts:%u pbytes:%u pno:%d\n",
+		pr_err("%s: port:%pK d:%pK tom:%lu ppkts:%u pbytes:%u pno:%d\n",
 				__func__, port, d,
 				d->to_modem, d->pending_pkts_with_bam,
 				d->pending_bytes_with_bam, port->port_num);
@@ -634,7 +634,7 @@ static void gbam_data_write_tobam(struct work_struct *w)
 
 		spin_lock_irqsave(&port->port_lock_ul, flags);
 		if (ret) {
-			pr_debug("%s: write error:%d\n", __func__, ret);
+			pr_err("%s: write error:%d\n", __func__, ret);
 			d->pending_pkts_with_bam--;
 			d->pending_bytes_with_bam -= skb->len;
 			d->to_modem--;
@@ -802,14 +802,14 @@ static void gbam_endless_rx_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	int status = req->status;
 
-	pr_debug("%s status: %d\n", __func__, status);
+	pr_err("%s status: %d\n", __func__, status);
 }
 
 static void gbam_endless_tx_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	int status = req->status;
 
-	pr_debug("%s status: %d\n", __func__, status);
+	pr_err("%s status: %d\n", __func__, status);
 }
 
 static void gbam_start_rx(struct gbam_port *port)
@@ -891,7 +891,7 @@ static void gbam_start_endless_rx(struct gbam_port *port)
 
 	ep = port->port_usb->out;
 	spin_unlock_irqrestore(&port->port_lock_ul, flags);
-	pr_debug("%s: enqueue\n", __func__);
+	pr_err("%s: enqueue\n", __func__);
 	status = usb_ep_queue(ep, d->rx_req, GFP_ATOMIC);
 	if (status)
 		pr_err("%s: error enqueuing transfer, %d\n", __func__, status);
@@ -913,7 +913,7 @@ static void gbam_start_endless_tx(struct gbam_port *port)
 
 	ep = port->port_usb->in;
 	spin_unlock_irqrestore(&port->port_lock_dl, flags);
-	pr_debug("%s: enqueue\n", __func__);
+	pr_err("%s: enqueue\n", __func__);
 	status = usb_ep_queue(ep, d->tx_req, GFP_ATOMIC);
 	if (status)
 		pr_err("%s: error enqueuing transfer, %d\n", __func__, status);
@@ -935,7 +935,7 @@ static void gbam_stop_endless_rx(struct gbam_port *port)
 
 	ep = port->port_usb->out;
 	spin_unlock_irqrestore(&port->port_lock_ul, flags);
-	pr_debug("%s: dequeue\n", __func__);
+	pr_err("%s: dequeue\n", __func__);
 	status = usb_ep_dequeue(ep, d->rx_req);
 	if (status)
 		pr_err("%s: error dequeuing transfer, %d\n", __func__, status);
@@ -957,7 +957,7 @@ static void gbam_stop_endless_tx(struct gbam_port *port)
 
 	ep = port->port_usb->in;
 	spin_unlock_irqrestore(&port->port_lock_dl, flags);
-	pr_debug("%s: dequeue\n", __func__);
+	pr_err("%s: dequeue\n", __func__);
 	status = usb_ep_dequeue(ep, d->tx_req);
 	if (status)
 		pr_err("%s: error dequeuing transfer, %d\n", __func__, status);
@@ -1098,7 +1098,7 @@ static void gbam_start_io(struct gbam_port *port)
 {
 	unsigned long		flags;
 
-	pr_debug("%s: port:%pK\n", __func__, port);
+	pr_err("%s: port:%pK\n", __func__, port);
 
 	if (_gbam_start_io(port, true))
 		return;
@@ -1145,7 +1145,7 @@ static void gbam_notify(void *p, int event, unsigned long data)
 		if (test_bit(BAM_CH_OPENED, &d->flags))
 			pr_warn("%s, BAM channel opened already", __func__);
 		bam_mux_rx_req_size = data;
-		pr_debug("%s rx_req_size: %lu", __func__, bam_mux_rx_req_size);
+		pr_err("%s rx_req_size: %lu", __func__, bam_mux_rx_req_size);
 		break;
 	}
 }
@@ -1228,7 +1228,7 @@ static void gbam2bam_disconnect_work(struct work_struct *w)
 	spin_lock_irqsave(&port->port_lock, flags);
 
 	if (!port->is_connected) {
-		pr_debug("%s: Port already disconnected. Bailing out.\n",
+		pr_err("%s: Port already disconnected. Bailing out.\n",
 			__func__);
 		spin_unlock_irqrestore(&port->port_lock, flags);
 		return;
@@ -1296,7 +1296,7 @@ static void gbam_connect_work(struct work_struct *w)
 
 	gbam_start_io(port);
 
-	pr_debug("%s: done\n", __func__);
+	pr_err("%s: done\n", __func__);
 }
 
 static void gbam2bam_connect_work(struct work_struct *w)
@@ -1313,7 +1313,7 @@ static void gbam2bam_connect_work(struct work_struct *w)
 	spin_lock_irqsave(&port->port_lock, flags);
 
 	if (port->last_event == U_BAM_DISCONNECT_E) {
-		pr_debug("%s: Port is about to disconnected. Bailing out.\n",
+		pr_err("%s: Port is about to disconnected. Bailing out.\n",
 			__func__);
 		spin_unlock_irqrestore(&port->port_lock, flags);
 		return;
@@ -1324,7 +1324,7 @@ static void gbam2bam_connect_work(struct work_struct *w)
 	spin_lock_irqsave(&port->port_lock_ul, flags_ul);
 	spin_lock(&port->port_lock_dl);
 	if (!port->port_usb) {
-		pr_debug("%s: usb cable is disconnected, exiting\n", __func__);
+		pr_err("%s: usb cable is disconnected, exiting\n", __func__);
 		spin_unlock(&port->port_lock_dl);
 		spin_unlock_irqrestore(&port->port_lock_ul, flags_ul);
 		spin_unlock_irqrestore(&port->port_lock, flags);
@@ -1382,7 +1382,7 @@ static void gbam2bam_connect_work(struct work_struct *w)
 	spin_lock_irqsave(&port->port_lock, flags);
 	/* check if USB cable is disconnected or not */
 	if (!port || !port->port_usb) {
-		pr_debug("%s: cable is disconnected.\n",
+		pr_err("%s: cable is disconnected.\n",
 						 __func__);
 		spin_unlock_irqrestore(&port->port_lock,
 							flags);
@@ -1507,7 +1507,7 @@ static void gbam2bam_connect_work(struct work_struct *w)
 	}
 	gbam_start_endless_tx(port);
 
-	pr_debug("%s: done\n", __func__);
+	pr_err("%s: done\n", __func__);
 	return;
 
 ep_unconfig:
@@ -1529,7 +1529,7 @@ static int gbam_wake_cb(void *param)
 
 	spin_lock_irqsave(&port->port_lock, flags);
 	if (!port->port_usb) {
-		pr_debug("%s: usb cable is disconnected, exiting\n",
+		pr_err("%s: usb cable is disconnected, exiting\n",
 				__func__);
 		spin_unlock_irqrestore(&port->port_lock, flags);
 		return -ENODEV;
@@ -1538,7 +1538,7 @@ static int gbam_wake_cb(void *param)
 	gadget = port->port_usb->gadget;
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
-	pr_debug("%s: woken up by peer\n", __func__);
+	pr_err("%s: woken up by peer\n", __func__);
 
 	return usb_gadget_wakeup(gadget);
 }
@@ -1550,13 +1550,13 @@ static void gbam2bam_suspend_work(struct work_struct *w)
 	int ret;
 	unsigned long flags;
 
-	pr_debug("%s: suspend work started\n", __func__);
+	pr_err("%s: suspend work started\n", __func__);
 
 	spin_lock_irqsave(&port->port_lock, flags);
 
 	if ((port->last_event == U_BAM_DISCONNECT_E) ||
 	    (port->last_event == U_BAM_RESUME_E)) {
-		pr_debug("%s: Port is about to disconnect/resume. Bail out\n",
+		pr_err("%s: Port is about to disconnect/resume. Bail out\n",
 			__func__);
 		goto exit;
 	}
@@ -1603,12 +1603,12 @@ static void gbam2bam_resume_work(struct work_struct *w)
 	int ret;
 	unsigned long flags;
 
-	pr_debug("%s: resume work started\n", __func__);
+	pr_err("%s: resume work started\n", __func__);
 
 	spin_lock_irqsave(&port->port_lock, flags);
 
 	if (port->last_event == U_BAM_DISCONNECT_E || !port->port_usb) {
-		pr_debug("%s: usb cable is disconnected, exiting\n",
+		pr_err("%s: usb cable is disconnected, exiting\n",
 			__func__);
 		goto exit;
 	}
@@ -1653,7 +1653,7 @@ static int gbam_data_ch_probe(struct platform_device *pdev)
 	unsigned long		flags;
 	bool			do_work = false;
 
-	pr_debug("%s: name:%s\n", __func__, pdev->name);
+	pr_err("%s: name:%s\n", __func__, pdev->name);
 
 	for (i = 0; i < n_bam_ports; i++) {
 		port = bam_ports[i].port;
@@ -1690,7 +1690,7 @@ static int gbam_data_ch_remove(struct platform_device *pdev)
 	unsigned long		flags;
 	int			i;
 
-	pr_debug("%s: name:%s\n", __func__, pdev->name);
+	pr_err("%s: name:%s\n", __func__, pdev->name);
 
 	for (i = 0; i < n_bam_ports; i++) {
 		if (!strncmp(bam_ch_names[i], pdev->name,
@@ -1787,7 +1787,7 @@ static int gbam_port_alloc(int portno)
 	pdrv->driver.owner = THIS_MODULE;
 
 	platform_driver_register(pdrv);
-	pr_debug("%s: port:%pK portno:%d\n", __func__, port, portno);
+	pr_err("%s: port:%pK portno:%d\n", __func__, port, portno);
 
 	return 0;
 }
@@ -1827,7 +1827,7 @@ static int gbam2bam_port_alloc(int portno)
 	INIT_LIST_HEAD(&d->rx_idle);
 	INIT_WORK(&d->write_tobam_w, gbam_data_write_tobam);
 
-	pr_debug("%s: port:%pK portno:%d\n", __func__, port, portno);
+	pr_err("%s: port:%pK portno:%d\n", __func__, port, portno);
 
 	return 0;
 }
@@ -1982,7 +1982,7 @@ void gbam_disconnect(struct grmnet *gr, u8 port_num, enum transport_type trans)
 	unsigned long		flags, flags_ul, flags_dl;
 	struct bam_ch_info	*d;
 
-	pr_debug("%s: grmnet:%pK port#%d\n", __func__, gr, port_num);
+	pr_err("%s: grmnet:%pK port#%d\n", __func__, gr, port_num);
 
 	if (trans == USB_GADGET_XPORT_BAM2BAM) {
 		pr_err("%s: invalid xport#%d\n", __func__, trans);
@@ -2110,7 +2110,7 @@ int gbam_connect(struct grmnet *gr, u8 port_num,
 	int			ret;
 	unsigned long		flags, flags_ul;
 
-	pr_debug("%s: grmnet:%pK port#%d\n", __func__, gr, port_num);
+	pr_err("%s: grmnet:%pK port#%d\n", __func__, gr, port_num);
 
 	if (!gr) {
 		pr_err("%s: grmnet port is null\n", __func__);
@@ -2319,7 +2319,7 @@ int gbam_setup(unsigned int no_bam_port)
 	int	bam_port_start = n_bam_ports;
 	int	total_bam_ports = bam_port_start + no_bam_port;
 
-	pr_debug("%s: requested BAM ports:%d\n", __func__, no_bam_port);
+	pr_err("%s: requested BAM ports:%d\n", __func__, no_bam_port);
 
 	if (!no_bam_port || total_bam_ports > BAM_N_PORTS) {
 		pr_err("%s: Invalid num of ports count:%d\n",
@@ -2339,7 +2339,7 @@ int gbam_setup(unsigned int no_bam_port)
 
 	for (i = bam_port_start; i < (bam_port_start + no_bam_port); i++) {
 		n_bam_ports++;
-		pr_debug("gbam_port_alloc called for %d\n", i);
+		pr_err("gbam_port_alloc called for %d\n", i);
 		ret = gbam_port_alloc(i);
 		if (ret) {
 			n_bam_ports--;
@@ -2367,7 +2367,7 @@ int gbam2bam_setup(unsigned int no_bam2bam_port)
 	int	bam2bam_port_start = n_bam2bam_ports;
 	int	total_bam2bam_ports = bam2bam_port_start + no_bam2bam_port;
 
-	pr_debug("%s: requested BAM2BAM ports:%d\n", __func__, no_bam2bam_port);
+	pr_err("%s: requested BAM2BAM ports:%d\n", __func__, no_bam2bam_port);
 
 	if (!no_bam2bam_port || total_bam2bam_ports > BAM2BAM_N_PORTS) {
 		pr_err("%s: Invalid num of ports count:%d\n",
@@ -2433,7 +2433,7 @@ void gbam_suspend(struct grmnet *gr, u8 port_num, enum transport_type trans)
 
 	d = &port->data_ch;
 
-	pr_debug("%s: suspended port %d\n", __func__, port_num);
+	pr_err("%s: suspended port %d\n", __func__, port_num);
 
 	port->last_event = U_BAM_SUSPEND_E;
 	queue_work(gbam_wq, &port->suspend_w);
@@ -2461,7 +2461,7 @@ void gbam_resume(struct grmnet *gr, u8 port_num, enum transport_type trans)
 
 	d = &port->data_ch;
 
-	pr_debug("%s: resumed port %d\n", __func__, port_num);
+	pr_err("%s: resumed port %d\n", __func__, port_num);
 
 	port->last_event = U_BAM_RESUME_E;
 	/*

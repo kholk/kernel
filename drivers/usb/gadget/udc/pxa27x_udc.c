@@ -626,7 +626,7 @@ static void pxa_eps_setup(struct pxa_udc *dev)
 {
 	unsigned int i;
 
-	dev_dbg(dev->dev, "%s: dev=%p\n", __func__, dev);
+	dev_err(dev->dev, "%s: dev=%p\n", __func__, dev);
 
 	for (i = 1; i < NR_PXA_ENDPOINTS; i++)
 		pxa_ep_setup(&dev->pxa_ep[i]);
@@ -2130,7 +2130,7 @@ static void pxa27x_change_configuration(struct pxa_udc *udc, int config)
 {
 	struct usb_ctrlrequest req ;
 
-	dev_dbg(udc->dev, "config=%d\n", config);
+	dev_err(udc->dev, "config=%d\n", config);
 
 	udc->config = config;
 	udc->last_interface = 0;
@@ -2160,7 +2160,7 @@ static void pxa27x_change_interface(struct pxa_udc *udc, int iface, int alt)
 {
 	struct usb_ctrlrequest  req;
 
-	dev_dbg(udc->dev, "interface=%d, alternate setting=%d\n", iface, alt);
+	dev_err(udc->dev, "interface=%d, alternate setting=%d\n", iface, alt);
 
 	udc->last_interface = iface;
 	udc->last_alternate = alt;
@@ -2295,7 +2295,7 @@ static void irq_udc_reset(struct pxa_udc *udc)
 	udc->stats.irqs_reset++;
 
 	if ((udccr & UDCCR_UDA) == 0) {
-		dev_dbg(udc->dev, "USB reset start\n");
+		dev_err(udc->dev, "USB reset start\n");
 		stop_activity(udc, udc->driver);
 	}
 	udc->gadget.speed = USB_SPEED_FULL;

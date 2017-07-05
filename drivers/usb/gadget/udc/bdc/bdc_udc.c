@@ -67,7 +67,7 @@ static void srr_dqp_index_advc(struct bdc *bdc, u32 srr_num)
 	struct srr *srr;
 
 	srr = &bdc->srr;
-	dev_dbg_ratelimited(bdc->dev, "srr->dqp_index:%d\n", srr->dqp_index);
+	dev_err_ratelimited(bdc->dev, "srr->dqp_index:%d\n", srr->dqp_index);
 	srr->dqp_index++;
 	/* rollback to 0 if we are past the last */
 	if (srr->dqp_index == NUM_SR_ENTRIES)
@@ -83,7 +83,7 @@ static void bdc_uspc_connected(struct bdc *bdc)
 
 	temp = bdc_readl(bdc->regs, BDC_USPC);
 	speed = BDC_PSP(temp);
-	dev_dbg(bdc->dev, "%s speed=%x\n", __func__, speed);
+	dev_err(bdc->dev, "%s speed=%x\n", __func__, speed);
 	switch (speed) {
 	case BDC_SPEED_SS:
 		bdc_gadget_ep0_desc.wMaxPacketSize =
@@ -119,7 +119,7 @@ static void bdc_uspc_connected(struct bdc *bdc)
 		dev_err(bdc->dev, "UNDEFINED SPEED\n");
 		return;
 	}
-	dev_dbg(bdc->dev, "connected at %s\n", conn_speed_str[speed]);
+	dev_err(bdc->dev, "connected at %s\n", conn_speed_str[speed]);
 	/* Now we know the speed, configure ep0 */
 	bdc->bdc_ep_array[1]->desc = &bdc_gadget_ep0_desc;
 	ret = bdc_config_ep(bdc, bdc->bdc_ep_array[1]);
@@ -135,7 +135,7 @@ static void bdc_uspc_disconnected(struct bdc *bdc, bool reinit)
 {
 	struct bdc_ep *ep;
 
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	/*
 	 * Only stop ep0 from here, rest of the endpoints will be disabled
 	 * from gadget_disconnect
@@ -164,14 +164,14 @@ static void bdc_func_wake_timer(struct work_struct *work)
 	struct bdc *bdc = container_of(work, struct bdc, func_wake_notify.work);
 	unsigned long flags;
 
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	spin_lock_irqsave(&bdc->lock, flags);
 	/*
 	 * Check if host has started transferring on endpoints
 	 * FUNC_WAKE_ISSUED is cleared when transfer has started after resume
 	*/
 	if (bdc->devstatus & FUNC_WAKE_ISSUED) {
-		dev_dbg(bdc->dev, "FUNC_WAKE_ISSUED FLAG IS STILL SET\n");
+		dev_err(bdc->dev, "FUNC_WAKE_ISSUED FLAG IS STILL SET\n");
 		/* flag is still set, so again send func wake */
 		bdc_function_wake_fh(bdc, 0);
 		schedule_delayed_work(&bdc->func_wake_notify,
@@ -185,13 +185,13 @@ static void handle_link_state_change(struct bdc *bdc, u32 uspc)
 {
 	u32 link_state;
 
-	dev_dbg(bdc->dev, "Link state change");
+	dev_err(bdc->dev, "Link state change");
 	link_state = BDC_PST(uspc);
 	switch (link_state) {
 	case BDC_LINK_STATE_U3:
 		if ((bdc->gadget.speed != USB_SPEED_UNKNOWN) &&
 						bdc->gadget_driver->suspend) {
-			dev_dbg(bdc->dev, "Entered Suspend mode\n");
+			dev_err(bdc->dev, "Entered Suspend mode\n");
 			spin_unlock(&bdc->lock);
 			bdc->devstatus |= DEVICE_SUSPENDED;
 			bdc->gadget_driver->suspend(&bdc->gadget);
@@ -214,20 +214,20 @@ static void handle_link_state_change(struct bdc *bdc, u32 uspc)
 				schedule_delayed_work(
 						&bdc->func_wake_notify,
 						msecs_to_jiffies(BDC_TNOTIFY));
-				dev_dbg(bdc->dev, "sched func_wake_notify\n");
+				dev_err(bdc->dev, "sched func_wake_notify\n");
 			}
 		}
 		break;
 
 	case BDC_LINK_STATE_RESUME:
-		dev_dbg(bdc->dev, "Resumed from Suspend\n");
+		dev_err(bdc->dev, "Resumed from Suspend\n");
 		if (bdc->devstatus & DEVICE_SUSPENDED) {
 			bdc->gadget_driver->resume(&bdc->gadget);
 			bdc->devstatus &= ~DEVICE_SUSPENDED;
 		}
 		break;
 	default:
-		dev_dbg(bdc->dev, "link state:%d\n", link_state);
+		dev_err(bdc->dev, "link state:%d\n", link_state);
 	}
 }
 
@@ -240,7 +240,7 @@ void bdc_sr_uspc(struct bdc *bdc, struct bdc_sr *sreport)
 	bool disconn = false;
 
 	uspc = bdc_readl(bdc->regs, BDC_USPC);
-	dev_dbg(bdc->dev, "%s uspc=0x%08x\n", __func__, uspc);
+	dev_err(bdc->dev, "%s uspc=0x%08x\n", __func__, uspc);
 
 	/* Port connect changed */
 	if (uspc & BDC_PCC) {
@@ -254,7 +254,7 @@ void bdc_sr_uspc(struct bdc *bdc, struct bdc_sr *sreport)
 	/* Change in VBus and VBus is present */
 	if ((uspc & BDC_VBC) && (uspc & BDC_VBS)) {
 		if (bdc->pullup) {
-			dev_dbg(bdc->dev, "Do a softconnect\n");
+			dev_err(bdc->dev, "Do a softconnect\n");
 			/* Attached state, do a softconnect */
 			bdc_softconn(bdc);
 			usb_gadget_set_state(&bdc->gadget, USB_STATE_POWERED);
@@ -262,7 +262,7 @@ void bdc_sr_uspc(struct bdc *bdc, struct bdc_sr *sreport)
 		clear_flags = BDC_VBC;
 	} else if ((uspc & BDC_PRS) || (uspc & BDC_PRC) || disconn) {
 		/* Hot reset, warm reset, 2.0 bus reset or disconn */
-		dev_dbg(bdc->dev, "Port reset or disconn\n");
+		dev_err(bdc->dev, "Port reset or disconn\n");
 		bdc_uspc_disconnected(bdc, disconn);
 		clear_flags = BDC_PCC|BDC_PCS|BDC_PRS|BDC_PRC;
 	} else if ((uspc & BDC_PSC) && (uspc & BDC_PCS)) {
@@ -278,13 +278,13 @@ void bdc_sr_uspc(struct bdc *bdc, struct bdc_sr *sreport)
 	 */
 	if (connected) {
 		/* This is the connect event for U0/L0 */
-		dev_dbg(bdc->dev, "Connected\n");
+		dev_err(bdc->dev, "Connected\n");
 		bdc_uspc_connected(bdc);
 		bdc->devstatus &= ~(DEVICE_SUSPENDED);
 	}
 	uspc = bdc_readl(bdc->regs, BDC_USPC);
 	uspc &= (~BDC_USPSC_RW);
-	dev_dbg(bdc->dev, "uspc=%x\n", uspc);
+	dev_err(bdc->dev, "uspc=%x\n", uspc);
 	bdc_writel(bdc->regs, BDC_USPC, clear_flags);
 }
 
@@ -312,13 +312,13 @@ static irqreturn_t bdc_udc_interrupt(int irq, void *_bdc)
 	}
 	eqp_index = BDC_SRR_EPI(srr_int);
 	dqp_index = BDC_SRR_DPI(srr_int);
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 			"%s eqp_index=%d dqp_index=%d  srr.dqp_index=%d\n\n",
 			 __func__, eqp_index, dqp_index, bdc->srr.dqp_index);
 
 	/* check for ring empty condition */
 	if (eqp_index == dqp_index) {
-		dev_dbg(bdc->dev, "SRR empty?\n");
+		dev_err(bdc->dev, "SRR empty?\n");
 		spin_unlock(&bdc->lock);
 		return IRQ_HANDLED;
 	}
@@ -328,7 +328,7 @@ static irqreturn_t bdc_udc_interrupt(int irq, void *_bdc)
 		/* sreport is read before using it */
 		rmb();
 		sr_type = le32_to_cpu(sreport->offset[3]) & BD_TYPE_BITMASK;
-		dev_dbg_ratelimited(bdc->dev, "sr_type=%d\n", sr_type);
+		dev_err_ratelimited(bdc->dev, "sr_type=%d\n", sr_type);
 		switch (sr_type) {
 		case SR_XSF:
 			bdc->sr_handler[0](bdc, sreport);
@@ -370,7 +370,7 @@ static int bdc_udc_start(struct usb_gadget *gadget,
 	unsigned long flags;
 	int ret = 0;
 
-	dev_dbg(bdc->dev, "%s()\n", __func__);
+	dev_err(bdc->dev, "%s()\n", __func__);
 	spin_lock_irqsave(&bdc->lock, flags);
 	if (bdc->gadget_driver) {
 		dev_err(bdc->dev, "%s is already bound to %s\n",
@@ -402,7 +402,7 @@ static int bdc_udc_stop(struct usb_gadget *gadget)
 	struct bdc *bdc = gadget_to_bdc(gadget);
 	unsigned long flags;
 
-	dev_dbg(bdc->dev, "%s()\n", __func__);
+	dev_err(bdc->dev, "%s()\n", __func__);
 	spin_lock_irqsave(&bdc->lock, flags);
 	bdc_stop(bdc);
 	bdc->gadget_driver = NULL;
@@ -418,7 +418,7 @@ static int bdc_udc_pullup(struct usb_gadget *gadget, int is_on)
 	unsigned long flags;
 	u32 uspc;
 
-	dev_dbg(bdc->dev, "%s() is_on:%d\n", __func__, is_on);
+	dev_err(bdc->dev, "%s() is_on:%d\n", __func__, is_on);
 	if (!gadget)
 		return -EINVAL;
 
@@ -453,7 +453,7 @@ static int bdc_udc_set_selfpowered(struct usb_gadget *gadget,
 	struct bdc		*bdc = gadget_to_bdc(gadget);
 	unsigned long           flags;
 
-	dev_dbg(bdc->dev, "%s()\n", __func__);
+	dev_err(bdc->dev, "%s()\n", __func__);
 	gadget->is_selfpowered = (is_self != 0);
 	spin_lock_irqsave(&bdc->lock, flags);
 	if (!is_self)
@@ -474,7 +474,7 @@ static int bdc_udc_wakeup(struct usb_gadget *gadget)
 	u32	uspc;
 	int ret = 0;
 
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"%s() bdc->devstatus=%08x\n",
 		__func__, bdc->devstatus);
 
@@ -484,7 +484,7 @@ static int bdc_udc_wakeup(struct usb_gadget *gadget)
 	spin_lock_irqsave(&bdc->lock, flags);
 	uspc = bdc_readl(bdc->regs, BDC_USPC);
 	link_state = BDC_PST(uspc);
-	dev_dbg(bdc->dev, "link_state =%d portsc=%x", link_state, uspc);
+	dev_err(bdc->dev, "link_state =%d portsc=%x", link_state, uspc);
 	if (link_state != BDC_LINK_STATE_U3) {
 		dev_warn(bdc->dev,
 			"can't wakeup from link state %d\n",
@@ -502,7 +502,7 @@ static int bdc_udc_wakeup(struct usb_gadget *gadget)
 	bdc_writel(bdc->regs, BDC_USPC, uspc);
 	uspc = bdc_readl(bdc->regs, BDC_USPC);
 	link_state = BDC_PST(uspc);
-	dev_dbg(bdc->dev, "link_state =%d portsc=%x", link_state, uspc);
+	dev_err(bdc->dev, "link_state =%d portsc=%x", link_state, uspc);
 out:
 	spin_unlock_irqrestore(&bdc->lock, flags);
 
@@ -523,7 +523,7 @@ int bdc_udc_init(struct bdc *bdc)
 	u32 temp;
 	int ret;
 
-	dev_dbg(bdc->dev, "%s()\n", __func__);
+	dev_err(bdc->dev, "%s()\n", __func__);
 	bdc->gadget.ops = &bdc_gadget_ops;
 	bdc->gadget.max_speed = USB_SPEED_SUPER;
 	bdc->gadget.speed = USB_SPEED_UNKNOWN;
@@ -581,7 +581,7 @@ err0:
 
 void bdc_udc_exit(struct bdc *bdc)
 {
-	dev_dbg(bdc->dev, "%s()\n", __func__);
+	dev_err(bdc->dev, "%s()\n", __func__);
 	bdc_ep_disable(bdc->bdc_ep_array[1]);
 	usb_del_gadget_udc(&bdc->gadget);
 	bdc_free_ep(bdc);

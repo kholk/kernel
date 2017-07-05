@@ -213,7 +213,7 @@ static inline struct lpc32xx_udc *to_udc(struct usb_gadget *g)
 }
 
 #define ep_dbg(epp, fmt, arg...) \
-	dev_dbg(epp->udc->dev, "%s: " fmt, __func__, ## arg)
+	dev_err(epp->udc->dev, "%s: " fmt, __func__, ## arg)
 #define ep_err(epp, fmt, arg...) \
 	dev_err(epp->udc->dev, "%s: " fmt, __func__, ## arg)
 #define ep_info(epp, fmt, arg...) \
@@ -784,7 +784,7 @@ static u32 udc_protocol_cmd_r(struct lpc32xx_udc *udc, u32 cmd)
 	       && (to > 0))
 		to--;
 	if (!to)
-		dev_dbg(udc->dev,
+		dev_err(udc->dev,
 			"Protocol engine didn't receive response (CDFULL)\n");
 
 	return readl(USBD_CMDDATA(udc->udp_baseaddr));
@@ -876,7 +876,7 @@ static void udc_realize_hwep(struct lpc32xx_udc *udc, u32 hwep,
 		  USBD_EP_RLZED)) && (to > 0))
 		to--;
 	if (!to)
-		dev_dbg(udc->dev, "EP not correctly realized in hardware\n");
+		dev_err(udc->dev, "EP not correctly realized in hardware\n");
 
 	writel(USBD_EP_RLZED, USBD_DEVINTCLR(udc->udp_baseaddr));
 }
@@ -1275,7 +1275,7 @@ static u32 udc_read_hwep(struct lpc32xx_udc *udc, u32 hwep, u32 *data,
 		 PKT_RDY) == 0)	&& (to > 0))
 		to--;
 	if (!to)
-		dev_dbg(udc->dev, "No packet ready on FIFO EP read\n");
+		dev_err(udc->dev, "No packet ready on FIFO EP read\n");
 
 	/* Mask out count */
 	tmp = tmpv & PKT_LNGTH_MASK;
@@ -1671,24 +1671,24 @@ static int lpc32xx_ep_enable(struct usb_ep *_ep,
 	/* Verify EP data */
 	if ((!_ep) || (!ep) || (!desc) ||
 	    (desc->bDescriptorType != USB_DT_ENDPOINT)) {
-		dev_dbg(udc->dev, "bad ep or descriptor\n");
+		dev_err(udc->dev, "bad ep or descriptor\n");
 		return -EINVAL;
 	}
 	maxpacket = usb_endpoint_maxp(desc);
 	if ((maxpacket == 0) || (maxpacket > ep->maxpacket)) {
-		dev_dbg(udc->dev, "bad ep descriptor's packet size\n");
+		dev_err(udc->dev, "bad ep descriptor's packet size\n");
 		return -EINVAL;
 	}
 
 	/* Don't touch EP0 */
 	if (ep->hwep_num_base == 0) {
-		dev_dbg(udc->dev, "Can't re-enable EP0!!!\n");
+		dev_err(udc->dev, "Can't re-enable EP0!!!\n");
 		return -EINVAL;
 	}
 
 	/* Is driver ready? */
 	if ((!udc->driver) || (udc->gadget.speed == USB_SPEED_UNKNOWN)) {
-		dev_dbg(udc->dev, "bogus device state\n");
+		dev_err(udc->dev, "bogus device state\n");
 		return -ESHUTDOWN;
 	}
 
@@ -1699,7 +1699,7 @@ static int lpc32xx_ep_enable(struct usb_ep *_ep,
 
 	case USB_ENDPOINT_XFER_INT:
 		if (maxpacket > ep->maxpacket) {
-			dev_dbg(udc->dev,
+			dev_err(udc->dev,
 				"Bad INT endpoint maxpacket %d\n", maxpacket);
 			return -EINVAL;
 		}
@@ -1714,7 +1714,7 @@ static int lpc32xx_ep_enable(struct usb_ep *_ep,
 			break;
 
 		default:
-			dev_dbg(udc->dev,
+			dev_err(udc->dev,
 				"Bad BULK endpoint maxpacket %d\n", maxpacket);
 			return -EINVAL;
 		}
@@ -2356,7 +2356,7 @@ static void udc_handle_ep0_setup(struct lpc32xx_udc *udc)
 
 		if (i < 0) {
 			/* setup processing failed, force stall */
-			dev_dbg(udc->dev,
+			dev_err(udc->dev,
 				"req %02x.%02x protocol STALL; stat %d\n",
 				reqtype, req, i);
 			udc->ep0state = WAIT_FOR_SETUP;
@@ -2812,7 +2812,7 @@ static irqreturn_t lpc32xx_usb_lp_irq(int irq, void *_udc)
 		 * happen alot, something is wrong. */
 		udc_protocol_cmd_w(udc, CMD_RD_ERR_STAT);
 		tmp = udc_protocol_cmd_r(udc, DAT_RD_ERR_STAT);
-		dev_dbg(udc->dev, "Device error (0x%x)!\n", tmp);
+		dev_err(udc->dev, "Device error (0x%x)!\n", tmp);
 	}
 
 	spin_unlock(&udc->lock);
@@ -3212,7 +3212,7 @@ static int lpc32xx_udc_probe(struct platform_device *pdev)
 		goto i2c_fail;
 	}
 	udc->udca_p_base = dma_handle;
-	dev_dbg(udc->dev, "DMA buffer(0x%x bytes), P:0x%08x, V:0x%p\n",
+	dev_err(udc->dev, "DMA buffer(0x%x bytes), P:0x%08x, V:0x%p\n",
 		UDCA_BUFF_SIZE, udc->udca_p_base, udc->udca_v_base);
 
 	/* Setup the DD DMA memory pool */

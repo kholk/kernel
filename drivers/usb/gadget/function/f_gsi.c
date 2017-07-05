@@ -2795,7 +2795,7 @@ static void gsi_unbind(struct usb_configuration *c, struct usb_function *f)
 
 static void gsi_free_func(struct usb_function *f)
 {
-	pr_debug("%s\n", __func__);
+	pr_err("%s\n", __func__);
 }
 
 int gsi_bind_config(struct f_gsi *gsi)

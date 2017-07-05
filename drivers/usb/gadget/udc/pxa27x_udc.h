@@ -496,7 +496,7 @@ static inline struct pxa_udc *to_gadget_udc(struct usb_gadget *gadget)
  * Debugging/message support
  */
 #define ep_dbg(ep, fmt, arg...) \
-	dev_dbg(ep->dev->dev, "%s:%s: " fmt, EPNAME(ep), __func__, ## arg)
+	dev_err(ep->dev->dev, "%s:%s: " fmt, EPNAME(ep), __func__, ## arg)
 #define ep_vdbg(ep, fmt, arg...) \
 	dev_vdbg(ep->dev->dev, "%s:%s: " fmt, EPNAME(ep), __func__, ## arg)
 #define ep_err(ep, fmt, arg...) \

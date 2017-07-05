@@ -263,14 +263,14 @@ static void gser_complete_set_line_coding(struct usb_ep *ep,
 	struct usb_composite_dev *cdev = gser->port.func.config->cdev;
 
 	if (req->status != 0) {
-		dev_dbg(&cdev->gadget->dev, "gser ttyGS%d completion, err %d\n",
+		dev_err(&cdev->gadget->dev, "gser ttyGS%d completion, err %d\n",
 				gser->port_num, req->status);
 		return;
 	}
 
 	/* normal completion */
 	if (req->actual != sizeof(gser->port_line_coding)) {
-		dev_dbg(&cdev->gadget->dev, "gser ttyGS%d short resp, len %d\n",
+		dev_err(&cdev->gadget->dev, "gser ttyGS%d short resp, len %d\n",
 				gser->port_num, req->actual);
 		usb_ep_set_halt(ep);
 	} else {
@@ -319,7 +319,7 @@ gser_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 
 		value = 0;
 		gser->port_handshake_bits = w_value;
-		pr_debug("%s: USB_CDC_REQ_SET_CONTROL_LINE_STATE: DTR:%d RST:%d\n",
+		pr_err("%s: USB_CDC_REQ_SET_CONTROL_LINE_STATE: DTR:%d RST:%d\n",
 			__func__, w_value & ACM_CTRL_DTR ? 1 : 0,
 			w_value & ACM_CTRL_RTS ? 1 : 0);
 
@@ -330,7 +330,7 @@ gser_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 
 	default:
 invalid:
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"invalid control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length);
@@ -338,7 +338,7 @@ invalid:
 
 	/* respond with data transfer or status phase? */
 	if (value >= 0) {
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"gser ttyGS%d req%02x.%02x v%04x i%04x l%d\n",
 			gser->port_num, ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length);
@@ -362,7 +362,7 @@ static int gser_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 
 	/* we know alt == 0, so this is an activation or a reset */
 	if (gser->notify->driver_data) {
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"reset generic ctl ttyGS%d\n", gser->port_num);
 		usb_ep_disable(gser->notify);
 	}
@@ -383,12 +383,12 @@ static int gser_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	gser->notify->driver_data = gser;
 
 	if (gser->port.in->enabled) {
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"reset generic ttyGS%d\n", gser->port_num);
 		gserial_disconnect(&gser->port);
 	}
 	if (!gser->port.in->desc || !gser->port.out->desc) {
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"activate generic ttyGS%d\n", gser->port_num);
 		if (config_ep_by_speed(cdev->gadget, f, gser->port.in) ||
 		    config_ep_by_speed(cdev->gadget, f, gser->port.out)) {
@@ -407,7 +407,7 @@ static void gser_disable(struct usb_function *f)
 	struct f_gser	*gser = func_to_gser(f);
 	struct usb_composite_dev *cdev = f->config->cdev;
 
-	dev_dbg(&cdev->gadget->dev,
+	dev_err(&cdev->gadget->dev,
 		"generic ttyGS%d deactivated\n", gser->port_num);
 	gserial_disconnect(&gser->port);
 	usb_ep_fifo_flush(gser->notify);
@@ -659,7 +659,7 @@ static int gser_bind(struct usb_configuration *c, struct usb_function *f)
 			gser_ss_function);
 	if (status)
 		goto fail;
-	dev_dbg(&cdev->gadget->dev, "generic ttyGS%d: %s speed IN/%s OUT/%s\n",
+	dev_err(&cdev->gadget->dev, "generic ttyGS%d: %s speed IN/%s OUT/%s\n",
 		gser->port_num,
 		gadget_is_superspeed(c->cdev->gadget) ? "super" :
 		gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",

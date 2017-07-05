@@ -344,14 +344,14 @@ ccid_function_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 
 	default:
 invalid:
-	pr_debug("invalid control req%02x.%02x v%04x i%04x l%d\n",
+	pr_err("invalid control req%02x.%02x v%04x i%04x l%d\n",
 		ctrl->bRequestType, ctrl->bRequest,
 		w_value, w_index, w_length);
 	}
 
 	/* respond with data transfer or status phase? */
 	if (ret >= 0) {
-		pr_debug("ccid req%02x.%02x v%04x i%04x l%d\n",
+		pr_err("ccid req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length);
 		req->length = ret;
@@ -569,7 +569,7 @@ static int ccid_function_bind(struct usb_configuration *c,
 			goto ep_auto_out_fail;
 	}
 
-	pr_debug("%s: CCID %s Speed, IN:%s OUT:%s\n", __func__,
+	pr_err("%s: CCID %s Speed, IN:%s OUT:%s\n", __func__,
 			gadget_is_dualspeed(cdev->gadget) ? "dual" : "full",
 			ccid_dev->in->name, ccid_dev->out->name);
 
@@ -593,14 +593,14 @@ static int ccid_bulk_open(struct inode *ip, struct file *fp)
 	struct f_ccid *ccid_dev = bulk_dev_to_ccid(bulk_dev);
 	unsigned long flags;
 
-	pr_debug("ccid_bulk_open\n");
+	pr_err("ccid_bulk_open\n");
 	if (!atomic_read(&ccid_dev->online)) {
-		pr_debug("%s: USB cable not connected\n", __func__);
+		pr_err("%s: USB cable not connected\n", __func__);
 		return -ENODEV;
 	}
 
 	if (atomic_read(&bulk_dev->opened)) {
-		pr_debug("%s: bulk device is already opened\n", __func__);
+		pr_err("%s: bulk device is already opened\n", __func__);
 		return -EBUSY;
 	}
 	atomic_set(&bulk_dev->opened, 1);
@@ -618,7 +618,7 @@ static int ccid_bulk_release(struct inode *ip, struct file *fp)
 	struct f_ccid *ccid_dev =  fp->private_data;
 	struct ccid_bulk_dev *bulk_dev = &ccid_dev->bulk_dev;
 
-	pr_debug("ccid_bulk_release\n");
+	pr_err("ccid_bulk_release\n");
 	atomic_set(&bulk_dev->opened, 0);
 	return 0;
 }
@@ -633,7 +633,7 @@ static ssize_t ccid_bulk_read(struct file *fp, char __user *buf,
 	int ret;
 	unsigned long flags;
 
-	pr_debug("ccid_bulk_read(%zu)\n", count);
+	pr_err("ccid_bulk_read(%zu)\n", count);
 
 	if (count > BULK_OUT_BUFFER_SIZE) {
 		pr_err("%s: max_buffer_size:%zu given_pkt_size:%zu\n",
@@ -650,7 +650,7 @@ static ssize_t ccid_bulk_read(struct file *fp, char __user *buf,
 requeue_req:
 	spin_lock_irqsave(&ccid_dev->lock, flags);
 	if (!atomic_read(&ccid_dev->online)) {
-		pr_debug("%s: USB cable not connected\n", __func__);
+		pr_err("%s: USB cable not connected\n", __func__);
 		return -ENODEV;
 	}
 	/* queue a request */
@@ -679,7 +679,7 @@ requeue_req:
 		spin_lock_irqsave(&ccid_dev->lock, flags);
 		if (!atomic_read(&ccid_dev->online)) {
 			spin_unlock_irqrestore(&ccid_dev->lock, flags);
-			pr_debug("%s: USB cable not connected\n", __func__);
+			pr_err("%s: USB cable not connected\n", __func__);
 			r = -ENODEV;
 			goto done;
 		}
@@ -700,7 +700,7 @@ requeue_req:
 		if (!atomic_read(&ccid_dev->online)) {
 			ccid_request_free(bulk_dev->rx_req, ccid_dev->out);
 			spin_unlock_irqrestore(&ccid_dev->lock, flags);
-			pr_debug("%s: USB cable not connected\n", __func__);
+			pr_err("%s: USB cable not connected\n", __func__);
 			r = -ENODEV;
 			goto done;
 		} else {
@@ -711,7 +711,7 @@ requeue_req:
 		r = -EIO;
 	}
 done:
-	pr_debug("ccid_bulk_read returning %d\n", r);
+	pr_err("ccid_bulk_read returning %d\n", r);
 	return r;
 }
 
@@ -725,10 +725,10 @@ static ssize_t ccid_bulk_write(struct file *fp, const char __user *buf,
 	int ret;
 	unsigned long flags;
 
-	pr_debug("ccid_bulk_write(%zu)\n", count);
+	pr_err("ccid_bulk_write(%zu)\n", count);
 
 	if (!atomic_read(&ccid_dev->online)) {
-		pr_debug("%s: USB cable not connected\n", __func__);
+		pr_err("%s: USB cable not connected\n", __func__);
 		return -ENODEV;
 	}
 
@@ -760,7 +760,7 @@ static ssize_t ccid_bulk_write(struct file *fp, const char __user *buf,
 	}
 	if (copy_from_user(req->buf, buf, count)) {
 		if (!atomic_read(&ccid_dev->online)) {
-			pr_debug("%s: USB cable not connected\n",
+			pr_err("%s: USB cable not connected\n",
 						__func__);
 			ccid_request_free(req, ccid_dev->in);
 			r = -ENODEV;
@@ -773,14 +773,14 @@ static ssize_t ccid_bulk_write(struct file *fp, const char __user *buf,
 	req->length = count;
 	ret = usb_ep_queue(ccid_dev->in, req, GFP_KERNEL);
 	if (ret < 0) {
-		pr_debug("ccid_bulk_write: xfer error %d\n", ret);
+		pr_err("ccid_bulk_write: xfer error %d\n", ret);
 		atomic_set(&bulk_dev->error, 1);
 		ccid_req_put(ccid_dev, &bulk_dev->tx_idle, req);
 		r = -EIO;
 		spin_lock_irqsave(&ccid_dev->lock, flags);
 		if (!atomic_read(&ccid_dev->online)) {
 			spin_unlock_irqrestore(&ccid_dev->lock, flags);
-			pr_debug("%s: USB cable not connected\n",
+			pr_err("%s: USB cable not connected\n",
 							__func__);
 			while ((req = ccid_req_get(ccid_dev,
 						&bulk_dev->tx_idle)))
@@ -791,7 +791,7 @@ static ssize_t ccid_bulk_write(struct file *fp, const char __user *buf,
 		goto done;
 	}
 done:
-	pr_debug("ccid_bulk_write returning %d\n", r);
+	pr_err("ccid_bulk_write returning %d\n", r);
 	return r;
 }
 
@@ -834,11 +834,11 @@ static int ccid_ctrl_open(struct inode *inode, struct file *fp)
 	unsigned long flags;
 
 	if (!atomic_read(&ccid_dev->online)) {
-		pr_debug("%s: USB cable not connected\n", __func__);
+		pr_err("%s: USB cable not connected\n", __func__);
 		return -ENODEV;
 	}
 	if (atomic_read(&ctrl_dev->opened)) {
-		pr_debug("%s: ctrl device is already opened\n", __func__);
+		pr_err("%s: ctrl device is already opened\n", __func__);
 		return -EBUSY;
 	}
 	atomic_set(&ctrl_dev->opened, 1);
@@ -868,7 +868,7 @@ static ssize_t ccid_ctrl_read(struct file *fp, char __user *buf,
 	int ret = 0;
 
 	if (!atomic_read(&ccid_dev->online)) {
-		pr_debug("%s: USB cable not connected\n", __func__);
+		pr_err("%s: USB cable not connected\n", __func__);
 		return -ENODEV;
 	}
 	if (count > CTRL_BUF_SIZE)
@@ -881,7 +881,7 @@ static ssize_t ccid_ctrl_read(struct file *fp, char __user *buf,
 	ctrl_dev->tx_ctrl_done = 0;
 
 	if (!atomic_read(&ccid_dev->online)) {
-		pr_debug("%s: USB cable not connected\n", __func__);
+		pr_err("%s: USB cable not connected\n", __func__);
 		return -ENODEV;
 	}
 	ret = copy_to_user(buf, ctrl_dev->buf, count);
@@ -957,12 +957,12 @@ static int ccid_ctrl_device_init(struct f_ccid *dev)
 
 static void ccid_free_func(struct usb_function *f)
 {
-	pr_debug("%s\n", __func__);
+	pr_err("%s\n", __func__);
 }
 
 static int ccid_bind_config(struct f_ccid *ccid_dev)
 {
-	pr_debug("ccid_bind_config\n");
+	pr_err("ccid_bind_config\n");
 
 	ccid_dev->function.name = FUNCTION_NAME;
 	ccid_dev->function.fs_descriptors = ccid_fs_descs;

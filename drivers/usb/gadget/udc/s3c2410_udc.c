@@ -113,7 +113,7 @@ static void dprintk(int level, const char *fmt, ...)
 		invocation = 0;
 	}
 
-	pr_debug("%1lu.%02d USB: %pV", prevticks, invocation++, &vaf);
+	pr_err("%1lu.%02d USB: %pV", prevticks, invocation++, &vaf);
 
 	va_end(args);
 }
@@ -1767,7 +1767,7 @@ static int s3c2410_udc_probe(struct platform_device *pdev)
 	int retval;
 	int irq;
 
-	dev_dbg(dev, "%s()\n", __func__);
+	dev_err(dev, "%s()\n", __func__);
 
 	usb_bus_clock = clk_get(NULL, "usb-bus-gadget");
 	if (IS_ERR(usb_bus_clock)) {
@@ -1787,7 +1787,7 @@ static int s3c2410_udc_probe(struct platform_device *pdev)
 
 	mdelay(10);
 
-	dev_dbg(dev, "got and enabled clocks\n");
+	dev_err(dev, "got and enabled clocks\n");
 
 	if (strncmp(pdev->name, "s3c2440", 7) == 0) {
 		dev_info(dev, "S3C2440: increasing FIFO to 128 bytes\n");
@@ -1828,7 +1828,7 @@ static int s3c2410_udc_probe(struct platform_device *pdev)
 		goto err_map;
 	}
 
-	dev_dbg(dev, "got irq %i\n", IRQ_USBD);
+	dev_err(dev, "got irq %i\n", IRQ_USBD);
 
 	if (udc_info && udc_info->vbus_pin > 0) {
 		retval = gpio_request(udc_info->vbus_pin, "udc vbus");
@@ -1856,7 +1856,7 @@ static int s3c2410_udc_probe(struct platform_device *pdev)
 			goto err_gpio_claim;
 		}
 
-		dev_dbg(dev, "got irq %i\n", irq);
+		dev_err(dev, "got irq %i\n", irq);
 	} else {
 		udc->vbus = 1;
 	}
@@ -1884,7 +1884,7 @@ static int s3c2410_udc_probe(struct platform_device *pdev)
 			dev_warn(dev, "debugfs file creation failed\n");
 	}
 
-	dev_dbg(dev, "probe ok\n");
+	dev_err(dev, "probe ok\n");
 
 	return 0;
 
@@ -1916,7 +1916,7 @@ static int s3c2410_udc_remove(struct platform_device *pdev)
 	struct s3c2410_udc *udc = platform_get_drvdata(pdev);
 	unsigned int irq;
 
-	dev_dbg(&pdev->dev, "%s()\n", __func__);
+	dev_err(&pdev->dev, "%s()\n", __func__);
 
 	if (udc->driver)
 		return -EBUSY;
@@ -1950,7 +1950,7 @@ static int s3c2410_udc_remove(struct platform_device *pdev)
 		usb_bus_clock = NULL;
 	}
 
-	dev_dbg(&pdev->dev, "%s: remove ok\n", __func__);
+	dev_err(&pdev->dev, "%s: remove ok\n", __func__);
 	return 0;
 }
 

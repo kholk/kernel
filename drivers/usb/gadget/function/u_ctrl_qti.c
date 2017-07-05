@@ -107,7 +107,7 @@ static void qti_ctrl_queue_notify(struct qti_ctrl_port *port)
 	unsigned long		flags;
 	struct rmnet_ctrl_pkt	*cpkt = NULL;
 
-	pr_debug("%s: Queue empty packet for QTI for port%d",
+	pr_err("%s: Queue empty packet for QTI for port%d",
 		 __func__, port->index);
 
 	spin_lock_irqsave(&port->lock, flags);
@@ -128,7 +128,7 @@ static void qti_ctrl_queue_notify(struct qti_ctrl_port *port)
 	list_add_tail(&cpkt->list, &port->cpkt_req_q);
 	spin_unlock_irqrestore(&port->lock, flags);
 
-	pr_debug("%s: Wake up read queue", __func__);
+	pr_err("%s: Wake up read queue", __func__);
 	wake_up(&port->read_wq);
 }
 
@@ -159,13 +159,13 @@ static int gqti_ctrl_send_cpkt_tomodem(enum qti_port_type qport,
 	memcpy(cpkt->buf, buf, len);
 	cpkt->len = len;
 
-	pr_debug("%s: port type:%d: Add to cpkt_req_q packet with len = %zu\n",
+	pr_err("%s: port type:%d: Add to cpkt_req_q packet with len = %zu\n",
 			__func__, port->port_type, len);
 	spin_lock_irqsave(&port->lock, flags);
 
 	/* drop cpkt if port is not open */
 	if (!port->is_open) {
-		pr_debug("rmnet file handler %pK(index=%d) is not open",
+		pr_err("rmnet file handler %pK(index=%d) is not open",
 		       port, port->index);
 		port->drp_cpkt_cnt++;
 		spin_unlock_irqrestore(&port->lock, flags);
@@ -178,7 +178,7 @@ static int gqti_ctrl_send_cpkt_tomodem(enum qti_port_type qport,
 	spin_unlock_irqrestore(&port->lock, flags);
 
 	/* wakeup read thread */
-	pr_debug("%s: Wake up read queue", __func__);
+	pr_err("%s: Wake up read queue", __func__);
 	wake_up(&port->read_wq);
 
 	return 0;
@@ -206,7 +206,7 @@ int gqti_ctrl_connect(void *gr, enum qti_port_type qport, unsigned intf)
 	struct grmnet *g_rmnet = NULL;
 	unsigned long flags;
 
-	pr_debug("%s: port type:%d gadget:%pK\n", __func__, qport, gr);
+	pr_err("%s: port type:%d gadget:%pK\n", __func__, qport, gr);
 	if (qport >= QTI_NUM_PORTS) {
 		pr_err("%s: Invalid QTI port %d\n", __func__, qport);
 		return -ENODEV;
@@ -259,7 +259,7 @@ void gqti_ctrl_disconnect(void *gr, enum qti_port_type qport)
 	struct rmnet_ctrl_pkt	*cpkt;
 	struct grmnet *g_rmnet = NULL;
 
-	pr_debug("%s: gadget:%pK\n", __func__, gr);
+	pr_err("%s: gadget:%pK\n", __func__, gr);
 
 	if (qport >= QTI_NUM_PORTS) {
 		pr_err("%s: Invalid QTI port %d\n", __func__, qport);
@@ -328,7 +328,7 @@ static int qti_ctrl_open(struct inode *ip, struct file *fp)
 						struct qti_ctrl_port,
 						ctrl_device);
 
-	pr_debug("Open rmnet_ctrl_qti device file name=%s(index=%d)\n",
+	pr_err("Open rmnet_ctrl_qti device file name=%s(index=%d)\n",
 		port->name, port->index);
 
 	if (qti_ctrl_lock(&port->open_excl)) {
@@ -350,7 +350,7 @@ static int qti_ctrl_release(struct inode *ip, struct file *fp)
 						struct qti_ctrl_port,
 						ctrl_device);
 
-	pr_debug("Close rmnet control file");
+	pr_err("Close rmnet control file");
 
 	spin_lock_irqsave(&port->lock, flags);
 	port->is_open = false;
@@ -371,7 +371,7 @@ qti_ctrl_read(struct file *fp, char __user *buf, size_t count, loff_t *pos)
 	unsigned long flags;
 	int ret = 0;
 
-	pr_debug("%s: Enter(%zu)\n", __func__, count);
+	pr_err("%s: Enter(%zu)\n", __func__, count);
 
 	if (count > MAX_QTI_PKT_SIZE) {
 		pr_err("Buffer size is too big %zu, should be at most %d\n",
@@ -391,11 +391,11 @@ qti_ctrl_read(struct file *fp, char __user *buf, size_t count, loff_t *pos)
 			break;
 		spin_unlock_irqrestore(&port->lock, flags);
 
-		pr_debug("%s: Requests list is empty. Wait.\n", __func__);
+		pr_err("%s: Requests list is empty. Wait.\n", __func__);
 		ret = wait_event_interruptible(port->read_wq,
 					!list_empty(&port->cpkt_req_q));
 		if (ret < 0) {
-			pr_debug("Waiting failed\n");
+			pr_err("Waiting failed\n");
 			qti_ctrl_unlock(&port->read_excl);
 			return -ERESTARTSYS;
 		}
@@ -414,7 +414,7 @@ qti_ctrl_read(struct file *fp, char __user *buf, size_t count, loff_t *pos)
 		return -ENOMEM;
 	}
 
-	pr_debug("%s: cpkt size:%d\n", __func__, cpkt->len);
+	pr_err("%s: cpkt size:%d\n", __func__, cpkt->len);
 
 
 	qti_ctrl_unlock(&port->read_excl);
@@ -424,7 +424,7 @@ qti_ctrl_read(struct file *fp, char __user *buf, size_t count, loff_t *pos)
 		pr_err("copy_to_user failed: err %d\n", ret);
 		ret = -EFAULT;
 	} else {
-		pr_debug("%s: copied %d bytes to user\n", __func__, cpkt->len);
+		pr_err("%s: copied %d bytes to user\n", __func__, cpkt->len);
 		ret = cpkt->len;
 		port->copied_to_modem++;
 	}
@@ -446,15 +446,15 @@ qti_ctrl_write(struct file *fp, const char __user *buf, size_t count,
 	int ret = 0;
 	struct grmnet *g_rmnet = NULL;
 
-	pr_debug("%s: Enter(%zu) port_index=%d", __func__, count, port->index);
+	pr_err("%s: Enter(%zu) port_index=%d", __func__, count, port->index);
 
 	if (!count) {
-		pr_debug("zero length ctrl pkt\n");
+		pr_err("zero length ctrl pkt\n");
 		return -EINVAL;
 	}
 
 	if (count > MAX_QTI_PKT_SIZE) {
-		pr_debug("given pkt size too big:%zu > max_pkt_size:%d\n",
+		pr_err("given pkt size too big:%zu > max_pkt_size:%d\n",
 				count, MAX_QTI_PKT_SIZE);
 		return -EINVAL;
 	}
@@ -465,7 +465,7 @@ qti_ctrl_write(struct file *fp, const char __user *buf, size_t count,
 	}
 
 	if (!atomic_read(&port->connected)) {
-		pr_debug("USB cable not connected\n");
+		pr_err("USB cable not connected\n");
 		qti_ctrl_unlock(&port->write_excl);
 		return -EPIPE;
 	}
@@ -511,7 +511,7 @@ qti_ctrl_write(struct file *fp, const char __user *buf, size_t count,
 	kfree(kbuf);
 	qti_ctrl_unlock(&port->write_excl);
 
-	pr_debug("%s: Exit(%zu)", __func__, count);
+	pr_err("%s: Exit(%zu)", __func__, count);
 	return (ret) ? ret : count;
 }
 
@@ -524,7 +524,7 @@ static long qti_ctrl_ioctl(struct file *fp, unsigned cmd, unsigned long arg)
 	struct ep_info info;
 	int val, ret = 0;
 
-	pr_debug("%s: Received command %d for port type:%d\n",
+	pr_err("%s: Received command %d for port type:%d\n",
 				__func__, cmd, port->port_type);
 
 	if (qti_ctrl_lock(&port->ioctl_excl))
@@ -562,12 +562,12 @@ static long qti_ctrl_ioctl(struct file *fp, unsigned cmd, unsigned long arg)
 			pr_err("copying to user space failed");
 			ret = -EFAULT;
 		}
-		pr_debug("%s: Sent line_state: %d for port type:%d\n", __func__,
+		pr_err("%s: Sent line_state: %d for port type:%d\n", __func__,
 			atomic_read(&port->line_state), port->port_type);
 		break;
 	case QTI_CTRL_EP_LOOKUP:
 
-		pr_debug("%s(): EP_LOOKUP for port type:%d\n", __func__,
+		pr_err("%s(): EP_LOOKUP for port type:%d\n", __func__,
 							port->port_type);
 		val = atomic_read(&port->connected);
 		if (!val) {
@@ -587,11 +587,11 @@ static long qti_ctrl_ioctl(struct file *fp, unsigned cmd, unsigned long arg)
 		info.ipa_ep_pair.cons_pipe_num = port->ipa_cons_idx;
 		info.ipa_ep_pair.prod_pipe_num = port->ipa_prod_idx;
 
-		pr_debug("%s(): port type:%d ep_type:%d intf:%d\n",
+		pr_err("%s(): port type:%d ep_type:%d intf:%d\n",
 			__func__, port->port_type, info.ph_ep_info.ep_type,
 			info.ph_ep_info.peripheral_iface_id);
 
-		pr_debug("%s(): ipa_cons_idx:%d ipa_prod_idx:%d\n",
+		pr_err("%s(): ipa_cons_idx:%d ipa_prod_idx:%d\n",
 				__func__, info.ipa_ep_pair.cons_pipe_num,
 				info.ipa_ep_pair.prod_pipe_num);
 
@@ -631,7 +631,7 @@ static unsigned int qti_ctrl_poll(struct file *file, poll_table *wait)
 	spin_lock_irqsave(&port->lock, flags);
 	if (!list_empty(&port->cpkt_req_q)) {
 		mask |= POLLIN | POLLRDNORM;
-		pr_debug("%s sets POLLIN for rmnet_ctrl_qti_port\n", __func__);
+		pr_err("%s sets POLLIN for rmnet_ctrl_qti_port\n", __func__);
 	}
 	spin_unlock_irqrestore(&port->lock, flags);
 

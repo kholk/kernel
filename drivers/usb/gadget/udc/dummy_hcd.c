@@ -593,7 +593,7 @@ static int dummy_enable(struct usb_ep *_ep,
 	}
 	ep->desc = desc;
 
-	dev_dbg(udc_dev(dum), "enabled %s (ep%d%s-%s) maxpacket %d stream %s\n",
+	dev_err(udc_dev(dum), "enabled %s (ep%d%s-%s) maxpacket %d stream %s\n",
 		_ep->name,
 		desc->bEndpointAddress & 0x0f,
 		(desc->bEndpointAddress & USB_DIR_IN) ? "in" : "out",
@@ -640,7 +640,7 @@ static int dummy_disable(struct usb_ep *_ep)
 	nuke(dum, ep);
 	spin_unlock_irqrestore(&dum->lock, flags);
 
-	dev_dbg(udc_dev(dum), "disabled %s\n", _ep->name);
+	dev_err(udc_dev(dum), "disabled %s\n", _ep->name);
 	return 0;
 }
 
@@ -702,7 +702,7 @@ static int dummy_queue(struct usb_ep *_ep, struct usb_request *_req,
 		return -ESHUTDOWN;
 
 #if 0
-	dev_dbg(udc_dev(dum), "ep %p queue req %p to %s, len %d buf %p\n",
+	dev_err(udc_dev(dum), "ep %p queue req %p to %s, len %d buf %p\n",
 			ep, _req, _ep->name, _req->length, _req->buf);
 #endif
 	_req->status = -EINPROGRESS;
@@ -766,7 +766,7 @@ static int dummy_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 	spin_unlock(&dum->lock);
 
 	if (retval == 0) {
-		dev_dbg(udc_dev(dum),
+		dev_err(udc_dev(dum),
 				"dequeued req %p from %s, len %d buf %p\n",
 				req, _ep->name, _req->length, _req->buf);
 		usb_gadget_giveback_request(_ep, _req);
@@ -902,7 +902,7 @@ static int dummy_pullup(struct usb_gadget *_gadget, int value)
 		dummy_udc_update_ep0(dum);
 
 		if (dum->gadget.speed < dum->driver->max_speed)
-			dev_dbg(udc_dev(dum), "This device can perform faster"
+			dev_err(udc_dev(dum), "This device can perform faster"
 				" if you connect it to a %s port...\n",
 				usb_speed_string(dum->driver->max_speed));
 	}
@@ -1079,7 +1079,7 @@ static int dummy_udc_suspend(struct platform_device *pdev, pm_message_t state)
 	struct dummy		*dum = platform_get_drvdata(pdev);
 	struct dummy_hcd	*dum_hcd = gadget_to_dummy_hcd(&dum->gadget);
 
-	dev_dbg(&pdev->dev, "%s\n", __func__);
+	dev_err(&pdev->dev, "%s\n", __func__);
 	dummy_udc_pm(dum, dum_hcd, 1);
 	usb_hcd_poll_rh_status(dummy_hcd_to_hcd(dum_hcd));
 	return 0;
@@ -1090,7 +1090,7 @@ static int dummy_udc_resume(struct platform_device *pdev)
 	struct dummy		*dum = platform_get_drvdata(pdev);
 	struct dummy_hcd	*dum_hcd = gadget_to_dummy_hcd(&dum->gadget);
 
-	dev_dbg(&pdev->dev, "%s\n", __func__);
+	dev_err(&pdev->dev, "%s\n", __func__);
 	dummy_udc_pm(dum, dum_hcd, 0);
 	usb_hcd_poll_rh_status(dummy_hcd_to_hcd(dum_hcd));
 	return 0;
@@ -1573,7 +1573,7 @@ static int handle_control_request(struct dummy_hcd *dum_hcd, struct urb *urb,
 			break;
 		dum->address = w_value;
 		*status = 0;
-		dev_dbg(udc_dev(dum), "set_address = %d\n",
+		dev_err(udc_dev(dum), "set_address = %d\n",
 				w_value);
 		ret_val = 0;
 		break;
@@ -1798,7 +1798,7 @@ restart:
 		ep = find_endpoint(dum, address);
 		if (!ep) {
 			/* set_configuration() disagreement */
-			dev_dbg(dummy_dev(dum_hcd),
+			dev_err(dummy_dev(dum_hcd),
 				"no ep configured for urb %p\n",
 				urb);
 			status = -EPROTO;
@@ -1814,7 +1814,7 @@ restart:
 		}
 		if (ep->halted && !ep->setup_stage) {
 			/* NOTE: must not be iso! */
-			dev_dbg(dummy_dev(dum_hcd), "ep %s halted, urb %p\n",
+			dev_err(dummy_dev(dum_hcd), "ep %s halted, urb %p\n",
 					ep->ep.name, urb);
 			status = -EPIPE;
 			goto return_urb;
@@ -1831,7 +1831,7 @@ restart:
 			list_for_each_entry(req, &ep->queue, queue) {
 				list_del_init(&req->queue);
 				req->req.status = -EOVERFLOW;
-				dev_dbg(udc_dev(dum), "stale req = %p\n",
+				dev_err(udc_dev(dum), "stale req = %p\n",
 						req);
 
 				spin_unlock(&dum->lock);
@@ -1871,7 +1871,7 @@ restart:
 
 			if (value < 0) {
 				if (value != -EOPNOTSUPP)
-					dev_dbg(udc_dev(dum),
+					dev_err(udc_dev(dum),
 						"setup --> %d\n",
 						value);
 				status = -EPIPE;
@@ -1966,7 +1966,7 @@ static int dummy_hub_status(struct usb_hcd *hcd, char *buf)
 
 	if ((dum_hcd->port_status & PORT_C_MASK) != 0) {
 		*buf = (1 << 1);
-		dev_dbg(dummy_dev(dum_hcd), "port status 0x%08x has changes\n",
+		dev_err(dummy_dev(dum_hcd), "port status 0x%08x has changes\n",
 				dum_hcd->port_status);
 		retval = 1;
 		if (dum_hcd->rh_state == DUMMY_RH_SUSPENDED)
@@ -2050,7 +2050,7 @@ static int dummy_hub_control(
 		switch (wValue) {
 		case USB_PORT_FEAT_SUSPEND:
 			if (hcd->speed == HCD_USB3) {
-				dev_dbg(dummy_dev(dum_hcd),
+				dev_err(dummy_dev(dum_hcd),
 					 "USB_PORT_FEAT_SUSPEND req not "
 					 "supported for USB 3.0 roothub\n");
 				goto error;
@@ -2065,12 +2065,12 @@ static int dummy_hub_control(
 		case USB_PORT_FEAT_POWER:
 			if (hcd->speed == HCD_USB3) {
 				if (dum_hcd->port_status & USB_PORT_STAT_POWER)
-					dev_dbg(dummy_dev(dum_hcd),
+					dev_err(dummy_dev(dum_hcd),
 						"power-off\n");
 			} else
 				if (dum_hcd->port_status &
 							USB_SS_PORT_STAT_POWER)
-					dev_dbg(dummy_dev(dum_hcd),
+					dev_err(dummy_dev(dum_hcd),
 						"power-off\n");
 			/* FALLS THROUGH */
 		default:
@@ -2082,7 +2082,7 @@ static int dummy_hub_control(
 		if (hcd->speed == HCD_USB3 &&
 				(wLength < USB_DT_SS_HUB_SIZE ||
 				 wValue != (USB_DT_SS_HUB << 8))) {
-			dev_dbg(dummy_dev(dum_hcd),
+			dev_err(dummy_dev(dum_hcd),
 				"Wrong hub descriptor type for "
 				"USB 3.0 roothub.\n");
 			goto error;
@@ -2157,7 +2157,7 @@ static int dummy_hub_control(
 		switch (wValue) {
 		case USB_PORT_FEAT_LINK_STATE:
 			if (hcd->speed != HCD_USB3) {
-				dev_dbg(dummy_dev(dum_hcd),
+				dev_err(dummy_dev(dum_hcd),
 					 "USB_PORT_FEAT_LINK_STATE req not "
 					 "supported for USB 2.0 roothub\n");
 				goto error;
@@ -2171,7 +2171,7 @@ static int dummy_hub_control(
 		case USB_PORT_FEAT_U2_TIMEOUT:
 			/* TODO: add suspend/resume support! */
 			if (hcd->speed != HCD_USB3) {
-				dev_dbg(dummy_dev(dum_hcd),
+				dev_err(dummy_dev(dum_hcd),
 					 "USB_PORT_FEAT_U1/2_TIMEOUT req not "
 					 "supported for USB 2.0 roothub\n");
 				goto error;
@@ -2180,7 +2180,7 @@ static int dummy_hub_control(
 		case USB_PORT_FEAT_SUSPEND:
 			/* Applicable only for USB2.0 hub */
 			if (hcd->speed == HCD_USB3) {
-				dev_dbg(dummy_dev(dum_hcd),
+				dev_err(dummy_dev(dum_hcd),
 					 "USB_PORT_FEAT_SUSPEND req not "
 					 "supported for USB 3.0 roothub\n");
 				goto error;
@@ -2194,7 +2194,7 @@ static int dummy_hub_control(
 				set_link_state(dum_hcd);
 				if (((1 << USB_DEVICE_B_HNP_ENABLE)
 						& dum_hcd->dum->devstatus) != 0)
-					dev_dbg(dummy_dev(dum_hcd),
+					dev_err(dummy_dev(dum_hcd),
 							"no HNP yet!\n");
 			}
 			break;
@@ -2208,7 +2208,7 @@ static int dummy_hub_control(
 		case USB_PORT_FEAT_BH_PORT_RESET:
 			/* Applicable only for USB3.0 hub */
 			if (hcd->speed != HCD_USB3) {
-				dev_dbg(dummy_dev(dum_hcd),
+				dev_err(dummy_dev(dum_hcd),
 					 "USB_PORT_FEAT_BH_PORT_RESET req not "
 					 "supported for USB 2.0 roothub\n");
 				goto error;
@@ -2255,7 +2255,7 @@ static int dummy_hub_control(
 		break;
 	case GetPortErrorCount:
 		if (hcd->speed != HCD_USB3) {
-			dev_dbg(dummy_dev(dum_hcd),
+			dev_err(dummy_dev(dum_hcd),
 				 "GetPortErrorCount req not "
 				 "supported for USB 2.0 roothub\n");
 			goto error;
@@ -2265,14 +2265,14 @@ static int dummy_hub_control(
 		break;
 	case SetHubDepth:
 		if (hcd->speed != HCD_USB3) {
-			dev_dbg(dummy_dev(dum_hcd),
+			dev_err(dummy_dev(dum_hcd),
 				 "SetHubDepth req not supported for "
 				 "USB 2.0 roothub\n");
 			goto error;
 		}
 		break;
 	default:
-		dev_dbg(dummy_dev(dum_hcd),
+		dev_err(dummy_dev(dum_hcd),
 			"hub control req%04x v%04x i%04x l%d\n",
 			typeReq, wValue, wIndex, wLength);
 error:
@@ -2290,7 +2290,7 @@ static int dummy_bus_suspend(struct usb_hcd *hcd)
 {
 	struct dummy_hcd *dum_hcd = hcd_to_dummy_hcd(hcd);
 
-	dev_dbg(&hcd->self.root_hub->dev, "%s\n", __func__);
+	dev_err(&hcd->self.root_hub->dev, "%s\n", __func__);
 
 	spin_lock_irq(&dum_hcd->dum->lock);
 	dum_hcd->rh_state = DUMMY_RH_SUSPENDED;
@@ -2305,7 +2305,7 @@ static int dummy_bus_resume(struct usb_hcd *hcd)
 	struct dummy_hcd *dum_hcd = hcd_to_dummy_hcd(hcd);
 	int rc = 0;
 
-	dev_dbg(&hcd->self.root_hub->dev, "%s\n", __func__);
+	dev_err(&hcd->self.root_hub->dev, "%s\n", __func__);
 
 	spin_lock_irq(&dum_hcd->dum->lock);
 	if (!HCD_HW_ACCESSIBLE(hcd)) {
@@ -2511,7 +2511,7 @@ static int dummy_alloc_streams(struct usb_hcd *hcd, struct usb_device *udev,
 			goto out;
 		}
 		if (max_stream < ret_streams) {
-			dev_dbg(dummy_dev(dum_hcd), "Ep 0x%x only supports %u "
+			dev_err(dummy_dev(dum_hcd), "Ep 0x%x only supports %u "
 					"stream IDs.\n",
 					eps[i]->desc.bEndpointAddress,
 					max_stream);
@@ -2658,7 +2658,7 @@ static int dummy_hcd_suspend(struct platform_device *pdev, pm_message_t state)
 	struct dummy_hcd	*dum_hcd;
 	int			rc = 0;
 
-	dev_dbg(&pdev->dev, "%s\n", __func__);
+	dev_err(&pdev->dev, "%s\n", __func__);
 
 	hcd = platform_get_drvdata(pdev);
 	dum_hcd = hcd_to_dummy_hcd(hcd);
@@ -2674,7 +2674,7 @@ static int dummy_hcd_resume(struct platform_device *pdev)
 {
 	struct usb_hcd		*hcd;
 
-	dev_dbg(&pdev->dev, "%s\n", __func__);
+	dev_err(&pdev->dev, "%s\n", __func__);
 
 	hcd = platform_get_drvdata(pdev);
 	set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);

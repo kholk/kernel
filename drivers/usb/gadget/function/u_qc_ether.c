@@ -238,9 +238,9 @@ static struct device_type qc_gadget_type = {
 void gether_qc_get_macs(u8 dev_mac[ETH_ALEN], u8 host_mac[ETH_ALEN])
 {
 	if (get_qc_ether_addr(qc_dev_addr, dev_mac))
-		pr_debug("using random dev_mac ethernet address\n");
+		pr_err("using random dev_mac ethernet address\n");
 	if (get_qc_ether_addr(qc_host_addr, host_mac))
-		pr_debug("using random host_mac ethernet address\n");
+		pr_err("using random host_mac ethernet address\n");
 }
 
 /**
@@ -314,7 +314,7 @@ int gether_qc_setup_name(struct usb_gadget *g, u8 ethaddr[ETH_ALEN],
 
 	status = register_netdev(net);
 	if (status < 0) {
-		dev_dbg(&g->dev, "register_netdev failed, %d\n", status);
+		dev_err(&g->dev, "register_netdev failed, %d\n", status);
 		free_netdev(net);
 	} else {
 		INFO(dev, "MAC %pM\n", net->dev_addr);

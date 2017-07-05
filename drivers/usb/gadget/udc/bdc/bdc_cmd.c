@@ -36,10 +36,10 @@ static int bdc_issue_cmd(struct bdc *bdc, u32 cmd_sc, u32 param0,
 	bdc_writel(bdc->regs, BDC_CMDSC, cmd_sc | BDC_CMD_CWS | BDC_CMD_SRD);
 	do {
 		temp = bdc_readl(bdc->regs, BDC_CMDSC);
-		dev_dbg_ratelimited(bdc->dev, "cmdsc=%x", temp);
+		dev_err_ratelimited(bdc->dev, "cmdsc=%x", temp);
 		cmd_status =  BDC_CMD_CST(temp);
 		if (cmd_status != BDC_CMDS_BUSY)  {
-			dev_dbg(bdc->dev,
+			dev_err(bdc->dev,
 				"command completed cmd_sts:%x\n", cmd_status);
 			return cmd_status;
 		}
@@ -61,7 +61,7 @@ static int bdc_submit_cmd(struct bdc *bdc, u32 cmd_sc,
 	int ret;
 
 	temp = bdc_readl(bdc->regs, BDC_CMDSC);
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"%s:CMDSC:%08x cmdsc:%08x param0=%08x param1=%08x param2=%08x\n",
 		 __func__, temp, cmd_sc, param0, param1, param2);
 
@@ -73,7 +73,7 @@ static int bdc_submit_cmd(struct bdc *bdc, u32 cmd_sc,
 	ret = bdc_issue_cmd(bdc, cmd_sc, param0, param1, param2);
 	switch (ret) {
 	case BDC_CMDS_SUCC:
-		dev_dbg(bdc->dev, "command completed successfully\n");
+		dev_err(bdc->dev, "command completed successfully\n");
 		ret = 0;
 		break;
 
@@ -106,7 +106,7 @@ static int bdc_submit_cmd(struct bdc *bdc, u32 cmd_sc,
 		ret = -ECONNRESET;
 		break;
 	default:
-		dev_dbg(bdc->dev, "Unknown command completion code:%x\n", ret);
+		dev_err(bdc->dev, "Unknown command completion code:%x\n", ret);
 	}
 
 	return ret;
@@ -118,7 +118,7 @@ int bdc_dconfig_ep(struct bdc *bdc, struct bdc_ep *ep)
 	u32 cmd_sc;
 
 	cmd_sc = BDC_SUB_CMD_DRP_EP|BDC_CMD_EPN(ep->ep_num)|BDC_CMD_EPC;
-	dev_dbg(bdc->dev, "%s ep->ep_num =%d cmd_sc=%x\n", __func__,
+	dev_err(bdc->dev, "%s ep->ep_num =%d cmd_sc=%x\n", __func__,
 							ep->ep_num, cmd_sc);
 
 	return bdc_submit_cmd(bdc, cmd_sc, 0, 0, 0);
@@ -133,7 +133,7 @@ static void ep_bd_list_reinit(struct bdc_ep *ep)
 	ep->bd_list.eqp_bdi = 0;
 	ep->bd_list.hwd_bdi = 0;
 	bd = ep->bd_list.bd_table_array[0]->start_bd;
-	dev_dbg(bdc->dev, "%s ep:%p bd:%p\n", __func__, ep, bd);
+	dev_err(bdc->dev, "%s ep:%p bd:%p\n", __func__, ep, bd);
 	memset(bd, 0, sizeof(struct bdc_bd));
 	bd->offset[3] |= cpu_to_le32(BD_SBF);
 }
@@ -155,7 +155,7 @@ int bdc_config_ep(struct bdc *bdc, struct bdc_ep *ep)
 	cpu_to_le32s(&param0);
 	cpu_to_le32s(&param1);
 
-	dev_dbg(bdc->dev, "%s: param0=%08x param1=%08x",
+	dev_err(bdc->dev, "%s: param0=%08x param1=%08x",
 						__func__, param0, param1);
 	si = desc->bInterval;
 	si = clamp_val(si, 1, 16) - 1;
@@ -213,7 +213,7 @@ int bdc_config_ep(struct bdc *bdc, struct bdc_ep *ep)
 
 	cmd_sc |= BDC_CMD_EPC|BDC_CMD_EPN(ep->ep_num)|BDC_SUB_CMD_ADD_EP;
 
-	dev_dbg(bdc->dev, "cmd_sc=%x param2=%08x\n", cmd_sc, param2);
+	dev_err(bdc->dev, "cmd_sc=%x param2=%08x\n", cmd_sc, param2);
 	ret = bdc_submit_cmd(bdc, cmd_sc, param0, param1, param2);
 	if (ret) {
 		dev_err(bdc->dev, "command failed :%x\n", ret);
@@ -233,7 +233,7 @@ int bdc_ep_bla(struct bdc *bdc, struct bdc_ep *ep, dma_addr_t dma_addr)
 	u32 param0, param1;
 	u32 cmd_sc = 0;
 
-	dev_dbg(bdc->dev, "%s: add=%08llx\n", __func__,
+	dev_err(bdc->dev, "%s: add=%08llx\n", __func__,
 				(unsigned long long)(dma_addr));
 	param0 = lower_32_bits(dma_addr);
 	param1 = upper_32_bits(dma_addr);
@@ -241,7 +241,7 @@ int bdc_ep_bla(struct bdc *bdc, struct bdc_ep *ep, dma_addr_t dma_addr)
 	cpu_to_le32s(&param1);
 
 	cmd_sc |= BDC_CMD_EPN(ep->ep_num)|BDC_CMD_BLA;
-	dev_dbg(bdc->dev, "cmd_sc=%x\n", cmd_sc);
+	dev_err(bdc->dev, "cmd_sc=%x\n", cmd_sc);
 
 	return bdc_submit_cmd(bdc, cmd_sc, param0, param1, 0);
 }
@@ -252,7 +252,7 @@ int bdc_address_device(struct bdc *bdc, u32 add)
 	u32 cmd_sc = 0;
 	u32 param2;
 
-	dev_dbg(bdc->dev, "%s: add=%d\n", __func__, add);
+	dev_err(bdc->dev, "%s: add=%d\n", __func__, add);
 	cmd_sc |=  BDC_SUB_CMD_ADD|BDC_CMD_DVC;
 	param2 = add & 0x7f;
 
@@ -266,13 +266,13 @@ int bdc_function_wake_fh(struct bdc *bdc, u8 intf)
 	u32 cmd_sc = 0;
 
 	param0 = param1 = 0;
-	dev_dbg(bdc->dev, "%s intf=%d\n", __func__, intf);
+	dev_err(bdc->dev, "%s intf=%d\n", __func__, intf);
 	cmd_sc  |=  BDC_CMD_FH;
 	param0 |= TRA_PACKET;
 	param0 |= (bdc->dev_addr << 25);
 	param1 |= DEV_NOTF_TYPE;
 	param1 |= (FWK_SUBTYPE<<4);
-	dev_dbg(bdc->dev, "param0=%08x param1=%08x\n", param0, param1);
+	dev_err(bdc->dev, "param0=%08x param1=%08x\n", param0, param1);
 
 	return bdc_submit_cmd(bdc, cmd_sc, param0, param1, 0);
 }
@@ -283,7 +283,7 @@ int bdc_function_wake(struct bdc *bdc, u8 intf)
 	u32 cmd_sc = 0;
 	u32 param2 = 0;
 
-	dev_dbg(bdc->dev, "%s intf=%d", __func__, intf);
+	dev_err(bdc->dev, "%s intf=%d", __func__, intf);
 	param2 |= intf;
 	cmd_sc |= BDC_SUB_CMD_FWK|BDC_CMD_DNC;
 
@@ -295,7 +295,7 @@ int bdc_ep_set_stall(struct bdc *bdc, int epnum)
 {
 	u32 cmd_sc = 0;
 
-	dev_dbg(bdc->dev, "%s epnum=%d\n", __func__, epnum);
+	dev_err(bdc->dev, "%s epnum=%d\n", __func__, epnum);
 	/* issue a stall endpoint command */
 	cmd_sc |=  BDC_SUB_CMD_EP_STL | BDC_CMD_EPN(epnum) | BDC_CMD_EPO;
 
@@ -309,7 +309,7 @@ int bdc_ep_clear_stall(struct bdc *bdc, int epnum)
 	u32 cmd_sc = 0;
 	int ret;
 
-	dev_dbg(bdc->dev, "%s: epnum=%d\n", __func__, epnum);
+	dev_err(bdc->dev, "%s: epnum=%d\n", __func__, epnum);
 	ep = bdc->bdc_ep_array[epnum];
 	/*
 	 * If we are not in stalled then stall Endpoint and issue clear stall,
@@ -348,7 +348,7 @@ int bdc_stop_ep(struct bdc *bdc, int epnum)
 	int ret;
 
 	ep = bdc->bdc_ep_array[epnum];
-	dev_dbg(bdc->dev, "%s: ep:%s ep->flags:%08x\n", __func__,
+	dev_err(bdc->dev, "%s: ep:%s ep->flags:%08x\n", __func__,
 						ep->name, ep->flags);
 	/* Endpoint has to be in running state to execute stop ep command */
 	if (!(ep->flags & BDC_EP_ENABLED)) {

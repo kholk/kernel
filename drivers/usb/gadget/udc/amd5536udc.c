@@ -672,7 +672,7 @@ static void udc_init_bna_dummy(struct udc_request *req)
 					UDC_DMA_STP_STS_BS_DMA_DONE,
 					UDC_DMA_STP_STS_BS);
 #ifdef UDC_VERBOSE
-		pr_debug("bna desc = %p, sts = %08x\n",
+		pr_err("bna desc = %p, sts = %08x\n",
 			req->td_data, req->td_data->status);
 #endif
 	}
@@ -1367,7 +1367,7 @@ udc_set_halt(struct usb_ep *usbep, int halt)
 	if (!usbep)
 		return -EINVAL;
 
-	pr_debug("set_halt %s: halt=%d\n", usbep->name, halt);
+	pr_err("set_halt %s: halt=%d\n", usbep->name, halt);
 
 	ep = container_of(usbep, struct udc_ep, ep);
 	if (!ep->ep.desc && (ep->num != 0 && ep->num != UDC_EP0OUT_IX))
@@ -3296,7 +3296,7 @@ static int udc_pci_probe(
 
 	/* one udc only */
 	if (udc) {
-		dev_dbg(&pdev->dev, "already probed\n");
+		dev_err(&pdev->dev, "already probed\n");
 		return -EBUSY;
 	}
 
@@ -3316,14 +3316,14 @@ static int udc_pci_probe(
 	len = pci_resource_len(pdev, 0);
 
 	if (!request_mem_region(resource, len, name)) {
-		dev_dbg(&pdev->dev, "pci device used already\n");
+		dev_err(&pdev->dev, "pci device used already\n");
 		retval = -EBUSY;
 		goto err_memreg;
 	}
 
 	dev->virt_addr = ioremap_nocache(resource, len);
 	if (!dev->virt_addr) {
-		dev_dbg(&pdev->dev, "start address cannot be mapped\n");
+		dev_err(&pdev->dev, "start address cannot be mapped\n");
 		retval = -EFAULT;
 		goto err_ioremap;
 	}
@@ -3346,7 +3346,7 @@ static int udc_pci_probe(
 	dev->txfifo = (u32 __iomem *)(dev->virt_addr + UDC_TXFIFO_ADDR);
 
 	if (request_irq(pdev->irq, udc_irq, IRQF_SHARED, name, dev) != 0) {
-		dev_dbg(&pdev->dev, "request_irq(%d) fail\n", pdev->irq);
+		dev_err(&pdev->dev, "request_irq(%d) fail\n", pdev->irq);
 		retval = -EBUSY;
 		goto err_irq;
 	}

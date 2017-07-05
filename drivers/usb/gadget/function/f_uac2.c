@@ -189,7 +189,7 @@ agdev_iso_complete(struct usb_ep *ep, struct usb_request *req)
 	 * Afterall, the ISOCH xfers could fail legitimately.
 	 */
 	if (status)
-		pr_debug("%s: iso_complete status(%d) %d/%d\n",
+		pr_err("%s: iso_complete status(%d) %d/%d\n",
 			__func__, status, req->actual, req->length);
 
 	substream = prm->ss;
@@ -514,7 +514,7 @@ static int snd_uac2_remove(struct platform_device *pdev)
 
 static void snd_uac2_release(struct device *dev)
 {
-	dev_dbg(dev, "releasing '%s'\n", dev_name(dev));
+	dev_err(dev, "releasing '%s'\n", dev_name(dev));
 }
 
 static int alsa_uac2_init(struct audio_dev *agdev)

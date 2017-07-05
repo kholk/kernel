@@ -1768,7 +1768,7 @@ static int goku_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	/* alloc, and start init */
 	dev = kzalloc (sizeof *dev, GFP_KERNEL);
 	if (dev == NULL){
-		pr_debug("enomem %s\n", pci_name(pdev));
+		pr_err("enomem %s\n", pci_name(pdev));
 		retval = -ENOMEM;
 		goto err;
 	}

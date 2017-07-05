@@ -22,7 +22,7 @@ static int alloc_sps_req(struct usb_ep *data_ep)
 	struct f_qdss *qdss = data_ep->driver_data;
 	u32 sps_params = 0;
 
-	pr_debug("send_sps_req\n");
+	pr_err("send_sps_req\n");
 
 	req = usb_ep_alloc_request(data_ep, GFP_ATOMIC);
 	if (!req) {
@@ -49,7 +49,7 @@ int set_qdss_data_connection(struct usb_gadget *gadget,
 	struct f_qdss *qdss = data_ep->driver_data;
 	struct usb_qdss_bam_connect_info bam_info = qdss->bam_info;
 
-	pr_debug("set_qdss_data_connection\n");
+	pr_err("set_qdss_data_connection\n");
 
 	usb_bam_type = usb_bam_get_bam_type(gadget->name);
 
@@ -97,7 +97,7 @@ static int init_data(struct usb_ep *ep)
 	struct f_qdss *qdss = ep->driver_data;
 	int res = 0;
 
-	pr_debug("init_data\n");
+	pr_err("init_data\n");
 
 	res = msm_ep_config(ep, qdss->endless_req);
 	if (res)

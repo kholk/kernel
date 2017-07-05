@@ -166,7 +166,7 @@ static int bam_data_alloc_requests(struct usb_ep *ep, struct list_head *head,
 	struct bam_data_ch_info	*d = &port->data_ch;
 	struct usb_request *req;
 
-	pr_debug("%s: ep:%pK head:%pK num:%d cb:%pK", __func__,
+	pr_err("%s: ep:%pK head:%pK num:%d cb:%pK", __func__,
 			ep, head, num, cb);
 
 	if (d->alloc_rx_reqs) {
@@ -217,7 +217,7 @@ static struct sk_buff *bam_data_alloc_skb_from_pool(
 		 * Therefore, in steady state this dynamic allocation will
 		 * stop when the pool will arrive to its optimal size.
 		 */
-		pr_debug("%s: allocate skb\n", __func__);
+		pr_err("%s: allocate skb\n", __func__);
 		skb = alloc_skb(d->rx_buffer_size + BAM_MUX_HDR, GFP_ATOMIC);
 		if (!skb) {
 			pr_err("%s: alloc skb failed\n", __func__);
@@ -249,7 +249,7 @@ static struct sk_buff *bam_data_alloc_skb_from_pool(
 			sizeof(skb_buf_dma_addr));
 
 	} else {
-		pr_debug("%s: pull skb from pool\n", __func__);
+		pr_err("%s: pull skb from pool\n", __func__);
 		skb = __skb_dequeue(&d->rx_skb_idle);
 	}
 
@@ -292,7 +292,7 @@ static void bam_data_write_done(void *p, struct sk_buff *skb)
 
 	d->pending_with_bam--;
 
-	pr_debug("%s: port:%pK d:%pK pbam:%u, pno:%d\n", __func__,
+	pr_err("%s: port:%pK d:%pK pbam:%u, pno:%d\n", __func__,
 			port, d, d->pending_with_bam, port->port_num);
 
 	spin_unlock_irqrestore(&port->port_lock, flags);
@@ -526,7 +526,7 @@ static void bam_data_write_toipa(struct work_struct *w)
 
 		d->pending_with_bam++;
 
-		pr_debug("%s: port:%pK d:%pK pbam:%u pno:%d\n", __func__,
+		pr_err("%s: port:%pK d:%pK pbam:%u pno:%d\n", __func__,
 				port, d, d->pending_with_bam, port->port_num);
 
 		spin_unlock_irqrestore(&port->port_lock, flags);
@@ -541,7 +541,7 @@ static void bam_data_write_toipa(struct work_struct *w)
 
 		spin_lock_irqsave(&port->port_lock, flags);
 		if (ret) {
-			pr_debug_ratelimited("%s: write error:%d\n",
+			pr_err_ratelimited("%s: write error:%d\n",
 							__func__, ret);
 			d->pending_with_bam--;
 			bam_data_free_skb_to_pool(port, skb);
@@ -569,7 +569,7 @@ static void bam_data_endless_rx_complete(struct usb_ep *ep,
 {
 	int status = req->status;
 
-	pr_debug("%s: status: %d\n", __func__, status);
+	pr_err("%s: status: %d\n", __func__, status);
 }
 
 static void bam_data_endless_tx_complete(struct usb_ep *ep,
@@ -577,7 +577,7 @@ static void bam_data_endless_tx_complete(struct usb_ep *ep,
 {
 	int status = req->status;
 
-	pr_debug("%s: status: %d\n", __func__, status);
+	pr_err("%s: status: %d\n", __func__, status);
 }
 
 static void bam_data_start_endless_rx(struct bam_data_port *port)
@@ -595,7 +595,7 @@ static void bam_data_start_endless_rx(struct bam_data_port *port)
 	ep = port->port_usb->out;
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
-	pr_debug("%s: enqueue\n", __func__);
+	pr_err("%s: enqueue\n", __func__);
 	status = usb_ep_queue(ep, d->rx_req, GFP_ATOMIC);
 	if (status)
 		pr_err("error enqueuing transfer, %d\n", status);
@@ -616,7 +616,7 @@ static void bam_data_start_endless_tx(struct bam_data_port *port)
 	ep = port->port_usb->in;
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
-	pr_debug("%s: enqueue\n", __func__);
+	pr_err("%s: enqueue\n", __func__);
 	status = usb_ep_queue(ep, d->tx_req, GFP_ATOMIC);
 	if (status)
 		pr_err("error enqueuing transfer, %d\n", status);
@@ -636,7 +636,7 @@ static void bam_data_stop_endless_rx(struct bam_data_port *port)
 
 	d->rx_req_dequeued = true;
 
-	pr_debug("%s: dequeue\n", __func__);
+	pr_err("%s: dequeue\n", __func__);
 	status = usb_ep_dequeue(port->port_usb->out, d->rx_req);
 	if (status)
 		pr_err("%s: error dequeuing transfer, %d\n", __func__, status);
@@ -660,7 +660,7 @@ static void bam_data_stop_endless_tx(struct bam_data_port *port)
 	d->tx_req_dequeued = true;
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
-	pr_debug("%s: dequeue\n", __func__);
+	pr_err("%s: dequeue\n", __func__);
 	status = usb_ep_dequeue(ep, d->tx_req);
 	if (status)
 		pr_err("%s: error dequeuing transfer, %d\n", __func__, status);
@@ -714,7 +714,7 @@ static void bam2bam_free_rx_skb_idle_list(struct bam_data_port *port)
 		d->freed_skb++;
 	}
 
-	pr_debug("%s(): Freed %d SKBs from rx_skb_idle queue\n", __func__,
+	pr_err("%s(): Freed %d SKBs from rx_skb_idle queue\n", __func__,
 							d->freed_skb);
 }
 
@@ -732,7 +732,7 @@ static void bam2bam_free_rx_skb_idle_list(struct bam_data_port *port)
  */
 static void bam_data_ipa_disconnect(struct bam_data_ch_info *d)
 {
-	pr_debug("%s(): pipe_connect_notified:%d\n",
+	pr_err("%s(): pipe_connect_notified:%d\n",
 		__func__, atomic_read(&d->pipe_connect_notified));
 	/*
 	 * Check if pipe_connect_notified is set to 1, then perform disconnect
@@ -748,11 +748,11 @@ static void bam_data_ipa_disconnect(struct bam_data_ch_info *d)
 			priv = rndis_qc_get_ipa_priv();
 			rndis_ipa_pipe_disconnect_notify(priv);
 		}
-		pr_debug("%s(): net interface is disconnected.\n", __func__);
+		pr_err("%s(): net interface is disconnected.\n", __func__);
 	}
 
 	if (d->func_type == USB_FUNC_MBIM) {
-		pr_debug("%s(): teth_bridge() disconnected\n", __func__);
+		pr_err("%s(): teth_bridge() disconnected\n", __func__);
 		teth_bridge_disconnect(d->ipa_params.src_client);
 	}
 }
@@ -768,7 +768,7 @@ static void bam2bam_data_disconnect_work(struct work_struct *w)
 	spin_lock_irqsave(&port->port_lock, flags);
 
 	if (!port->is_ipa_connected) {
-		pr_debug("%s: Already disconnected. Bailing out.\n", __func__);
+		pr_err("%s: Already disconnected. Bailing out.\n", __func__);
 		spin_unlock_irqrestore(&port->port_lock, flags);
 		return;
 	}
@@ -809,7 +809,7 @@ static void bam2bam_data_disconnect_work(struct work_struct *w)
 	usb_gadget_autopm_put_async(port->gadget);
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
-	pr_debug("Disconnect workqueue done (port %pK)\n", port);
+	pr_err("Disconnect workqueue done (port %pK)\n", port);
 }
 /*
  * This function configured data fifo based on index passed to get bam2bam
@@ -856,7 +856,7 @@ static void bam2bam_data_connect_work(struct work_struct *w)
 	int			ret;
 	unsigned long		flags;
 
-	pr_debug("%s: Connect workqueue started", __func__);
+	pr_err("%s: Connect workqueue started", __func__);
 
 	spin_lock_irqsave(&port->port_lock, flags);
 
@@ -864,7 +864,7 @@ static void bam2bam_data_connect_work(struct work_struct *w)
 	d_port = port->port_usb;
 
 	if (port->last_event == U_BAM_DATA_DISCONNECT_E) {
-		pr_debug("%s: Port is about to disconnect. Bail out.\n",
+		pr_err("%s: Port is about to disconnect. Bail out.\n",
 			__func__);
 		spin_unlock_irqrestore(&port->port_lock, flags);
 		return;
@@ -897,7 +897,7 @@ static void bam2bam_data_connect_work(struct work_struct *w)
 	 * bam_data_connect()
 	 */
 	if (port->is_ipa_connected) {
-		pr_debug("IPA connect is already done & Transfers started\n");
+		pr_err("IPA connect is already done & Transfers started\n");
 		spin_unlock_irqrestore(&port->port_lock, flags);
 		usb_gadget_autopm_put_async(port->gadget);
 		return;
@@ -1072,7 +1072,7 @@ static void bam2bam_data_connect_work(struct work_struct *w)
 	port->is_ipa_connected = true;
 
 	d_port->ipa_producer_ep = d->ipa_params.ipa_prod_ep_idx;
-	pr_debug("%s(): ipa_producer_ep:%d ipa_consumer_ep:%d\n",
+	pr_err("%s(): ipa_producer_ep:%d ipa_consumer_ep:%d\n",
 			__func__, d_port->ipa_producer_ep,
 			d_port->ipa_consumer_ep);
 	spin_unlock_irqrestore(&port->port_lock, flags);
@@ -1111,11 +1111,11 @@ static void bam2bam_data_connect_work(struct work_struct *w)
 			d->ipa_params.cons_clnt_hdl;
 		rndis_data.priv = d->ipa_params.priv;
 
-		pr_debug("ul_max_transfer_size:%d\n",
+		pr_err("ul_max_transfer_size:%d\n",
 				rndis_data.ul_max_transfer_size);
-		pr_debug("ul_max_packets_number:%d\n",
+		pr_err("ul_max_packets_number:%d\n",
 				rndis_data.ul_max_packets_number);
-		pr_debug("dl_max_transfer_size:%d\n",
+		pr_err("dl_max_transfer_size:%d\n",
 				rndis_data.dl_max_transfer_size);
 
 		ret = rndis_ipa_pipe_connect_notify(
@@ -1135,7 +1135,7 @@ static void bam2bam_data_connect_work(struct work_struct *w)
 
 	/* Don't queue the transfers yet, only after network stack is up */
 	if (d->func_type == USB_FUNC_RNDIS || d->func_type == USB_FUNC_ECM) {
-		pr_debug("%s: Not starting now, waiting for network notify",
+		pr_err("%s: Not starting now, waiting for network notify",
 			__func__);
 		return;
 	}
@@ -1144,7 +1144,7 @@ static void bam2bam_data_connect_work(struct work_struct *w)
 	bam_data_start_rx_transfers(d, port);
 	bam_data_start_endless_tx(port);
 
-	pr_debug("Connect workqueue done (port %pK)", port);
+	pr_err("Connect workqueue done (port %pK)", port);
 	return;
 
 disconnect_ipa:
@@ -1168,7 +1168,7 @@ void bam_data_start_rx_tx(u8 port_num)
 	struct bam_data_ch_info	*d;
 	unsigned long flags;
 
-	pr_debug("%s: Triggered: starting tx, rx", __func__);
+	pr_err("%s: Triggered: starting tx, rx", __func__);
 
 	/* queue in & out requests */
 	port = bam2bam_data_ports[port_num];
@@ -1192,17 +1192,17 @@ void bam_data_start_rx_tx(u8 port_num)
 		goto out;
 	}
 	if (!port->is_ipa_connected) {
-		pr_debug("%s: pipes are disconnected", __func__);
+		pr_err("%s: pipes are disconnected", __func__);
 		goto out;
 	}
 
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
 	/* queue in & out requests */
-	pr_debug("%s: Starting rx", __func__);
+	pr_err("%s: Starting rx", __func__);
 	bam_data_start_rx_transfers(d, port);
 
-	pr_debug("%s: Starting tx", __func__);
+	pr_err("%s: Starting tx", __func__);
 	bam_data_start_endless_tx(port);
 
 	return;
@@ -1226,7 +1226,7 @@ static int bam2bam_data_port_alloc(int portno)
 	struct bam_data_ch_info *d;
 
 	if (bam2bam_data_ports[portno] != NULL) {
-		pr_debug("port %d already allocated.\n", portno);
+		pr_err("port %d already allocated.\n", portno);
 		return 0;
 	}
 
@@ -1254,7 +1254,7 @@ void u_bam_data_start_rndis_ipa(void)
 	struct bam_data_port *port;
 	struct bam_data_ch_info *d;
 
-	pr_debug("%s\n", __func__);
+	pr_err("%s\n", __func__);
 
 	port_num = u_bam_data_func_to_port(USB_FUNC_RNDIS,
 					RNDIS_QC_ACTIVE_PORT);
@@ -1275,7 +1275,7 @@ void u_bam_data_start_rndis_ipa(void)
 		usb_gadget_autopm_get_noresume(port->gadget);
 		queue_work(bam_data_wq, &port->connect_w);
 	} else {
-		pr_debug("%s: Transfers already started?\n", __func__);
+		pr_err("%s: Transfers already started?\n", __func__);
 	}
 }
 
@@ -1285,7 +1285,7 @@ void u_bam_data_stop_rndis_ipa(void)
 	struct bam_data_port *port;
 	struct bam_data_ch_info *d;
 
-	pr_debug("%s\n", __func__);
+	pr_err("%s\n", __func__);
 
 	port_num = u_bam_data_func_to_port(USB_FUNC_RNDIS,
 					RNDIS_QC_ACTIVE_PORT);
@@ -1347,7 +1347,7 @@ void bam_data_disconnect(struct data_port *gr, enum function_type func,
 		return;
 	}
 
-	pr_debug("dev:%pK port number:%d\n", gr, port_num);
+	pr_err("dev:%pK port number:%d\n", gr, port_num);
 
 	if (!gr) {
 		pr_err("data port is null\n");
@@ -1419,15 +1419,15 @@ void bam_data_disconnect(struct data_port *gr, enum function_type func,
 			/* Only for SYS2BAM mode related UL workaround */
 			if (d->src_pipe_type == USB_BAM_PIPE_SYS2BAM) {
 
-				pr_debug("SKBs_RX_Q: freed:%d\n",
+				pr_err("SKBs_RX_Q: freed:%d\n",
 							d->rx_skb_q.qlen);
 				while ((skb = __skb_dequeue(&d->rx_skb_q)))
 					dev_kfree_skb_any(skb);
 
 				bam2bam_free_rx_skb_idle_list(port);
-				pr_debug("SKBs: allocated:%d freed:%d\n",
+				pr_err("SKBs: allocated:%d freed:%d\n",
 						d->total_skb, d->freed_skb);
-				pr_debug("rx_reqs: allocated:%d freed:%d\n",
+				pr_err("rx_reqs: allocated:%d freed:%d\n",
 					d->alloc_rx_reqs, d->freed_rx_reqs);
 
 				/* reset all skb/reqs related statistics */
@@ -1493,7 +1493,7 @@ int bam_data_connect(struct data_port *gr, enum transport_type trans,
 		return -EINVAL;
 	}
 
-	pr_debug("dev:%pK port#%d\n", gr, port_num);
+	pr_err("dev:%pK port#%d\n", gr, port_num);
 
 	usb_bam_type = usb_bam_get_bam_type(gr->cdev->gadget->name);
 
@@ -1532,7 +1532,7 @@ int bam_data_connect(struct data_port *gr, enum transport_type trans,
 		d->ipa_params.dst_client = IPA_CLIENT_USB_CONS;
 	}
 
-	pr_debug("%s(): rx_buffer_size:%d\n", __func__, d->rx_buffer_size);
+	pr_err("%s(): rx_buffer_size:%d\n", __func__, d->rx_buffer_size);
 	d->ipa_params.src_pipe = &(d->src_pipe_idx);
 	d->ipa_params.dst_pipe = &(d->dst_pipe_idx);
 	d->ipa_params.src_idx = src_connection_idx;
@@ -1663,7 +1663,7 @@ int bam_data_setup(enum function_type func, unsigned int no_bam2bam_port)
 	int	i;
 	int	ret;
 
-	pr_debug("requested %d BAM2BAM ports", no_bam2bam_port);
+	pr_err("requested %d BAM2BAM ports", no_bam2bam_port);
 
 	if (!no_bam2bam_port || no_bam2bam_port > PORTS_PER_FUNC ||
 		func >= USB_NUM_FUNCS) {
@@ -1682,10 +1682,10 @@ int bam_data_setup(enum function_type func, unsigned int no_bam2bam_port)
 		}
 	}
 
-	pr_debug("n_bam2bam_data_ports:%d\n", n_bam2bam_data_ports);
+	pr_err("n_bam2bam_data_ports:%d\n", n_bam2bam_data_ports);
 
 	if (bam_data_wq) {
-		pr_debug("bam_data is already setup.");
+		pr_err("bam_data is already setup.");
 		return 0;
 	}
 
@@ -1720,7 +1720,7 @@ static int bam_data_wake_cb(void *param)
 	struct usb_gadget *gadget;
 	struct usb_function *func;
 
-	pr_debug("%s: woken up by peer\n", __func__);
+	pr_err("%s: woken up by peer\n", __func__);
 
 	if (!d_port) {
 		pr_err("FAILED: d_port == NULL");
@@ -1755,7 +1755,7 @@ static int bam_data_wake_cb(void *param)
 		ret = usb_gadget_wakeup(gadget);
 
 	if ((ret == -EBUSY) || (ret == -EAGAIN))
-		pr_debug("Remote wakeup is delayed due to LPM exit.\n");
+		pr_err("Remote wakeup is delayed due to LPM exit.\n");
 	else if (ret)
 		pr_err("Failed to wake up the USB core. ret=%d.\n", ret);
 
@@ -1829,7 +1829,7 @@ void bam_data_suspend(struct data_port *port_usb, u8 dev_port_num,
 		return;
 	}
 
-	pr_debug("%s: suspended port %d\n", __func__, port_num);
+	pr_err("%s: suspended port %d\n", __func__, port_num);
 
 	port = bam2bam_data_ports[port_num];
 	if (!port) {
@@ -1849,7 +1849,7 @@ void bam_data_suspend(struct data_port *port_usb, u8 dev_port_num,
 		port_usb->in_ep_desc_backup = port_usb->in->desc;
 		port_usb->out_ep_desc_backup = port_usb->out->desc;
 
-		pr_debug("in_ep_desc_backup = %pK, out_ep_desc_backup = %pK",
+		pr_err("in_ep_desc_backup = %pK, out_ep_desc_backup = %pK",
 			port_usb->in_ep_desc_backup,
 			port_usb->out_ep_desc_backup);
 
@@ -1876,7 +1876,7 @@ void bam_data_resume(struct data_port *port_usb, u8 dev_port_num,
 		return;
 	}
 
-	pr_debug("%s: resumed port %d\n", __func__, port_num);
+	pr_err("%s: resumed port %d\n", __func__, port_num);
 
 	port = bam2bam_data_ports[port_num];
 	if (!port) {
@@ -1890,7 +1890,7 @@ void bam_data_resume(struct data_port *port_usb, u8 dev_port_num,
 		port_usb->in->desc = port_usb->in_ep_desc_backup;
 		port_usb->out->desc = port_usb->out_ep_desc_backup;
 
-		pr_debug("in_ep_desc_backup = %pK, out_ep_desc_backup = %pK",
+		pr_err("in_ep_desc_backup = %pK, out_ep_desc_backup = %pK",
 			port_usb->in_ep_desc_backup,
 			port_usb->out_ep_desc_backup);
 
@@ -1916,7 +1916,7 @@ void bam_data_resume(struct data_port *port_usb, u8 dev_port_num,
 
 void bam_data_flush_workqueue(void)
 {
-	pr_debug("%s(): Flushing workqueue\n", __func__);
+	pr_err("%s(): Flushing workqueue\n", __func__);
 	flush_workqueue(bam_data_wq);
 }
 
@@ -1928,7 +1928,7 @@ static void bam2bam_data_suspend_work(struct work_struct *w)
 	int ret;
 	unsigned long flags;
 
-	pr_debug("%s: suspend work started\n", __func__);
+	pr_err("%s: suspend work started\n", __func__);
 
 	spin_lock_irqsave(&port->port_lock, flags);
 
@@ -1950,7 +1950,7 @@ static void bam2bam_data_suspend_work(struct work_struct *w)
 
 	if ((port->last_event == U_BAM_DATA_DISCONNECT_E) ||
 	    (port->last_event == U_BAM_DATA_RESUME_E)) {
-		pr_debug("%s: Port is about to disconnect/resume. Bail out.\n",
+		pr_err("%s: Port is about to disconnect/resume. Bail out.\n",
 			__func__);
 		goto exit;
 	}
@@ -2018,10 +2018,10 @@ static void bam2bam_data_resume_work(struct work_struct *w)
 	d_port = port->port_usb;
 	gadget = d_port->cdev->gadget;
 
-	pr_debug("%s: resume work started\n", __func__);
+	pr_err("%s: resume work started\n", __func__);
 
 	if (port->last_event == U_BAM_DATA_DISCONNECT_E) {
-		pr_debug("%s: Port is about to disconnect. Bail out.\n",
+		pr_err("%s: Port is about to disconnect. Bail out.\n",
 			__func__);
 		goto exit;
 	}
@@ -2074,7 +2074,7 @@ void u_bam_data_set_dl_max_xfer_size(u32 max_transfer_size)
 		return;
 	}
 	rndis_data.dl_max_transfer_size = max_transfer_size;
-	pr_debug("%s(): dl_max_xfer_size:%d\n", __func__, max_transfer_size);
+	pr_err("%s(): dl_max_xfer_size:%d\n", __func__, max_transfer_size);
 }
 
 void u_bam_data_set_ul_max_pkt_num(u8 max_packets_number)
@@ -2092,9 +2092,9 @@ void u_bam_data_set_ul_max_pkt_num(u8 max_packets_number)
 	else
 		rndis_data.ul_aggregation_enable = false;
 
-	pr_debug("%s(): ul_aggregation enable:%d\n", __func__,
+	pr_err("%s(): ul_aggregation enable:%d\n", __func__,
 				rndis_data.ul_aggregation_enable);
-	pr_debug("%s(): ul_max_packets_number:%d\n", __func__,
+	pr_err("%s(): ul_max_packets_number:%d\n", __func__,
 				max_packets_number);
 }
 
@@ -2105,5 +2105,5 @@ void u_bam_data_set_ul_max_xfer_size(u32 max_transfer_size)
 		return;
 	}
 	rndis_data.ul_max_transfer_size = max_transfer_size;
-	pr_debug("%s(): ul_max_xfer_size:%d\n", __func__, max_transfer_size);
+	pr_err("%s(): ul_max_xfer_size:%d\n", __func__, max_transfer_size);
 }

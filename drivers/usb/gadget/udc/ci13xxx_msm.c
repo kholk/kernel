@@ -41,7 +41,7 @@ static irqreturn_t msm_udc_irq(int irq, void *data)
 static void ci13xxx_msm_suspend(void)
 {
 	struct device *dev = _udc->gadget.dev.parent;
-	dev_dbg(dev, "ci13xxx_msm_suspend\n");
+	dev_err(dev, "ci13xxx_msm_suspend\n");
 
 	if (_udc_ctxt.wake_irq && !_udc_ctxt.wake_irq_state) {
 		enable_irq_wake(_udc_ctxt.wake_irq);
@@ -53,7 +53,7 @@ static void ci13xxx_msm_suspend(void)
 static void ci13xxx_msm_resume(void)
 {
 	struct device *dev = _udc->gadget.dev.parent;
-	dev_dbg(dev, "ci13xxx_msm_resume\n");
+	dev_err(dev, "ci13xxx_msm_resume\n");
 
 	if (_udc_ctxt.wake_irq && _udc_ctxt.wake_irq_state) {
 		disable_irq_wake(_udc_ctxt.wake_irq);
@@ -98,7 +98,7 @@ static void ci13xxx_msm_set_l1(struct ci13xxx *udc)
 	int temp;
 	struct device *dev = udc->gadget.dev.parent;
 
-	dev_dbg(dev, "Enable link power management\n");
+	dev_err(dev, "Enable link power management\n");
 
 	/* Enable remote wakeup and L1 for IN EPs */
 	writel_relaxed(0xffff0000, USB_L1_EP_CTRL);
@@ -162,7 +162,7 @@ static void ci13xxx_msm_reset(void)
 	if (phy && (phy->flags & ENABLE_SECONDARY_PHY)) {
 		int	temp;
 
-		dev_dbg(dev, "using secondary hsphy\n");
+		dev_err(dev, "using secondary hsphy\n");
 		temp = readl_relaxed(USB_PHY_CTRL2);
 		temp |= (1<<16);
 		writel_relaxed(temp, USB_PHY_CTRL2);
@@ -229,7 +229,7 @@ static void ci13xxx_msm_notify_event(struct ci13xxx *udc, unsigned event)
 		//udc->gadget.interrupt_num = _udc_ctxt.irq;
 		break;
 	default:
-		dev_dbg(dev, "unknown ci13xxx_udc event\n");
+		dev_err(dev, "unknown ci13xxx_udc event\n");
 		break;
 	}
 }
@@ -281,7 +281,7 @@ static int ci13xxx_msm_install_wake_gpio(struct platform_device *pdev,
 	int ret;
 	struct pinctrl_state *set_state;
 
-	dev_dbg(&pdev->dev, "ci13xxx_msm_install_wake_gpio\n");
+	dev_err(&pdev->dev, "ci13xxx_msm_install_wake_gpio\n");
 
 	_udc_ctxt.wake_gpio = res->start;
 	if (_udc_ctxt.ci13xxx_pinctrl) {
@@ -301,7 +301,7 @@ static int ci13xxx_msm_install_wake_gpio(struct platform_device *pdev,
 		return -ENXIO;
 	}
 
-	dev_dbg(&pdev->dev, "_udc_ctxt.gpio_irq = %d and irq = %d\n",
+	dev_err(&pdev->dev, "_udc_ctxt.gpio_irq = %d and irq = %d\n",
 			_udc_ctxt.wake_gpio, wake_irq);
 	ret = request_irq(wake_irq, ci13xxx_msm_resume_irq,
 		IRQF_TRIGGER_RISING | IRQF_ONESHOT, "usb resume", NULL);
@@ -332,7 +332,7 @@ gpio_free:
 static void ci13xxx_msm_uninstall_wake_gpio(struct platform_device *pdev)
 {
 	struct pinctrl_state *set_state;
-	dev_dbg(&pdev->dev, "ci13xxx_msm_uninstall_wake_gpio\n");
+	dev_err(&pdev->dev, "ci13xxx_msm_uninstall_wake_gpio\n");
 
 	if (_udc_ctxt.wake_gpio) {
 		gpio_free(_udc_ctxt.wake_gpio);
@@ -357,7 +357,7 @@ static int ci13xxx_msm_probe(struct platform_device *pdev)
 	int ret;
 	struct ci13xxx_platform_data *pdata = pdev->dev.platform_data;
 
-	dev_dbg(&pdev->dev, "ci13xxx_msm_probe\n");
+	dev_err(&pdev->dev, "ci13xxx_msm_probe\n");
 
 	if (pdata) {
 		/* Acceptable values for nz_itc are: 0,1,2,4,8,16,32,64 */
@@ -413,7 +413,7 @@ static int ci13xxx_msm_probe(struct platform_device *pdev)
 			ret = PTR_ERR(_udc_ctxt.ci13xxx_pinctrl);
 			goto udc_remove;
 		}
-		dev_dbg(&pdev->dev, "Target does not use pinctrl\n");
+		dev_err(&pdev->dev, "Target does not use pinctrl\n");
 		_udc_ctxt.ci13xxx_pinctrl = NULL;
 	}
 	if (res) {
@@ -486,7 +486,7 @@ void msm_usb_irq_disable(bool disable)
 	spin_lock_irqsave(udc->lock, flags);
 
 	if (_udc_ctxt.irq_disabled == disable) {
-		pr_debug("Interrupt state already disable = %d\n", disable);
+		pr_err("Interrupt state already disable = %d\n", disable);
 		if (disable)
 			mod_timer(&_udc_ctxt.irq_enable_timer,
 					IRQ_ENABLE_DELAY);
@@ -497,12 +497,12 @@ void msm_usb_irq_disable(bool disable)
 	if (disable) {
 		disable_irq_nosync(_udc_ctxt.irq);
 		/* start timer here */
-		pr_debug("%s: Disabling interrupts\n", __func__);
+		pr_err("%s: Disabling interrupts\n", __func__);
 		mod_timer(&_udc_ctxt.irq_enable_timer, IRQ_ENABLE_DELAY);
 		_udc_ctxt.irq_disabled = true;
 
 	} else {
-		pr_debug("%s: Enabling interrupts\n", __func__);
+		pr_err("%s: Enabling interrupts\n", __func__);
 		del_timer(&_udc_ctxt.irq_enable_timer);
 		enable_irq(_udc_ctxt.irq);
 		_udc_ctxt.irq_disabled = false;
@@ -513,7 +513,7 @@ void msm_usb_irq_disable(bool disable)
 
 static void enable_usb_irq_timer_func(unsigned long data)
 {
-	pr_debug("enabling interrupt from timer\n");
+	pr_err("enabling interrupt from timer\n");
 	msm_usb_irq_disable(false);
 }
 

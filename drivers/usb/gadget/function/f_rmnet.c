@@ -424,7 +424,7 @@ static void frmnet_unbind(struct usb_configuration *c, struct usb_function *f)
 	struct f_rmnet *dev = func_to_rmnet(f);
 	struct usb_gadget *gadget = c->cdev->gadget;
 
-	pr_debug("%s: start unbinding\nclear_desc\n", __func__);
+	pr_err("%s: start unbinding\nclear_desc\n", __func__);
 	if (gadget_is_superspeed(gadget) && f->ss_descriptors)
 		usb_free_descriptors(f->ss_descriptors);
 
@@ -443,7 +443,7 @@ static void frmnet_purge_responses(struct f_rmnet *dev)
 	unsigned long flags;
 	struct rmnet_ctrl_pkt *cpkt;
 
-	pr_debug("%s: Purging responses\n", __func__);
+	pr_err("%s: Purging responses\n", __func__);
 	spin_lock_irqsave(&dev->lock, flags);
 	while (!list_empty(&dev->cpkt_resp_q)) {
 		cpkt = list_first_entry(&dev->cpkt_resp_q,
@@ -466,7 +466,7 @@ static void frmnet_suspend(struct usb_function *f)
 	else
 		remote_wakeup_allowed = f->config->cdev->gadget->remote_wakeup;
 
-	pr_debug("%s: dev: %pK remote_wakeup: %d\n", __func__, dev,
+	pr_err("%s: dev: %pK remote_wakeup: %d\n", __func__, dev,
 			remote_wakeup_allowed);
 
 	if (dev->notify) {
@@ -486,7 +486,7 @@ static void frmnet_resume(struct usb_function *f)
 	else
 		remote_wakeup_allowed = f->config->cdev->gadget->remote_wakeup;
 
-	pr_debug("%s: dev: %pK remote_wakeup: %d\n", __func__, dev,
+	pr_err("%s: dev: %pK remote_wakeup: %d\n", __func__, dev,
 			remote_wakeup_allowed);
 
 	ipa_data_resume(&dev->ipa_port, dev->func_type, remote_wakeup_allowed);
@@ -496,7 +496,7 @@ static void frmnet_disable(struct usb_function *f)
 {
 	struct f_rmnet	*dev = func_to_rmnet(f);
 
-	pr_debug("%s: Disabling\n", __func__);
+	pr_err("%s: Disabling\n", __func__);
 	atomic_set(&dev->online, 0);
 	if (dev->notify) {
 		usb_ep_disable(dev->notify);
@@ -514,11 +514,11 @@ frmnet_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	struct usb_composite_dev	*cdev = f->config->cdev;
 	int				ret = 0;
 
-	pr_debug("%s:dev:%pK\n", __func__, dev);
+	pr_err("%s:dev:%pK\n", __func__, dev);
 	dev->cdev = cdev;
 	if (dev->notify) {
 		if (dev->notify->driver_data) {
-			pr_debug("%s: reset port\n", __func__);
+			pr_err("%s: reset port\n", __func__);
 			usb_ep_disable(dev->notify);
 		}
 
@@ -596,7 +596,7 @@ static void frmnet_ctrl_response_available(struct f_rmnet *dev)
 	int				ret;
 	struct rmnet_ctrl_pkt		*cpkt;
 
-	pr_debug("%s:dev:%pK\n", __func__, dev);
+	pr_err("%s:dev:%pK\n", __func__, dev);
 	spin_lock_irqsave(&dev->lock, flags);
 	if (!atomic_read(&dev->online) || !req || !req->buf) {
 		spin_unlock_irqrestore(&dev->lock, flags);
@@ -624,7 +624,7 @@ static void frmnet_ctrl_response_available(struct f_rmnet *dev)
 			if (dev->notify_count > 0)
 				dev->notify_count--;
 			else {
-				pr_debug("%s: Invalid notify_count=%lu to decrement\n",
+				pr_err("%s: Invalid notify_count=%lu to decrement\n",
 					 __func__, dev->notify_count);
 				spin_unlock_irqrestore(&dev->lock, flags);
 				return;
@@ -635,7 +635,7 @@ static void frmnet_ctrl_response_available(struct f_rmnet *dev)
 			rmnet_free_ctrl_pkt(cpkt);
 		}
 		spin_unlock_irqrestore(&dev->lock, flags);
-		pr_debug("ep enqueue error %d\n", ret);
+		pr_err("ep enqueue error %d\n", ret);
 	}
 }
 
@@ -669,7 +669,7 @@ static void frmnet_disconnect(struct grmnet *gr)
 	atomic_set(&dev->ctrl_online, 0);
 
 	if (!atomic_read(&dev->online)) {
-		pr_debug("%s: nothing to do\n", __func__);
+		pr_err("%s: nothing to do\n", __func__);
 		return;
 	}
 
@@ -716,7 +716,7 @@ frmnet_send_cpkt_response(void *gr, void *buf, size_t len)
 
 	dev = port_to_rmnet(gr);
 
-	pr_debug("%s: dev: %pK\n", __func__, dev);
+	pr_err("%s: dev: %pK\n", __func__, dev);
 	if (!atomic_read(&dev->online) || !atomic_read(&dev->ctrl_online)) {
 		rmnet_free_ctrl_pkt(cpkt);
 		return 0;
@@ -741,7 +741,7 @@ frmnet_cmd_complete(struct usb_ep *ep, struct usb_request *req)
 		pr_err("%s: rmnet dev is null\n", __func__);
 		return;
 	}
-	pr_debug("%s: dev: %pK\n", __func__, dev);
+	pr_err("%s: dev: %pK\n", __func__, dev);
 	cdev = dev->cdev;
 
 	if (dev->port.send_encap_cmd) {
@@ -756,7 +756,7 @@ static void frmnet_notify_complete(struct usb_ep *ep, struct usb_request *req)
 	unsigned long		flags;
 	struct rmnet_ctrl_pkt	*cpkt;
 
-	pr_debug("%s: dev: %pK\n", __func__, dev);
+	pr_err("%s: dev: %pK\n", __func__, dev);
 	switch (status) {
 	case -ECONNRESET:
 	case -ESHUTDOWN:
@@ -780,7 +780,7 @@ static void frmnet_notify_complete(struct usb_ep *ep, struct usb_request *req)
 				break;
 			}
 		} else {
-			pr_debug("%s: Invalid notify_count=%lu to decrement\n",
+			pr_err("%s: Invalid notify_count=%lu to decrement\n",
 					__func__, dev->notify_count);
 			spin_unlock_irqrestore(&dev->lock, flags);
 			break;
@@ -806,7 +806,7 @@ static void frmnet_notify_complete(struct usb_ep *ep, struct usb_request *req)
 				rmnet_free_ctrl_pkt(cpkt);
 			}
 			spin_unlock_irqrestore(&dev->lock, flags);
-			pr_debug("ep enqueue error %d\n", status);
+			pr_err("ep enqueue error %d\n", status);
 		}
 		break;
 	}
@@ -823,7 +823,7 @@ frmnet_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	u16				w_length = le16_to_cpu(ctrl->wLength);
 	int				ret = -EOPNOTSUPP;
 
-	pr_debug("%s: dev: %pK\n", __func__, dev);
+	pr_err("%s: dev: %pK\n", __func__, dev);
 	if (!atomic_read(&dev->online)) {
 		pr_warn("%s: usb cable is not connected\n", __func__);
 		return -ENOTCONN;
@@ -833,7 +833,7 @@ frmnet_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_SEND_ENCAPSULATED_COMMAND:
-		pr_debug("%s: USB_CDC_SEND_ENCAPSULATED_COMMAND\n"
+		pr_err("%s: USB_CDC_SEND_ENCAPSULATED_COMMAND\n"
 				 , __func__);
 		ret = w_length;
 		req->complete = frmnet_cmd_complete;
@@ -843,7 +843,7 @@ frmnet_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 
 	case ((USB_DIR_IN | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_GET_ENCAPSULATED_RESPONSE:
-		pr_debug("%s: USB_CDC_GET_ENCAPSULATED_RESPONSE\n", __func__);
+		pr_err("%s: USB_CDC_GET_ENCAPSULATED_RESPONSE\n", __func__);
 		if (w_value) {
 			pr_err("%s: invalid w_value = %04x\n",
 				   __func__, w_value);
@@ -877,7 +877,7 @@ frmnet_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 		break;
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_REQ_SET_CONTROL_LINE_STATE:
-		pr_debug("%s: USB_CDC_REQ_SET_CONTROL_LINE_STATE: DTR:%d\n",
+		pr_err("%s: USB_CDC_REQ_SET_CONTROL_LINE_STATE: DTR:%d\n",
 				__func__, w_value & ACM_CTRL_DTR ? 1 : 0);
 		if (dev->port.notify_modem) {
 			dev->port.notify_modem(&dev->port,
@@ -1060,7 +1060,7 @@ static int frmnet_bind(struct usb_configuration *c, struct usb_function *f)
 	int ret = -ENODEV;
 	struct ipa_function_bind_info info = {0};
 
-	pr_debug("%s: start binding\n", __func__);
+	pr_err("%s: start binding\n", __func__);
 	dev->ifc_id = usb_interface_id(c, f);
 	if (dev->ifc_id < 0) {
 		pr_err("%s: unable to allocate ifc id, err:%d\n",
@@ -1130,7 +1130,7 @@ static struct usb_function *frmnet_bind_config(struct usb_function_instance *fi)
 	dev->port.disconnect = frmnet_disconnect;
 	dev->port.connect = frmnet_connect;
 
-	pr_debug("%s: complete\n", __func__);
+	pr_err("%s: complete\n", __func__);
 
 	return f;
 }

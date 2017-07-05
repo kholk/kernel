@@ -127,7 +127,7 @@ static void assert_out_naking(struct net2272_ep *ep, const char *where)
 
 	tmp = net2272_ep_read(ep, EP_STAT0);
 	if ((tmp & (1 << NAK_OUT_PACKETS)) == 0) {
-		dev_dbg(ep->dev->dev, "%s %s %02x !NAK\n",
+		dev_err(ep->dev->dev, "%s %s %02x !NAK\n",
 			ep->ep.name, where, tmp);
 		net2272_ep_write(ep, EP_RSPSET, 1 << ALT_NAK_OUT_PACKETS);
 	}
@@ -250,7 +250,7 @@ net2272_enable(struct usb_ep *_ep, const struct usb_endpoint_descriptor *desc)
 	net2272_ep_write(ep, EP_IRQENB, tmp);
 
 	tmp = desc->bEndpointAddress;
-	dev_dbg(dev->dev, "enabled %s (ep%d%s-%s) max %04x cfg %02x\n",
+	dev_err(dev->dev, "enabled %s (ep%d%s-%s) max %04x cfg %02x\n",
 		_ep->name, tmp & 0x0f, PIPEDIR(tmp),
 		type_string(desc->bmAttributes), max,
 		net2272_ep_read(ep, EP_CFG));
@@ -875,7 +875,7 @@ net2272_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 			/* Buffer is empty check for a blocking zlp, handle it */
 			if ((s & (1 << NAK_OUT_PACKETS)) &&
 			    net2272_ep_read(ep, EP_STAT1) & (1 << LOCAL_OUT_ZLP)) {
-				dev_dbg(dev->dev, "WARNING: returning ZLP short packet termination!\n");
+				dev_err(dev->dev, "WARNING: returning ZLP short packet termination!\n");
 				/*
 				 * Request is going to terminate with a short packet ...
 				 * hope the client is ready for it!
@@ -968,7 +968,7 @@ net2272_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 
 	/* queue head may be partially complete */
 	if (ep->queue.next == &req->queue) {
-		dev_dbg(ep->dev->dev, "unlink (%s) pio\n", _ep->name);
+		dev_err(ep->dev->dev, "unlink (%s) pio\n", _ep->name);
 		net2272_done(ep, req, -ECONNRESET);
 	}
 	req = NULL;
@@ -1743,7 +1743,7 @@ net2272_handle_stat0_irqs(struct net2272 *dev, u8 stat)
 				dev->gadget.speed = USB_SPEED_HIGH;
 			else
 				dev->gadget.speed = USB_SPEED_FULL;
-			dev_dbg(dev->dev, "%s\n",
+			dev_err(dev->dev, "%s\n",
 				usb_speed_string(dev->gadget.speed));
 		}
 
@@ -1977,7 +1977,7 @@ net2272_handle_stat0_irqs(struct net2272 *dev, u8 stat)
 	stat &= ~(1 << SOF_INTERRUPT);
 
 	if (stat)
-		dev_dbg(dev->dev, "unhandled irqstat0 %02x\n", stat);
+		dev_err(dev->dev, "unhandled irqstat0 %02x\n", stat);
 }
 
 static void
@@ -2003,13 +2003,13 @@ net2272_handle_stat1_irqs(struct net2272 *dev, u8 stat)
 					(net2272_read(dev, USBCTL1) &
 						(1 << VBUS_PIN)) == 0) {
 				disconnect = true;
-				dev_dbg(dev->dev, "disconnect %s\n",
+				dev_err(dev->dev, "disconnect %s\n",
 					dev->driver->driver.name);
 			} else if ((stat & (1 << ROOT_PORT_RESET_INTERRUPT)) &&
 					(net2272_read(dev, USBCTL1) & mask)
 						== 0) {
 				reset = true;
-				dev_dbg(dev->dev, "reset %s\n",
+				dev_err(dev->dev, "reset %s\n",
 					dev->driver->driver.name);
 			}
 
@@ -2041,7 +2041,7 @@ net2272_handle_stat1_irqs(struct net2272 *dev, u8 stat)
 				dev->driver->suspend(&dev->gadget);
 			if (!enable_suspend) {
 				stat &= ~(1 << SUSPEND_REQUEST_INTERRUPT);
-				dev_dbg(dev->dev, "Suspend disabled, ignoring\n");
+				dev_err(dev->dev, "Suspend disabled, ignoring\n");
 			}
 		} else {
 			if (dev->driver->resume)
@@ -2061,7 +2061,7 @@ net2272_handle_stat1_irqs(struct net2272 *dev, u8 stat)
 	if (!stat)
 		return;
 	else
-		dev_dbg(dev->dev, "unhandled irqstat1 %02x\n", stat);
+		dev_err(dev->dev, "unhandled irqstat1 %02x\n", stat);
 }
 
 static irqreturn_t net2272_irq(int irq, void *_dev)
@@ -2136,7 +2136,7 @@ static int net2272_present(struct net2272 *dev)
 		net2272_write(dev, SCRATCH, ii);
 		val = net2272_read(dev, SCRATCH);
 		if (val != ii) {
-			dev_dbg(dev->dev,
+			dev_err(dev->dev,
 				"%s: write/read SCRATCH register test failed: "
 				"wrote:0x%2.2x, read:0x%2.2x\n",
 				__func__, ii, val);
@@ -2152,7 +2152,7 @@ static int net2272_present(struct net2272 *dev)
 		net2272_write(dev, CHIPREV_2272, ii);
 		val = net2272_read(dev, CHIPREV_2272);
 		if (val != refval) {
-			dev_dbg(dev->dev,
+			dev_err(dev->dev,
 				"%s: write/read CHIPREV register test failed: "
 				"wrote 0x%2.2x, read:0x%2.2x expected:0x%2.2x\n",
 				__func__, ii, val, refval);
@@ -2173,7 +2173,7 @@ static int net2272_present(struct net2272 *dev)
 		 * Unexpected legacy revision value
 		 * - Perhaps the chip is a NET2270?
 		 */
-		dev_dbg(dev->dev,
+		dev_err(dev->dev,
 			"%s: WARNING: UNEXPECTED NET2272 LEGACY REGISTER VALUE:\n"
 			" - CHIPREV_LEGACY: expected 0x%2.2x, got:0x%2.2x. (Not NET2272?)\n",
 			__func__, NET2270_LEGACY_REV, val);
@@ -2192,7 +2192,7 @@ static int net2272_present(struct net2272 *dev)
 		 * NET2272 Rev 1 has DMA related errata:
 		 *  - Newer silicon (Rev 1A or better) required
 		 */
-		dev_dbg(dev->dev,
+		dev_err(dev->dev,
 			"%s: Rev 1 detected: newer silicon recommended for DMA support\n",
 			__func__);
 		break;
@@ -2200,7 +2200,7 @@ static int net2272_present(struct net2272 *dev)
 		break;
 	default:
 		/* NET2272 silicon version *may* not work with this firmware */
-		dev_dbg(dev->dev,
+		dev_err(dev->dev,
 			"%s: unexpected silicon revision register value: "
 			" CHIPREV_2272: 0x%2.2x\n",
 			__func__, val);
@@ -2240,7 +2240,7 @@ static struct net2272 *net2272_probe_init(struct device *dev, unsigned int irq)
 	struct net2272 *ret;
 
 	if (!irq) {
-		dev_dbg(dev, "No IRQ!\n");
+		dev_err(dev, "No IRQ!\n");
 		return ERR_PTR(-ENODEV);
 	}
 
@@ -2340,7 +2340,7 @@ net2272_rdk1_probe(struct pci_dev *pdev, struct net2272 *dev)
 		len = pci_resource_len(pdev, i);
 
 		if (!request_mem_region(resource, len, driver_name)) {
-			dev_dbg(dev->dev, "controller already in use\n");
+			dev_err(dev->dev, "controller already in use\n");
 			ret = -EBUSY;
 			goto err;
 		}
@@ -2348,7 +2348,7 @@ net2272_rdk1_probe(struct pci_dev *pdev, struct net2272 *dev)
 		mem_mapped_addr[i] = ioremap_nocache(resource, len);
 		if (mem_mapped_addr[i] == NULL) {
 			release_mem_region(resource, len);
-			dev_dbg(dev->dev, "can't map memory\n");
+			dev_err(dev->dev, "can't map memory\n");
 			ret = -EFAULT;
 			goto err;
 		}
@@ -2418,7 +2418,7 @@ net2272_rdk2_probe(struct pci_dev *pdev, struct net2272 *dev)
 		len = pci_resource_len(pdev, i);
 
 		if (!request_mem_region(resource, len, driver_name)) {
-			dev_dbg(dev->dev, "controller already in use\n");
+			dev_err(dev->dev, "controller already in use\n");
 			ret = -EBUSY;
 			goto err;
 		}
@@ -2426,7 +2426,7 @@ net2272_rdk2_probe(struct pci_dev *pdev, struct net2272 *dev)
 		mem_mapped_addr[i] = ioremap_nocache(resource, len);
 		if (mem_mapped_addr[i] == NULL) {
 			release_mem_region(resource, len);
-			dev_dbg(dev->dev, "can't map memory\n");
+			dev_err(dev->dev, "can't map memory\n");
 			ret = -EFAULT;
 			goto err;
 		}
@@ -2643,13 +2643,13 @@ net2272_plat_probe(struct platform_device *pdev)
 		dev->base_shift = iomem_bus->start;
 
 	if (!request_mem_region(base, len, driver_name)) {
-		dev_dbg(dev->dev, "get request memory region!\n");
+		dev_err(dev->dev, "get request memory region!\n");
 		ret = -EBUSY;
 		goto err;
 	}
 	dev->base_addr = ioremap_nocache(base, len);
 	if (!dev->base_addr) {
-		dev_dbg(dev->dev, "can't map memory\n");
+		dev_err(dev->dev, "can't map memory\n");
 		ret = -EFAULT;
 		goto err_req;
 	}

@@ -144,12 +144,12 @@ static struct workqueue_struct *gserial_wq;
 #ifdef VERBOSE_DEBUG
 #ifndef pr_vdebug
 #define pr_vdebug(fmt, arg...) \
-	pr_debug(fmt, ##arg)
+	pr_err(fmt, ##arg)
 #endif /* pr_vdebug */
 #else
 #ifndef pr_vdebug
 #define pr_vdebug(fmt, arg...) \
-	({ if (0) pr_debug(fmt, ##arg); })
+	({ if (0) pr_err(fmt, ##arg); })
 #endif /* pr_vdebug */
 #endif
 
@@ -452,7 +452,7 @@ __acquires(&port->port_lock)
 		}
 
 		if (status) {
-			pr_debug("%s: %s %s err %d\n",
+			pr_err("%s: %s %s err %d\n",
 					__func__, "queue", in->name, status);
 			list_add(&req->list, pool);
 			break;
@@ -526,7 +526,7 @@ __acquires(&port->port_lock)
 		}
 
 		if (status) {
-			pr_debug("%s: %s %s err %d\n",
+			pr_err("%s: %s %s err %d\n",
 					__func__, "queue", out->name, status);
 			list_add(&req->list, pool);
 			break;
@@ -862,7 +862,7 @@ static int gs_open(struct tty_struct *tty, struct file *file)
 		spin_lock_irq(&port->port_lock);
 
 		if (status) {
-			pr_debug("gs_open: ttyGS%d (%pK,%pK) no buffer\n",
+			pr_err("gs_open: ttyGS%d (%pK,%pK) no buffer\n",
 				port->port_num, tty, file);
 			port->openclose = false;
 			goto exit_unlock_port;
@@ -885,14 +885,14 @@ static int gs_open(struct tty_struct *tty, struct file *file)
 	if (port->port_usb) {
 		struct gserial	*gser = port->port_usb;
 
-		pr_debug("gs_open: start ttyGS%d\n", port->port_num);
+		pr_err("gs_open: start ttyGS%d\n", port->port_num);
 		gs_start_io(port);
 
 		if (gser->connect)
 			gser->connect(gser);
 	}
 
-	pr_debug("gs_open: ttyGS%d (%pK,%pK)\n", port->port_num, tty, file);
+	pr_err("gs_open: ttyGS%d (%pK,%pK)\n", port->port_num, tty, file);
 
 	status = 0;
 
@@ -928,7 +928,7 @@ static void gs_close(struct tty_struct *tty, struct file *file)
 		goto exit;
 	}
 
-	pr_debug("gs_close: ttyGS%d (%pK,%pK) ...\n",
+	pr_err("gs_close: ttyGS%d (%pK,%pK) ...\n",
 			port->port_num, tty, file);
 
 	/* mark port as closing but in use; we can drop port lock
@@ -966,7 +966,7 @@ static void gs_close(struct tty_struct *tty, struct file *file)
 
 	port->openclose = false;
 
-	pr_debug("gs_close: ttyGS%d (%pK,%pK) done!\n",
+	pr_err("gs_close: ttyGS%d (%pK,%pK) done!\n",
 			port->port_num, tty, file);
 
 	wake_up(&port->close_wait);
@@ -1515,7 +1515,7 @@ int gserial_connect(struct gserial *gser, u8 port_num)
 	 * protocol about open/close status (connect/disconnect).
 	 */
 	if (port->port.count) {
-		pr_debug("gserial_connect: start ttyGS%d\n", port->port_num);
+		pr_err("gserial_connect: start ttyGS%d\n", port->port_num);
 		gs_start_io(port);
 		if (gser->connect)
 			gser->connect(gser);
@@ -1638,7 +1638,7 @@ static int userial_init(void)
 	for (i = 0; i < MAX_U_SERIAL_PORTS; i++)
 		usb_debugfs_init(ports[i].port, i);
 
-	pr_debug("%s: registered %d ttyGS* device%s\n", __func__,
+	pr_err("%s: registered %d ttyGS* device%s\n", __func__,
 			MAX_U_SERIAL_PORTS,
 			(MAX_U_SERIAL_PORTS == 1) ? "" : "s");
 

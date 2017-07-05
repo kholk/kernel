@@ -445,7 +445,7 @@ static void audio_data_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct audio_dev *audio = req->context;
 
-	pr_debug("audio_data_complete req->status %d req->actual %d\n",
+	pr_err("audio_data_complete req->status %d req->actual %d\n",
 		req->status, req->actual);
 
 	audio_req_put(audio, req);
@@ -469,7 +469,7 @@ static int audio_set_endpoint_req(struct usb_function *f,
 	u16 len = le16_to_cpu(ctrl->wLength);
 	u16 w_value = le16_to_cpu(ctrl->wValue);
 
-	pr_debug("bRequest 0x%x, w_value 0x%04x, len %d, endpoint %d\n",
+	pr_err("bRequest 0x%x, w_value 0x%04x, len %d, endpoint %d\n",
 			ctrl->bRequest, w_value, len, ep);
 
 	switch (ctrl->bRequest) {
@@ -496,7 +496,7 @@ static int audio_get_endpoint_req(struct usb_function *f,
 	u16 w_value = le16_to_cpu(ctrl->wValue);
 	u8 *buf = cdev->req->buf;
 
-	pr_debug("bRequest 0x%x, w_value 0x%04x, len %d, endpoint %d\n",
+	pr_err("bRequest 0x%x, w_value 0x%04x, len %d, endpoint %d\n",
 			ctrl->bRequest, w_value, len, ep);
 
 	if (w_value == UAC_EP_CS_ATTR_SAMPLE_RATE << 8) {
@@ -544,7 +544,7 @@ audio_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 
 	/* respond with data transfer or status phase? */
 	if (value >= 0) {
-		pr_debug("audio req%02x.%02x v%04x i%04x l%d\n",
+		pr_err("audio req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length);
 		req->zero = 0;
@@ -565,7 +565,7 @@ static int audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	struct usb_composite_dev *cdev = f->config->cdev;
 	int ret;
 
-	pr_debug("audio_set_alt intf %d, alt %d\n", intf, alt);
+	pr_err("audio_set_alt intf %d, alt %d\n", intf, alt);
 
 	ret = config_ep_by_speed(cdev->gadget, f, audio->in_ep);
 	if (ret)
@@ -579,7 +579,7 @@ static void audio_disable(struct usb_function *f)
 {
 	struct audio_dev	*audio = func_to_audio(f);
 
-	pr_debug("audio_disable\n");
+	pr_err("audio_disable\n");
 	usb_ep_disable(audio->in_ep);
 }
 

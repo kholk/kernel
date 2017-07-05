@@ -246,7 +246,7 @@
 #define DBG(level, fmt, ...)					\
 	do {							\
 		if ((level) & DEBUG_LEVEL)			\
-			pr_debug("udc: " fmt, ## __VA_ARGS__);	\
+			pr_err("udc: " fmt, ## __VA_ARGS__);	\
 	} while (0)
 
 enum usba_ctrl_state {

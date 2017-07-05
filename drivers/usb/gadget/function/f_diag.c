@@ -217,7 +217,7 @@ static void diag_update_pid_and_serial_num(struct diag_context *ctxt)
 		return;
 
 	if (!diag_dload) {
-		pr_debug("%s: unable to update PID and serial_no\n", __func__);
+		pr_err("%s: unable to update PID and serial_no\n", __func__);
 		return;
 	}
 
@@ -244,7 +244,7 @@ static void diag_update_pid_and_serial_num(struct diag_context *ctxt)
 	}
 
 update_dload:
-	pr_debug("%s: dload:%pK pid:%x serial_num:%s\n",
+	pr_err("%s: dload:%pK pid:%x serial_num:%s\n",
 				__func__, diag_dload, local_diag_dload.pid,
 				local_diag_dload.serial_number);
 
@@ -832,7 +832,7 @@ static struct diag_context *diag_context_init(const char *name)
 	int found = 0;
 	unsigned long flags;
 
-	pr_debug("%s\n", __func__);
+	pr_err("%s\n", __func__);
 
 	list_for_each_entry(_ch, &usb_diag_ch_list, list) {
 		if (!strcmp(name, _ch->name)) {

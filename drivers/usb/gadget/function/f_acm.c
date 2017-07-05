@@ -312,14 +312,14 @@ static void acm_complete_set_line_coding(struct usb_ep *ep,
 	struct usb_composite_dev *cdev = acm->port.func.config->cdev;
 
 	if (req->status != 0) {
-		dev_dbg(&cdev->gadget->dev, "acm ttyGS%d completion, err %d\n",
+		dev_err(&cdev->gadget->dev, "acm ttyGS%d completion, err %d\n",
 			acm->port_num, req->status);
 		return;
 	}
 
 	/* normal completion */
 	if (req->actual != sizeof(acm->port_line_coding)) {
-		dev_dbg(&cdev->gadget->dev, "acm ttyGS%d short resp, len %d\n",
+		dev_err(&cdev->gadget->dev, "acm ttyGS%d short resp, len %d\n",
 			acm->port_num, req->actual);
 		usb_ep_set_halt(ep);
 	} else {
@@ -404,7 +404,7 @@ invalid:
 
 	/* respond with data transfer or status phase? */
 	if (value >= 0) {
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"acm ttyGS%d req%02x.%02x v%04x i%04x l%d\n",
 			acm->port_num, ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length);
@@ -440,12 +440,12 @@ static int acm_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 
 	} else if (intf == acm->data_id) {
 		if (acm->notify->enabled) {
-			dev_dbg(&cdev->gadget->dev,
+			dev_err(&cdev->gadget->dev,
 				"reset acm ttyGS%d\n", acm->port_num);
 			gserial_disconnect(&acm->port);
 		}
 		if (!acm->port.in->desc || !acm->port.out->desc) {
-			dev_dbg(&cdev->gadget->dev,
+			dev_err(&cdev->gadget->dev,
 				"activate acm ttyGS%d\n", acm->port_num);
 			if (config_ep_by_speed(cdev->gadget, f,
 					       acm->port.in) ||
@@ -469,7 +469,7 @@ static void acm_disable(struct usb_function *f)
 	struct f_acm	*acm = func_to_acm(f);
 	struct usb_composite_dev *cdev = f->config->cdev;
 
-	dev_dbg(&cdev->gadget->dev, "acm ttyGS%d deactivated\n", acm->port_num);
+	dev_err(&cdev->gadget->dev, "acm ttyGS%d deactivated\n", acm->port_num);
 	gserial_disconnect(&acm->port);
 	usb_ep_disable(acm->notify);
 }
@@ -538,7 +538,7 @@ static int acm_notify_serial_state(struct f_acm *acm)
 
 	spin_lock(&acm->lock);
 	if (acm->notify_req) {
-		dev_dbg(&cdev->gadget->dev, "acm ttyGS%d serial state %04x\n",
+		dev_err(&cdev->gadget->dev, "acm ttyGS%d serial state %04x\n",
 			acm->port_num, acm->serial_state);
 		status = acm_cdc_notify(acm, USB_CDC_NOTIFY_SERIAL_STATE,
 				0, &acm->serial_state, sizeof(acm->serial_state));
@@ -689,7 +689,7 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 	if (status)
 		goto fail;
 
-	dev_dbg(&cdev->gadget->dev,
+	dev_err(&cdev->gadget->dev,
 		"acm ttyGS%d: %s speed IN/%s OUT/%s NOTIFY/%s\n",
 		acm->port_num,
 		gadget_is_superspeed(c->cdev->gadget) ? "super" :

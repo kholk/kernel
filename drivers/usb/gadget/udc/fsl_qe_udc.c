@@ -949,7 +949,7 @@ static void ep_rx_tasklet(unsigned long data)
 		ep = &udc->eps[i];
 
 		if (ep->dir == USB_DIR_IN || ep->enable_tasklet == 0) {
-			dev_dbg(udc->dev,
+			dev_err(udc->dev,
 				"This is a transmit ep or disable tasklet!\n");
 			continue;
 		}
@@ -962,7 +962,7 @@ static void ep_rx_tasklet(unsigned long data)
 		while (!(bdstatus & R_E) && length) {
 			if (list_empty(&ep->queue)) {
 				qe_eprx_nack(ep);
-				dev_dbg(udc->dev,
+				dev_err(udc->dev,
 					"The rxep have noreq %d\n",
 					ep->has_data);
 				break;
@@ -1606,10 +1606,10 @@ static int qe_ep_enable(struct usb_ep *_ep,
 	retval = qe_ep_init(udc, epnum, desc);
 	if (retval != 0) {
 		cpm_muram_free(cpm_muram_offset(ep->rxbase));
-		dev_dbg(udc->dev, "enable ep%d failed\n", ep->epnum);
+		dev_err(udc->dev, "enable ep%d failed\n", ep->epnum);
 		return -EINVAL;
 	}
-	dev_dbg(udc->dev, "enable ep%d successful\n", ep->epnum);
+	dev_err(udc->dev, "enable ep%d successful\n", ep->epnum);
 	return 0;
 }
 
@@ -1624,7 +1624,7 @@ static int qe_ep_disable(struct usb_ep *_ep)
 	udc = ep->udc;
 
 	if (!_ep || !ep->ep.desc) {
-		dev_dbg(udc->dev, "%s not enabled\n", _ep ? ep->ep.name : NULL);
+		dev_err(udc->dev, "%s not enabled\n", _ep ? ep->ep.name : NULL);
 		return -EINVAL;
 	}
 
@@ -1665,7 +1665,7 @@ static int qe_ep_disable(struct usb_ep *_ep)
 	if (ep->dir != USB_DIR_OUT)
 		kfree(ep->txframe);
 
-	dev_dbg(udc->dev, "disabled %s OK\n", _ep->name);
+	dev_err(udc->dev, "disabled %s OK\n", _ep->name);
 	return 0;
 }
 
@@ -1705,11 +1705,11 @@ static int __qe_ep_queue(struct usb_ep *_ep, struct usb_request *_req)
 	/* catch various bogus parameters */
 	if (!_req || !req->req.complete || !req->req.buf
 			|| !list_empty(&req->queue)) {
-		dev_dbg(udc->dev, "bad params\n");
+		dev_err(udc->dev, "bad params\n");
 		return -EINVAL;
 	}
 	if (!_ep || (!ep->ep.desc && ep_index(ep))) {
-		dev_dbg(udc->dev, "bad ep\n");
+		dev_err(udc->dev, "bad ep\n");
 		return -EINVAL;
 	}
 

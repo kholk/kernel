@@ -283,7 +283,7 @@ do { \
 
 #ifdef TRACE
 #define trace(format, args...)      ci13xxx_printk(KERN_DEBUG, format, ## args)
-#define dbg_trace(format, args...)  dev_dbg(dev, format, ##args)
+#define dbg_trace(format, args...)  dev_err(dev, format, ##args)
 #else
 #define trace(format, args...)      do {} while (0)
 #define dbg_trace(format, args...)  do {} while (0)

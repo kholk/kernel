@@ -603,7 +603,7 @@ union udc_setup_data {
 
 /* debug macros ------------------------------------------------------------*/
 
-#define DBG(udc , args...)	dev_dbg(&(udc)->pdev->dev, args)
+#define DBG(udc , args...)	dev_err(&(udc)->pdev->dev, args)
 
 #ifdef UDC_VERBOSE
 #define VDBG			DBG

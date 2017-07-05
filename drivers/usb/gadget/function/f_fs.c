@@ -48,7 +48,7 @@ static void *ffs_ipc_log;
 #define ffs_log(fmt, ...) do { \
 	ipc_log_string(ffs_ipc_log, "%s: " fmt,  __func__, \
 			##__VA_ARGS__); \
-	pr_debug(fmt, ##__VA_ARGS__); \
+	pr_err(fmt, ##__VA_ARGS__); \
 } while (0)
 
 /* Reference counter handling */
@@ -269,7 +269,7 @@ static int __ffs_ep0_stall(struct ffs_data *ffs)
 		ffs->setup_state = FFS_NO_SETUP;
 		return -EL2HLT;
 	} else {
-		pr_debug("bogus ep0 stall!\n");
+		pr_err("bogus ep0 stall!\n");
 		return -ESRCH;
 	}
 }
@@ -982,7 +982,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 
 					} else {
 						ret = copy_to_iter(data, ret, &io_data->data);
-						pr_debug("copied (%zd) bytes to user space\n", ret);
+						pr_err("copied (%zd) bytes to user space\n", ret);
 						if (!ret) {
 							pr_err("Fail to copy to user\n");
 							ret = -EFAULT;
@@ -1727,7 +1727,7 @@ static void ffs_data_clear(struct ffs_data *ffs)
 	ffs_log("enter: state %d setup_state %d flag %lu", ffs->state,
 		ffs->setup_state, ffs->flags);
 
-	pr_debug("%s: ffs->gadget= %pK, ffs->flags= %lu\n",
+	pr_err("%s: ffs->gadget= %pK, ffs->flags= %lu\n",
 				__func__, ffs->gadget, ffs->flags);
 	ffs_closed(ffs);
 
@@ -2070,7 +2070,7 @@ static int __must_check ffs_do_single_desc(char *data, unsigned len,
 		}							\
 		ret = entity(FFS_ ##type, &val, _ds, priv);		\
 		if (unlikely(ret < 0)) {				\
-			pr_debug("entity " #type "(%02x); ret = %d\n",	\
+			pr_err("entity " #type "(%02x); ret = %d\n",	\
 				 (val), ret);				\
 			return ret;					\
 		}							\
@@ -2186,7 +2186,7 @@ static int __must_check ffs_do_descs(unsigned count, char *data, unsigned len,
 		/* Record "descriptor" entity */
 		ret = entity(FFS_DESCRIPTOR, (u8 *)num, (void *)data, priv);
 		if (unlikely(ret < 0)) {
-			pr_debug("entity DESCRIPTOR(%02lx); ret = %d\n",
+			pr_err("entity DESCRIPTOR(%02lx); ret = %d\n",
 				 num, ret);
 			return ret;
 		}
@@ -2196,7 +2196,7 @@ static int __must_check ffs_do_descs(unsigned count, char *data, unsigned len,
 
 		ret = ffs_do_single_desc(data, len, entity, priv);
 		if (unlikely(ret < 0)) {
-			pr_debug("%s returns %d\n", __func__, ret);
+			pr_err("%s returns %d\n", __func__, ret);
 			return ret;
 		}
 
@@ -2314,7 +2314,7 @@ static int __must_check ffs_do_single_os_desc(char *data, unsigned len,
 	while (feature_count--) {
 		ret = entity(type, h, data, len, priv);
 		if (unlikely(ret < 0)) {
-			pr_debug("bad OS descriptor, type: %d\n", type);
+			pr_err("bad OS descriptor, type: %d\n", type);
 			return ret;
 		}
 		data += ret;
@@ -2359,7 +2359,7 @@ static int __must_check ffs_do_os_descs(unsigned count,
 
 		ret = __ffs_do_os_desc_header(&type, desc);
 		if (unlikely(ret < 0)) {
-			pr_debug("entity OS_DESCRIPTOR(%02lx); ret = %d\n",
+			pr_err("entity OS_DESCRIPTOR(%02lx); ret = %d\n",
 				 num, ret);
 			return ret;
 		}
@@ -2380,7 +2380,7 @@ static int __must_check ffs_do_os_descs(unsigned count,
 		ret = ffs_do_single_os_desc(data, len, type,
 					    feature_count, entity, priv, desc);
 		if (unlikely(ret < 0)) {
-			pr_debug("%s returns %d\n", __func__, ret);
+			pr_err("%s returns %d\n", __func__, ret);
 			return ret;
 		}
 

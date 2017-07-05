@@ -61,11 +61,11 @@ static void ep_bd_list_free(struct bdc_ep *ep, u32 num_tabs)
 	struct bd_table *bd_table;
 	int index;
 
-	dev_dbg(bdc->dev, "%s ep:%s num_tabs:%d\n",
+	dev_err(bdc->dev, "%s ep:%s num_tabs:%d\n",
 				 __func__, ep->name, num_tabs);
 
 	if (!bd_list->bd_table_array) {
-		dev_dbg(bdc->dev, "%s already freed\n", ep->name);
+		dev_err(bdc->dev, "%s already freed\n", ep->name);
 		return;
 	}
 	for (index = 0; index < num_tabs; index++) {
@@ -75,17 +75,17 @@ static void ep_bd_list_free(struct bdc_ep *ep, u32 num_tabs)
 		 * free the dma_pool and also the bd_table struct memory
 		*/
 		bd_table = bd_list->bd_table_array[index];
-		dev_dbg(bdc->dev, "bd_table:%p index:%d\n", bd_table, index);
+		dev_err(bdc->dev, "bd_table:%p index:%d\n", bd_table, index);
 		if (!bd_table) {
-			dev_dbg(bdc->dev, "bd_table not allocated\n");
+			dev_err(bdc->dev, "bd_table not allocated\n");
 			continue;
 		}
 		if (!bd_table->start_bd) {
-			dev_dbg(bdc->dev, "bd dma pool not allocted\n");
+			dev_err(bdc->dev, "bd dma pool not allocted\n");
 			continue;
 		}
 
-		dev_dbg(bdc->dev,
+		dev_err(bdc->dev,
 				"Free dma pool start_bd:%p dma:%llx\n",
 				bd_table->start_bd,
 				(unsigned long long)bd_table->dma);
@@ -138,7 +138,7 @@ static int ep_bd_list_alloc(struct bdc_ep *ep)
 
 	bd_p_tab = NUM_BDS_PER_TABLE;
 	/* if there is only 1 table in bd list then loop chain to self */
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"%s ep:%p num_tabs:%d\n",
 		__func__, ep, num_tabs);
 
@@ -166,7 +166,7 @@ static int ep_bd_list_alloc(struct bdc_ep *ep)
 
 		bd_table->dma = dma;
 
-		dev_dbg(bdc->dev,
+		dev_err(bdc->dev,
 			"index:%d start_bd:%p dma=%08llx prev_table:%p\n",
 			index, bd_table->start_bd,
 			(unsigned long long)bd_table->dma, prev_table);
@@ -228,7 +228,7 @@ static int bd_add_to_bdi(struct bdc_ep *ep, dma_addr_t bd_dma_addr)
 	int tbi, bdi;
 
 	dma_first_bd = dma_last_bd = 0;
-	dev_dbg(bdc->dev, "%s  %llx\n",
+	dev_err(bdc->dev, "%s  %llx\n",
 			__func__, (unsigned long long)bd_dma_addr);
 	/*
 	 * Find in which table this bd_dma_addr belongs?, go through the table
@@ -241,7 +241,7 @@ static int bd_add_to_bdi(struct bdc_ep *ep, dma_addr_t bd_dma_addr)
 		dma_last_bd = bd_table->dma +
 					(sizeof(struct bdc_bd) *
 					(bd_list->num_bds_table - 1));
-		dev_dbg(bdc->dev, "dma_first_bd:%llx dma_last_bd:%llx\n",
+		dev_err(bdc->dev, "dma_first_bd:%llx dma_last_bd:%llx\n",
 					(unsigned long long)dma_first_bd,
 					(unsigned long long)dma_last_bd);
 		if (bd_dma_addr >= dma_first_bd && bd_dma_addr <= dma_last_bd) {
@@ -404,7 +404,7 @@ static int setup_first_bd_ep0(struct bdc *bdc, struct bdc_req *req, u32 *dword3)
 		wValue = le16_to_cpu(bdc->setup_pkt.wValue);
 		if ((wValue > req_len) &&
 				(req_len % bdc->gadget.ep0->maxpacket == 0)) {
-			dev_dbg(bdc->dev, "ZLP needed wVal:%d len:%d MaxP:%d\n",
+			dev_err(bdc->dev, "ZLP needed wVal:%d len:%d MaxP:%d\n",
 					wValue, req_len,
 					bdc->gadget.ep0->maxpacket);
 			bdc->zlp_needed = true;
@@ -519,8 +519,8 @@ static int bdc_queue_xfr(struct bdc *bdc, struct bdc_req *req)
 	int ret;
 
 	ep = req->ep;
-	dev_dbg(bdc->dev, "%s req:%p\n", __func__, req);
-	dev_dbg(bdc->dev, "eqp_bdi:%d hwd_bdi:%d\n",
+	dev_err(bdc->dev, "%s req:%p\n", __func__, req);
+	dev_err(bdc->dev, "eqp_bdi:%d hwd_bdi:%d\n",
 			ep->bd_list.eqp_bdi, ep->bd_list.hwd_bdi);
 
 	num_bds =  bd_needed_req(req);
@@ -549,7 +549,7 @@ static void bdc_req_complete(struct bdc_ep *ep, struct bdc_req *req,
 	if (req == NULL  || &req->queue == NULL || &req->usb_req == NULL)
 		return;
 
-	dev_dbg(bdc->dev, "%s ep:%s status:%d\n", __func__, ep->name, status);
+	dev_err(bdc->dev, "%s ep:%s status:%d\n", __func__, ep->name, status);
 	list_del(&req->queue);
 	req->usb_req.status = status;
 	usb_gadget_unmap_request(&bdc->gadget, &req->usb_req, ep->dir);
@@ -569,7 +569,7 @@ int bdc_ep_disable(struct bdc_ep *ep)
 
 	ret = 0;
 	bdc = ep->bdc;
-	dev_dbg(bdc->dev, "%s() ep->ep_num=%d\n", __func__, ep->ep_num);
+	dev_err(bdc->dev, "%s() ep->ep_num=%d\n", __func__, ep->ep_num);
 	/* Stop the endpoint */
 	ret = bdc_stop_ep(bdc, ep->ep_num);
 
@@ -611,7 +611,7 @@ int bdc_ep_enable(struct bdc_ep *ep)
 	int ret = 0;
 
 	bdc = ep->bdc;
-	dev_dbg(bdc->dev, "%s NUM_TABLES:%d %d\n",
+	dev_err(bdc->dev, "%s NUM_TABLES:%d %d\n",
 					__func__, NUM_TABLES, NUM_TABLES_ISOCH);
 
 	ret = ep_bd_list_alloc(ep);
@@ -666,7 +666,7 @@ static int ep0_queue(struct bdc_ep *ep, struct bdc_req *req)
 	int ret;
 
 	bdc = ep->bdc;
-	dev_dbg(bdc->dev, "%s()\n", __func__);
+	dev_err(bdc->dev, "%s()\n", __func__);
 	req->usb_req.actual = 0;
 	req->usb_req.status = -EINPROGRESS;
 	req->epnum = ep->ep_num;
@@ -705,7 +705,7 @@ static int ep0_queue_data_stage(struct bdc *bdc)
 	struct usb_request *ep0_usb_req;
 	struct bdc_ep *ep;
 
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	ep0_usb_req = &bdc->ep0_req.usb_req;
 	ep = bdc->bdc_ep_array[1];
 	bdc->ep0_req.ep = ep;
@@ -763,9 +763,9 @@ static int ep_dequeue(struct bdc_ep *ep, struct bdc_req *req)
 	start_bdi = req->bd_xfr.start_bdi;
 	end_bdi = find_end_bdi(ep, req->bd_xfr.next_hwd_bdi);
 
-	dev_dbg(bdc->dev, "%s ep:%s start:%d end:%d\n",
+	dev_err(bdc->dev, "%s ep:%s start:%d end:%d\n",
 					__func__, ep->name, start_bdi, end_bdi);
-	dev_dbg(bdc->dev, "ep_dequeue ep=%p ep->desc=%p\n",
+	dev_err(bdc->dev, "ep_dequeue ep=%p ep->desc=%p\n",
 						ep, (void *)ep->usb_ep.desc);
 	/* Stop the ep to see where the HW is ? */
 	ret = bdc_stop_ep(bdc, ep->ep_num);
@@ -811,7 +811,7 @@ static int ep_dequeue(struct bdc_ep *ep, struct bdc_req *req)
 			end_pending = true;
 		}
 	}
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"start_pending:%d end_pending:%d speed:%d\n",
 		start_pending, end_pending, bdc->gadget.speed);
 
@@ -875,10 +875,10 @@ static int ep_set_halt(struct bdc_ep *ep, u32 value)
 	int ret;
 
 	bdc = ep->bdc;
-	dev_dbg(bdc->dev, "%s ep:%s value=%d\n", __func__, ep->name, value);
+	dev_err(bdc->dev, "%s ep:%s value=%d\n", __func__, ep->name, value);
 
 	if (value) {
-		dev_dbg(bdc->dev, "Halt\n");
+		dev_err(bdc->dev, "Halt\n");
 		if (ep->ep_num == 1)
 			bdc->ep0_state = WAIT_FOR_SETUP;
 
@@ -890,14 +890,14 @@ static int ep_set_halt(struct bdc_ep *ep, u32 value)
 			ep->flags |= BDC_EP_STALL;
 	} else {
 		/* Clear */
-		dev_dbg(bdc->dev, "Before Clear\n");
+		dev_err(bdc->dev, "Before Clear\n");
 		ret = bdc_ep_clear_stall(bdc, ep->ep_num);
 		if (ret)
 			dev_err(bdc->dev, "failed to clear STALL on %s\n",
 				ep->name);
 		else
 			ep->flags &= ~BDC_EP_STALL;
-		dev_dbg(bdc->dev, "After  Clear\n");
+		dev_err(bdc->dev, "After  Clear\n");
 	}
 
 	return ret;
@@ -909,7 +909,7 @@ void bdc_free_ep(struct bdc *bdc)
 	struct bdc_ep *ep;
 	u8	epnum;
 
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	for (epnum = 1; epnum < bdc->num_eps; epnum++) {
 		ep = bdc->bdc_ep_array[epnum];
 		if (!ep)
@@ -933,7 +933,7 @@ static int bdc_set_test_mode(struct bdc *bdc)
 
 	usb2_pm = bdc_readl(bdc->regs, BDC_USPPM2);
 	usb2_pm &= ~BDC_PTC_MASK;
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	switch (bdc->test_mode) {
 	case TEST_J:
 	case TEST_K:
@@ -945,7 +945,7 @@ static int bdc_set_test_mode(struct bdc *bdc)
 	default:
 		return -EINVAL;
 	}
-	dev_dbg(bdc->dev, "usb2_pm=%08x", usb2_pm);
+	dev_err(bdc->dev, "usb2_pm=%08x", usb2_pm);
 	bdc_writel(bdc->regs, BDC_USPPM2, usb2_pm);
 
 	return 0;
@@ -969,7 +969,7 @@ static void handle_xsr_succ_status(struct bdc *bdc, struct bdc_ep *ep,
 	int sr_status;
 	u32    tmp_32;
 
-	dev_dbg(bdc->dev, "%s  ep:%p\n", __func__, ep);
+	dev_err(bdc->dev, "%s  ep:%p\n", __func__, ep);
 	bdc_dbg_srr(bdc, 0);
 	/* do not process thie sr if ignore flag is set */
 	if (ep->ignore_next_sr) {
@@ -1045,7 +1045,7 @@ static void handle_xsr_succ_status(struct bdc *bdc, struct bdc_ep *ep,
 	} else {
 		req->usb_req.actual = req->usb_req.length -
 			SR_BD_LEN(le32_to_cpu(sreport->offset[2]));
-		dev_dbg(bdc->dev,
+		dev_err(bdc->dev,
 			"len=%d actual=%d bd_xfr->next_hwd_bdi:%d\n",
 			req->usb_req.length, req->usb_req.actual,
 			bd_xfr->next_hwd_bdi);
@@ -1054,7 +1054,7 @@ static void handle_xsr_succ_status(struct bdc *bdc, struct bdc_ep *ep,
 	/* Update the dequeue pointer */
 	ep->bd_list.hwd_bdi = bd_xfr->next_hwd_bdi;
 	if (req->usb_req.actual < req->usb_req.length) {
-		dev_dbg(bdc->dev, "short xfr on %d\n", ep->ep_num);
+		dev_err(bdc->dev, "short xfr on %d\n", ep->ep_num);
 		if (req->usb_req.short_not_ok)
 			status = -EREMOTEIO;
 	}
@@ -1072,7 +1072,7 @@ void bdc_xsf_ep0_setup_recv(struct bdc *bdc, struct bdc_sr *sreport)
 	struct usb_ctrlrequest *setup_pkt;
 	u32 len;
 
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"%s ep0_state:%s\n",
 		__func__, ep0_state_string[bdc->ep0_state]);
 	/* Store received setup packet */
@@ -1085,7 +1085,7 @@ void bdc_xsf_ep0_setup_recv(struct bdc *bdc, struct bdc_sr *sreport)
 		bdc->ep0_state = WAIT_FOR_DATA_START;
 
 
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"%s exit ep0_state:%s\n",
 		__func__, ep0_state_string[bdc->ep0_state]);
 }
@@ -1096,7 +1096,7 @@ static void ep0_stall(struct bdc *bdc)
 	struct bdc_ep	*ep = bdc->bdc_ep_array[1];
 	struct bdc_req *req;
 
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	bdc->delayed_status = false;
 	ep_set_halt(ep, 1);
 
@@ -1116,7 +1116,7 @@ static int ep0_set_address(struct bdc *bdc, struct usb_ctrlrequest *ctrl)
 	u32 addr;
 
 	addr = le16_to_cpu(ctrl->wValue);
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"%s addr:%d dev state:%d\n",
 		__func__, addr, state);
 
@@ -1155,11 +1155,11 @@ static int ep0_handle_feature_dev(struct bdc *bdc, u16 wValue,
 	enum usb_device_state state = bdc->gadget.state;
 	u32	usppms = 0;
 
-	dev_dbg(bdc->dev, "%s set:%d dev state:%d\n",
+	dev_err(bdc->dev, "%s set:%d dev state:%d\n",
 					__func__, set, state);
 	switch (wValue) {
 	case USB_DEVICE_REMOTE_WAKEUP:
-		dev_dbg(bdc->dev, "USB_DEVICE_REMOTE_WAKEUP\n");
+		dev_err(bdc->dev, "USB_DEVICE_REMOTE_WAKEUP\n");
 		if (set)
 			bdc->devstatus |= REMOTE_WAKE_ENABLE;
 		else
@@ -1167,7 +1167,7 @@ static int ep0_handle_feature_dev(struct bdc *bdc, u16 wValue,
 		break;
 
 	case USB_DEVICE_TEST_MODE:
-		dev_dbg(bdc->dev, "USB_DEVICE_TEST_MODE\n");
+		dev_err(bdc->dev, "USB_DEVICE_TEST_MODE\n");
 		if ((wIndex & 0xFF) ||
 				(bdc->gadget.speed != USB_SPEED_HIGH) || !set)
 			return -EINVAL;
@@ -1176,7 +1176,7 @@ static int ep0_handle_feature_dev(struct bdc *bdc, u16 wValue,
 		break;
 
 	case USB_DEVICE_U1_ENABLE:
-		dev_dbg(bdc->dev, "USB_DEVICE_U1_ENABLE\n");
+		dev_err(bdc->dev, "USB_DEVICE_U1_ENABLE\n");
 
 		if (bdc->gadget.speed != USB_SPEED_SUPER ||
 						state != USB_STATE_CONFIGURED)
@@ -1198,7 +1198,7 @@ static int ep0_handle_feature_dev(struct bdc *bdc, u16 wValue,
 		break;
 
 	case USB_DEVICE_U2_ENABLE:
-		dev_dbg(bdc->dev, "USB_DEVICE_U2_ENABLE\n");
+		dev_err(bdc->dev, "USB_DEVICE_U2_ENABLE\n");
 
 		if (bdc->gadget.speed != USB_SPEED_SUPER ||
 						state != USB_STATE_CONFIGURED)
@@ -1218,7 +1218,7 @@ static int ep0_handle_feature_dev(struct bdc *bdc, u16 wValue,
 		break;
 
 	case USB_DEVICE_LTM_ENABLE:
-		dev_dbg(bdc->dev, "USB_DEVICE_LTM_ENABLE?\n");
+		dev_err(bdc->dev, "USB_DEVICE_LTM_ENABLE?\n");
 		if (bdc->gadget.speed != USB_SPEED_SUPER ||
 						state != USB_STATE_CONFIGURED)
 			return -EINVAL;
@@ -1244,7 +1244,7 @@ static int ep0_handle_feature(struct bdc *bdc,
 	wValue = le16_to_cpu(setup_pkt->wValue);
 	wIndex = le16_to_cpu(setup_pkt->wIndex);
 
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"%s wValue=%d wIndex=%d	devstate=%08x speed=%d set=%d",
 		__func__, wValue, wIndex, state,
 		bdc->gadget.speed, set);
@@ -1253,24 +1253,24 @@ static int ep0_handle_feature(struct bdc *bdc,
 	case USB_RECIP_DEVICE:
 		return ep0_handle_feature_dev(bdc, wValue, wIndex, set);
 	case USB_RECIP_INTERFACE:
-		dev_dbg(bdc->dev, "USB_RECIP_INTERFACE\n");
+		dev_err(bdc->dev, "USB_RECIP_INTERFACE\n");
 		/* USB3 spec, sec 9.4.9 */
 		if (wValue != USB_INTRF_FUNC_SUSPEND)
 			return -EINVAL;
 		/* USB3 spec, Table 9-8 */
 		if (set) {
 			if (wIndex & USB_INTRF_FUNC_SUSPEND_RW) {
-				dev_dbg(bdc->dev, "SET REMOTE_WAKEUP\n");
+				dev_err(bdc->dev, "SET REMOTE_WAKEUP\n");
 				bdc->devstatus |= REMOTE_WAKE_ENABLE;
 			} else {
-				dev_dbg(bdc->dev, "CLEAR REMOTE_WAKEUP\n");
+				dev_err(bdc->dev, "CLEAR REMOTE_WAKEUP\n");
 				bdc->devstatus &= ~REMOTE_WAKE_ENABLE;
 			}
 		}
 		break;
 
 	case USB_RECIP_ENDPOINT:
-		dev_dbg(bdc->dev, "USB_RECIP_ENDPOINT\n");
+		dev_err(bdc->dev, "USB_RECIP_ENDPOINT\n");
 		if (wValue != USB_ENDPOINT_HALT)
 			return -EINVAL;
 
@@ -1289,10 +1289,10 @@ static int ep0_handle_feature(struct bdc *bdc,
 		 * was received.
 		 */
 		if (epnum == 1 && !set) {
-			dev_dbg(bdc->dev, "ep0 stall already cleared\n");
+			dev_err(bdc->dev, "ep0 stall already cleared\n");
 			return 0;
 		}
-		dev_dbg(bdc->dev, "epnum=%d\n", epnum);
+		dev_err(bdc->dev, "epnum=%d\n", epnum);
 		ep = bdc->bdc_ep_array[epnum];
 		if (!ep)
 			return -EINVAL;
@@ -1320,11 +1320,11 @@ static int ep0_handle_status(struct bdc *bdc,
 	if (state == USB_STATE_DEFAULT)
 		return -EINVAL;
 	wIndex = le16_to_cpu(setup_pkt->wIndex);
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	usb_status = bdc->devstatus;
 	switch (setup_pkt->bRequestType & USB_RECIP_MASK) {
 	case USB_RECIP_DEVICE:
-		dev_dbg(bdc->dev,
+		dev_err(bdc->dev,
 			"USB_RECIP_DEVICE devstatus:%08x\n",
 			bdc->devstatus);
 		/* USB3 spec, sec 9.4.5 */
@@ -1333,7 +1333,7 @@ static int ep0_handle_status(struct bdc *bdc,
 		break;
 
 	case USB_RECIP_INTERFACE:
-		dev_dbg(bdc->dev, "USB_RECIP_INTERFACE\n");
+		dev_err(bdc->dev, "USB_RECIP_INTERFACE\n");
 		if (bdc->gadget.speed == USB_SPEED_SUPER) {
 			/*
 			 * This should come from func for Func remote wkup
@@ -1348,7 +1348,7 @@ static int ep0_handle_status(struct bdc *bdc,
 		break;
 
 	case USB_RECIP_ENDPOINT:
-		dev_dbg(bdc->dev, "USB_RECIP_ENDPOINT\n");
+		dev_err(bdc->dev, "USB_RECIP_ENDPOINT\n");
 		epnum = wIndex & USB_ENDPOINT_NUMBER_MASK;
 		if (epnum) {
 			if ((wIndex & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN)
@@ -1373,7 +1373,7 @@ static int ep0_handle_status(struct bdc *bdc,
 		return -EINVAL;
 	}
 	/* prepare a data stage for GET_STATUS */
-	dev_dbg(bdc->dev, "usb_status=%08x\n", usb_status);
+	dev_err(bdc->dev, "usb_status=%08x\n", usb_status);
 	*(__le16 *)bdc->ep0_response_buff = cpu_to_le16(usb_status);
 	bdc->ep0_req.usb_req.length = 2;
 	bdc->ep0_req.usb_req.buf = &bdc->ep0_response_buff;
@@ -1395,7 +1395,7 @@ static int ep0_set_sel(struct bdc *bdc,
 	u16	wLength;
 	u16	wValue;
 
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	wValue = le16_to_cpu(setup_pkt->wValue);
 	wLength = le16_to_cpu(setup_pkt->wLength);
 	if (unlikely(wLength != 6)) {
@@ -1420,7 +1420,7 @@ static int ep0_queue_zlp(struct bdc *bdc)
 {
 	int ret;
 
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	bdc->ep0_req.ep = bdc->bdc_ep_array[1];
 	bdc->ep0_req.usb_req.length = 0;
 	bdc->ep0_req.usb_req.complete = NULL;
@@ -1445,17 +1445,17 @@ static int handle_control_request(struct bdc *bdc)
 	int config = 0;
 
 	setup_pkt = &bdc->setup_pkt;
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	if ((setup_pkt->bRequestType & USB_TYPE_MASK) == USB_TYPE_STANDARD) {
 		switch (setup_pkt->bRequest) {
 		case USB_REQ_SET_ADDRESS:
-			dev_dbg(bdc->dev, "USB_REQ_SET_ADDRESS\n");
+			dev_err(bdc->dev, "USB_REQ_SET_ADDRESS\n");
 			ret = ep0_set_address(bdc, setup_pkt);
 			bdc->devstatus &= DEVSTATUS_CLEAR;
 			break;
 
 		case USB_REQ_SET_CONFIGURATION:
-			dev_dbg(bdc->dev, "USB_REQ_SET_CONFIGURATION\n");
+			dev_err(bdc->dev, "USB_REQ_SET_CONFIGURATION\n");
 			if (state == USB_STATE_ADDRESS) {
 				usb_gadget_set_state(&bdc->gadget,
 							USB_STATE_CONFIGURED);
@@ -1474,22 +1474,22 @@ static int handle_control_request(struct bdc *bdc)
 			break;
 
 		case USB_REQ_SET_FEATURE:
-			dev_dbg(bdc->dev, "USB_REQ_SET_FEATURE\n");
+			dev_err(bdc->dev, "USB_REQ_SET_FEATURE\n");
 			ret = ep0_handle_feature(bdc, setup_pkt, 1);
 			break;
 
 		case USB_REQ_CLEAR_FEATURE:
-			dev_dbg(bdc->dev, "USB_REQ_CLEAR_FEATURE\n");
+			dev_err(bdc->dev, "USB_REQ_CLEAR_FEATURE\n");
 			ret = ep0_handle_feature(bdc, setup_pkt, 0);
 			break;
 
 		case USB_REQ_GET_STATUS:
-			dev_dbg(bdc->dev, "USB_REQ_GET_STATUS\n");
+			dev_err(bdc->dev, "USB_REQ_GET_STATUS\n");
 			ret = ep0_handle_status(bdc, setup_pkt);
 			break;
 
 		case USB_REQ_SET_SEL:
-			dev_dbg(bdc->dev, "USB_REQ_SET_SEL\n");
+			dev_err(bdc->dev, "USB_REQ_SET_SEL\n");
 			ret = ep0_set_sel(bdc, setup_pkt);
 			break;
 
@@ -1520,7 +1520,7 @@ void bdc_xsf_ep0_data_start(struct bdc *bdc, struct bdc_sr *sreport)
 	struct bdc_ep *ep;
 	int ret = 0;
 
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	ep = bdc->bdc_ep_array[1];
 	/* If ep0 was stalled, the clear it first */
 	if (ep->flags & BDC_EP_STALL) {
@@ -1544,7 +1544,7 @@ void bdc_xsf_ep0_data_start(struct bdc *bdc, struct bdc_sr *sreport)
 	}
 	if (!ret) {
 		bdc->ep0_state = WAIT_FOR_DATA_XMIT;
-		dev_dbg(bdc->dev,
+		dev_err(bdc->dev,
 			"ep0_state:%s", ep0_state_string[bdc->ep0_state]);
 		return;
 	}
@@ -1559,7 +1559,7 @@ void bdc_xsf_ep0_status_start(struct bdc *bdc, struct bdc_sr *sreport)
 	struct bdc_ep *ep;
 	int ret = 0;
 
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"%s ep0_state:%s",
 		__func__, ep0_state_string[bdc->ep0_state]);
 	ep = bdc->bdc_ep_array[1];
@@ -1584,7 +1584,7 @@ void bdc_xsf_ep0_status_start(struct bdc *bdc, struct bdc_sr *sreport)
 	if (bdc->ep0_state == WAIT_FOR_DATA_XMIT) {
 		bdc->ep0_state = STATUS_PENDING;
 		/* Status stage will be queued upon Data stage transmit event */
-		dev_dbg(bdc->dev,
+		dev_err(bdc->dev,
 			"status started but data  not transmitted yet\n");
 		return;
 	}
@@ -1606,7 +1606,7 @@ void bdc_xsf_ep0_status_start(struct bdc *bdc, struct bdc_sr *sreport)
 		/* Queue a status stage BD */
 		ep0_queue_status_stage(bdc);
 		bdc->ep0_state = WAIT_FOR_STATUS_XMIT;
-		dev_dbg(bdc->dev,
+		dev_err(bdc->dev,
 			"ep0_state:%s", ep0_state_string[bdc->ep0_state]);
 		return;
 	}
@@ -1617,7 +1617,7 @@ err:
 /* Helper function to update ep0 upon SR with xsf_succ or xsf_short */
 static void ep0_xsf_complete(struct bdc *bdc, struct bdc_sr *sreport)
 {
-	dev_dbg(bdc->dev, "%s\n", __func__);
+	dev_err(bdc->dev, "%s\n", __func__);
 	switch (bdc->ep0_state) {
 	case WAIT_FOR_DATA_XMIT:
 		bdc->ep0_state = WAIT_FOR_STATUS_START;
@@ -1627,7 +1627,7 @@ static void ep0_xsf_complete(struct bdc *bdc, struct bdc_sr *sreport)
 		if (bdc->test_mode) {
 			int ret;
 
-			dev_dbg(bdc->dev, "test_mode:%d\n", bdc->test_mode);
+			dev_err(bdc->dev, "test_mode:%d\n", bdc->test_mode);
 			ret = bdc_set_test_mode(bdc);
 			if (ret < 0) {
 				dev_err(bdc->dev, "Err in setting Test mode\n");
@@ -1667,11 +1667,11 @@ void bdc_sr_xsf(struct bdc *bdc, struct bdc_sr *sreport)
 	 */
 	if (bdc->devstatus & FUNC_WAKE_ISSUED) {
 		bdc->devstatus &= ~(FUNC_WAKE_ISSUED);
-		dev_dbg(bdc->dev, "%s clearing FUNC_WAKE_ISSUED flag\n",
+		dev_err(bdc->dev, "%s clearing FUNC_WAKE_ISSUED flag\n",
 								__func__);
 	}
 	sr_status = XSF_STS(le32_to_cpu(sreport->offset[3]));
-	dev_dbg_ratelimited(bdc->dev, "%s sr_status=%d ep:%s\n",
+	dev_err_ratelimited(bdc->dev, "%s sr_status=%d ep:%s\n",
 					__func__, sr_status, ep->name);
 
 	switch (sr_status) {
@@ -1695,7 +1695,7 @@ void bdc_sr_xsf(struct bdc *bdc, struct bdc_sr *sreport)
 
 	case XSF_BABB:
 		if (ep_num == 1) {
-			dev_dbg(bdc->dev, "Babble on ep0 zlp_need:%d\n",
+			dev_err(bdc->dev, "Babble on ep0 zlp_need:%d\n",
 							bdc->zlp_needed);
 			/*
 			 * If the last completed transfer had wLength >Data Len,
@@ -1733,8 +1733,8 @@ static int bdc_gadget_ep_queue(struct usb_ep *_ep,
 	ep = to_bdc_ep(_ep);
 	req = to_bdc_req(_req);
 	bdc = ep->bdc;
-	dev_dbg(bdc->dev, "%s ep:%p req:%p\n", __func__, ep, req);
-	dev_dbg(bdc->dev, "queuing request %p to %s length %d zero:%d\n",
+	dev_err(bdc->dev, "%s ep:%p req:%p\n", __func__, ep, req);
+	dev_err(bdc->dev, "queuing request %p to %s length %d zero:%d\n",
 				_req, ep->name, _req->length, _req->zero);
 
 	if (!ep->usb_ep.desc) {
@@ -1776,7 +1776,7 @@ static int bdc_gadget_ep_dequeue(struct usb_ep *_ep,
 	ep = to_bdc_ep(_ep);
 	req = to_bdc_req(_req);
 	bdc = ep->bdc;
-	dev_dbg(bdc->dev, "%s ep:%s req:%p\n", __func__, ep->name, req);
+	dev_err(bdc->dev, "%s ep:%s req:%p\n", __func__, ep->name, req);
 	bdc_dbg_bd_list(bdc, ep);
 	spin_lock_irqsave(&bdc->lock, flags);
 	/* make sure it's still queued on this endpoint */
@@ -1812,7 +1812,7 @@ static int bdc_gadget_ep_set_halt(struct usb_ep *_ep, int value)
 
 	ep = to_bdc_ep(_ep);
 	bdc = ep->bdc;
-	dev_dbg(bdc->dev, "%s ep:%s value=%d\n", __func__, ep->name, value);
+	dev_err(bdc->dev, "%s ep:%s value=%d\n", __func__, ep->name, value);
 	spin_lock_irqsave(&bdc->lock, flags);
 	if (usb_endpoint_xfer_isoc(ep->usb_ep.desc))
 		ret = -EINVAL;
@@ -1840,7 +1840,7 @@ static struct usb_request *bdc_gadget_alloc_request(struct usb_ep *_ep,
 	req->ep = ep;
 	req->epnum = ep->ep_num;
 	req->usb_req.dma = DMA_ADDR_INVALID;
-	dev_dbg(ep->bdc->dev, "%s ep:%s req:%p\n", __func__, ep->name, req);
+	dev_err(ep->bdc->dev, "%s ep:%s req:%p\n", __func__, ep->name, req);
 
 	return &req->usb_req;
 }
@@ -1866,12 +1866,12 @@ static int bdc_gadget_ep_enable(struct usb_ep *_ep,
 	int ret;
 
 	if (!_ep || !desc || desc->bDescriptorType != USB_DT_ENDPOINT) {
-		pr_debug("bdc_gadget_ep_enable invalid parameters\n");
+		pr_err("bdc_gadget_ep_enable invalid parameters\n");
 		return -EINVAL;
 	}
 
 	if (!desc->wMaxPacketSize) {
-		pr_debug("bdc_gadget_ep_enable missing wMaxPacketSize\n");
+		pr_err("bdc_gadget_ep_enable missing wMaxPacketSize\n");
 		return -EINVAL;
 	}
 
@@ -1887,7 +1887,7 @@ static int bdc_gadget_ep_enable(struct usb_ep *_ep,
 		return -ESHUTDOWN;
 	}
 
-	dev_dbg(bdc->dev, "%s Enabling %s\n", __func__, ep->name);
+	dev_err(bdc->dev, "%s Enabling %s\n", __func__, ep->name);
 	spin_lock_irqsave(&bdc->lock, flags);
 	ep->desc = desc;
 	ep->comp_desc = _ep->comp_desc;
@@ -1905,7 +1905,7 @@ static int bdc_gadget_ep_disable(struct usb_ep *_ep)
 	int ret;
 
 	if (!_ep) {
-		pr_debug("bdc: invalid parameters\n");
+		pr_err("bdc: invalid parameters\n");
 		return -EINVAL;
 	}
 	ep = to_bdc_ep(_ep);
@@ -1916,7 +1916,7 @@ static int bdc_gadget_ep_disable(struct usb_ep *_ep)
 		dev_warn(bdc->dev, "%s called for ep0\n", __func__);
 		return -EINVAL;
 	}
-	dev_dbg(bdc->dev,
+	dev_err(bdc->dev,
 		"%s() ep:%s ep->flags:%08x\n",
 		__func__, ep->name, ep->flags);
 
@@ -1946,7 +1946,7 @@ static int init_ep(struct bdc *bdc, u32 epnum, u32 dir)
 {
 	struct bdc_ep *ep;
 
-	dev_dbg(bdc->dev, "%s epnum=%d dir=%d\n", __func__, epnum, dir);
+	dev_err(bdc->dev, "%s epnum=%d dir=%d\n", __func__, epnum, dir);
 	ep = kzalloc(sizeof(*ep), GFP_KERNEL);
 	if (!ep)
 		return -ENOMEM;
@@ -1989,7 +1989,7 @@ static int init_ep(struct bdc *bdc, u32 epnum, u32 dir)
 	ep->usb_ep.name = ep->name;
 	ep->flags = 0;
 	ep->ignore_next_sr = false;
-	dev_dbg(bdc->dev, "ep=%p ep->usb_ep.name=%s epnum=%d ep->epnum=%d\n",
+	dev_err(bdc->dev, "ep=%p ep->usb_ep.name=%s epnum=%d ep->epnum=%d\n",
 				ep, ep->usb_ep.name, epnum, ep->ep_num);
 
 	INIT_LIST_HEAD(&ep->queue);
@@ -2003,7 +2003,7 @@ int bdc_init_ep(struct bdc *bdc)
 	u8 epnum;
 	int ret;
 
-	dev_dbg(bdc->dev, "%s()\n", __func__);
+	dev_err(bdc->dev, "%s()\n", __func__);
 	INIT_LIST_HEAD(&bdc->gadget.ep_list);
 	/* init ep0 */
 	ret = init_ep(bdc, 1, 0);

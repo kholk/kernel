@@ -198,9 +198,9 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 	if (!resp) return -ENOMEM;
 
 	if (buf_len && rndis_debug > 1) {
-		pr_debug("query OID %08x value, len %d:\n", OID, buf_len);
+		pr_err("query OID %08x value, len %d:\n", OID, buf_len);
 		for (i = 0; i < buf_len; i += 16) {
-			pr_debug("%03d: %08x %08x %08x %08x\n", i,
+			pr_err("%03d: %08x %08x %08x %08x\n", i,
 				get_unaligned_le32(&buf[i]),
 				get_unaligned_le32(&buf[i + 4]),
 				get_unaligned_le32(&buf[i + 8]),
@@ -221,7 +221,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_GEN_SUPPORTED_LIST:
-		pr_debug("%s: RNDIS_OID_GEN_SUPPORTED_LIST\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_SUPPORTED_LIST\n", __func__);
 		length = sizeof(oid_supported_list);
 		count  = length / sizeof(u32);
 		for (i = 0; i < count; i++)
@@ -231,7 +231,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_GEN_HARDWARE_STATUS:
-		pr_debug("%s: RNDIS_OID_GEN_HARDWARE_STATUS\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_HARDWARE_STATUS\n", __func__);
 		/* Bogus question!
 		 * Hardware must be ready to receive high level protocols.
 		 * BTW:
@@ -244,14 +244,14 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_GEN_MEDIA_SUPPORTED:
-		pr_debug("%s: RNDIS_OID_GEN_MEDIA_SUPPORTED\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_MEDIA_SUPPORTED\n", __func__);
 		*outbuf = cpu_to_le32(params->medium);
 		retval = 0;
 		break;
 
 	/* mandatory */
 	case RNDIS_OID_GEN_MEDIA_IN_USE:
-		pr_debug("%s: RNDIS_OID_GEN_MEDIA_IN_USE\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_MEDIA_IN_USE\n", __func__);
 		/* one medium, one transport... (maybe you do it better) */
 		*outbuf = cpu_to_le32(params->medium);
 		retval = 0;
@@ -259,7 +259,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_GEN_MAXIMUM_FRAME_SIZE:
-		pr_debug("%s: RNDIS_OID_GEN_MAXIMUM_FRAME_SIZE\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_MAXIMUM_FRAME_SIZE\n", __func__);
 		if (params->dev) {
 			*outbuf = cpu_to_le32(params->dev->mtu);
 			retval = 0;
@@ -269,7 +269,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 	/* mandatory */
 	case RNDIS_OID_GEN_LINK_SPEED:
 		if (rndis_debug > 1)
-			pr_debug("%s: RNDIS_OID_GEN_LINK_SPEED\n", __func__);
+			pr_err("%s: RNDIS_OID_GEN_LINK_SPEED\n", __func__);
 		if (params->media_state == RNDIS_MEDIA_STATE_DISCONNECTED)
 			*outbuf = cpu_to_le32(0);
 		else
@@ -279,7 +279,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_GEN_TRANSMIT_BLOCK_SIZE:
-		pr_debug("%s: RNDIS_OID_GEN_TRANSMIT_BLOCK_SIZE\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_TRANSMIT_BLOCK_SIZE\n", __func__);
 		if (params->dev) {
 			*outbuf = cpu_to_le32(params->dev->mtu);
 			retval = 0;
@@ -288,7 +288,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_GEN_RECEIVE_BLOCK_SIZE:
-		pr_debug("%s: RNDIS_OID_GEN_RECEIVE_BLOCK_SIZE\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_RECEIVE_BLOCK_SIZE\n", __func__);
 		if (params->dev) {
 			*outbuf = cpu_to_le32(params->dev->mtu);
 			retval = 0;
@@ -297,14 +297,14 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_GEN_VENDOR_ID:
-		pr_debug("%s: RNDIS_OID_GEN_VENDOR_ID\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_VENDOR_ID\n", __func__);
 		*outbuf = cpu_to_le32(params->vendorID);
 		retval = 0;
 		break;
 
 	/* mandatory */
 	case RNDIS_OID_GEN_VENDOR_DESCRIPTION:
-		pr_debug("%s: RNDIS_OID_GEN_VENDOR_DESCRIPTION\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_VENDOR_DESCRIPTION\n", __func__);
 		if (params->vendorDescr) {
 			length = strlen(params->vendorDescr);
 			memcpy(outbuf, params->vendorDescr, length);
@@ -315,7 +315,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 		break;
 
 	case RNDIS_OID_GEN_VENDOR_DRIVER_VERSION:
-		pr_debug("%s: RNDIS_OID_GEN_VENDOR_DRIVER_VERSION\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_VENDOR_DRIVER_VERSION\n", __func__);
 		/* Created as LE */
 		*outbuf = rndis_driver_version;
 		retval = 0;
@@ -323,14 +323,14 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_GEN_CURRENT_PACKET_FILTER:
-		pr_debug("%s: RNDIS_OID_GEN_CURRENT_PACKET_FILTER\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_CURRENT_PACKET_FILTER\n", __func__);
 		*outbuf = cpu_to_le32(*params->filter);
 		retval = 0;
 		break;
 
 	/* mandatory */
 	case RNDIS_OID_GEN_MAXIMUM_TOTAL_SIZE:
-		pr_debug("%s: RNDIS_OID_GEN_MAXIMUM_TOTAL_SIZE\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_MAXIMUM_TOTAL_SIZE\n", __func__);
 		*outbuf = cpu_to_le32(RNDIS_MAX_TOTAL_SIZE);
 		retval = 0;
 		break;
@@ -338,13 +338,13 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 	/* mandatory */
 	case RNDIS_OID_GEN_MEDIA_CONNECT_STATUS:
 		if (rndis_debug > 1)
-			pr_debug("%s: RNDIS_OID_GEN_MEDIA_CONNECT_STATUS\n", __func__);
+			pr_err("%s: RNDIS_OID_GEN_MEDIA_CONNECT_STATUS\n", __func__);
 		*outbuf = cpu_to_le32(params->media_state);
 		retval = 0;
 		break;
 
 	case RNDIS_OID_GEN_PHYSICAL_MEDIUM:
-		pr_debug("%s: RNDIS_OID_GEN_PHYSICAL_MEDIUM\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_PHYSICAL_MEDIUM\n", __func__);
 		*outbuf = cpu_to_le32(0);
 		retval = 0;
 		break;
@@ -354,7 +354,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 	 * versions emit undefined RNDIS messages. DOCUMENT ALL THESE!
 	 */
 	case RNDIS_OID_GEN_MAC_OPTIONS:		/* from WinME */
-		pr_debug("%s: RNDIS_OID_GEN_MAC_OPTIONS\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_MAC_OPTIONS\n", __func__);
 		*outbuf = cpu_to_le32(
 			  RNDIS_MAC_OPTION_RECEIVE_SERIALIZED
 			| RNDIS_MAC_OPTION_FULL_DUPLEX);
@@ -366,7 +366,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 	/* mandatory */
 	case RNDIS_OID_GEN_XMIT_OK:
 		if (rndis_debug > 1)
-			pr_debug("%s: RNDIS_OID_GEN_XMIT_OK\n", __func__);
+			pr_err("%s: RNDIS_OID_GEN_XMIT_OK\n", __func__);
 		if (stats) {
 			*outbuf = cpu_to_le32(stats->tx_packets
 				- stats->tx_errors - stats->tx_dropped);
@@ -377,7 +377,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 	/* mandatory */
 	case RNDIS_OID_GEN_RCV_OK:
 		if (rndis_debug > 1)
-			pr_debug("%s: RNDIS_OID_GEN_RCV_OK\n", __func__);
+			pr_err("%s: RNDIS_OID_GEN_RCV_OK\n", __func__);
 		if (stats) {
 			*outbuf = cpu_to_le32(stats->rx_packets
 				- stats->rx_errors - stats->rx_dropped);
@@ -388,7 +388,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 	/* mandatory */
 	case RNDIS_OID_GEN_XMIT_ERROR:
 		if (rndis_debug > 1)
-			pr_debug("%s: RNDIS_OID_GEN_XMIT_ERROR\n", __func__);
+			pr_err("%s: RNDIS_OID_GEN_XMIT_ERROR\n", __func__);
 		if (stats) {
 			*outbuf = cpu_to_le32(stats->tx_errors);
 			retval = 0;
@@ -398,7 +398,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 	/* mandatory */
 	case RNDIS_OID_GEN_RCV_ERROR:
 		if (rndis_debug > 1)
-			pr_debug("%s: RNDIS_OID_GEN_RCV_ERROR\n", __func__);
+			pr_err("%s: RNDIS_OID_GEN_RCV_ERROR\n", __func__);
 		if (stats) {
 			*outbuf = cpu_to_le32(stats->rx_errors);
 			retval = 0;
@@ -407,7 +407,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_GEN_RCV_NO_BUFFER:
-		pr_debug("%s: RNDIS_OID_GEN_RCV_NO_BUFFER\n", __func__);
+		pr_err("%s: RNDIS_OID_GEN_RCV_NO_BUFFER\n", __func__);
 		if (stats) {
 			*outbuf = cpu_to_le32(stats->rx_dropped);
 			retval = 0;
@@ -418,7 +418,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_802_3_PERMANENT_ADDRESS:
-		pr_debug("%s: RNDIS_OID_802_3_PERMANENT_ADDRESS\n", __func__);
+		pr_err("%s: RNDIS_OID_802_3_PERMANENT_ADDRESS\n", __func__);
 		if (params->dev) {
 			length = ETH_ALEN;
 			memcpy(outbuf, params->host_mac, length);
@@ -428,7 +428,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_802_3_CURRENT_ADDRESS:
-		pr_debug("%s: RNDIS_OID_802_3_CURRENT_ADDRESS\n", __func__);
+		pr_err("%s: RNDIS_OID_802_3_CURRENT_ADDRESS\n", __func__);
 		if (params->dev) {
 			length = ETH_ALEN;
 			memcpy(outbuf, params->host_mac, length);
@@ -438,7 +438,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_802_3_MULTICAST_LIST:
-		pr_debug("%s: RNDIS_OID_802_3_MULTICAST_LIST\n", __func__);
+		pr_err("%s: RNDIS_OID_802_3_MULTICAST_LIST\n", __func__);
 		/* Multicast base address only */
 		*outbuf = cpu_to_le32(0xE0000000);
 		retval = 0;
@@ -446,14 +446,14 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_802_3_MAXIMUM_LIST_SIZE:
-		pr_debug("%s: RNDIS_OID_802_3_MAXIMUM_LIST_SIZE\n", __func__);
+		pr_err("%s: RNDIS_OID_802_3_MAXIMUM_LIST_SIZE\n", __func__);
 		/* Multicast base address only */
 		*outbuf = cpu_to_le32(1);
 		retval = 0;
 		break;
 
 	case RNDIS_OID_802_3_MAC_OPTIONS:
-		pr_debug("%s: RNDIS_OID_802_3_MAC_OPTIONS\n", __func__);
+		pr_err("%s: RNDIS_OID_802_3_MAC_OPTIONS\n", __func__);
 		*outbuf = cpu_to_le32(0);
 		retval = 0;
 		break;
@@ -462,7 +462,7 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_802_3_RCV_ERROR_ALIGNMENT:
-		pr_debug("%s: RNDIS_OID_802_3_RCV_ERROR_ALIGNMENT\n", __func__);
+		pr_err("%s: RNDIS_OID_802_3_RCV_ERROR_ALIGNMENT\n", __func__);
 		if (stats) {
 			*outbuf = cpu_to_le32(stats->rx_frame_errors);
 			retval = 0;
@@ -471,14 +471,14 @@ static int gen_ndis_query_resp(struct rndis_params *params, u32 OID, u8 *buf,
 
 	/* mandatory */
 	case RNDIS_OID_802_3_XMIT_ONE_COLLISION:
-		pr_debug("%s: RNDIS_OID_802_3_XMIT_ONE_COLLISION\n", __func__);
+		pr_err("%s: RNDIS_OID_802_3_XMIT_ONE_COLLISION\n", __func__);
 		*outbuf = cpu_to_le32(0);
 		retval = 0;
 		break;
 
 	/* mandatory */
 	case RNDIS_OID_802_3_XMIT_MORE_COLLISIONS:
-		pr_debug("%s: RNDIS_OID_802_3_XMIT_MORE_COLLISIONS\n", __func__);
+		pr_err("%s: RNDIS_OID_802_3_XMIT_MORE_COLLISIONS\n", __func__);
 		*outbuf = cpu_to_le32(0);
 		retval = 0;
 		break;
@@ -509,9 +509,9 @@ static int gen_ndis_set_resp(struct rndis_params *params, u32 OID,
 		return -ENOMEM;
 
 	if (buf_len && rndis_debug > 1) {
-		pr_debug("set OID %08x value, len %d:\n", OID, buf_len);
+		pr_err("set OID %08x value, len %d:\n", OID, buf_len);
 		for (i = 0; i < buf_len; i += 16) {
-			pr_debug("%03d: %08x %08x %08x %08x\n", i,
+			pr_err("%03d: %08x %08x %08x %08x\n", i,
 				get_unaligned_le32(&buf[i]),
 				get_unaligned_le32(&buf[i + 4]),
 				get_unaligned_le32(&buf[i + 8]),
@@ -529,7 +529,7 @@ static int gen_ndis_set_resp(struct rndis_params *params, u32 OID,
 		 *	MULTICAST, ALL_MULTICAST, BROADCAST
 		 */
 		*params->filter = (u16)get_unaligned_le32(buf);
-		pr_debug("%s: RNDIS_OID_GEN_CURRENT_PACKET_FILTER %08x\n",
+		pr_err("%s: RNDIS_OID_GEN_CURRENT_PACKET_FILTER %08x\n",
 			__func__, *params->filter);
 
 		/* this call has a significant side effect:  it's
@@ -538,7 +538,7 @@ static int gen_ndis_set_resp(struct rndis_params *params, u32 OID,
 		 */
 		retval = 0;
 		if (*params->filter) {
-			pr_debug("%s(): disable flow control\n", __func__);
+			pr_err("%s(): disable flow control\n", __func__);
 			rndis_flow_control(params, false);
 		} else {
 			pr_err("%s(): enable flow control\n", __func__);
@@ -548,7 +548,7 @@ static int gen_ndis_set_resp(struct rndis_params *params, u32 OID,
 
 	case RNDIS_OID_802_3_MULTICAST_LIST:
 		/* I think we can ignore this */
-		pr_debug("%s: RNDIS_OID_802_3_MULTICAST_LIST\n", __func__);
+		pr_err("%s: RNDIS_OID_802_3_MULTICAST_LIST\n", __func__);
 		retval = 0;
 		break;
 
@@ -607,7 +607,7 @@ static int rndis_query_response(struct rndis_params *params,
 	rndis_query_cmplt_type *resp;
 	rndis_resp_t *r;
 
-	/* pr_debug("%s: OID = %08X\n", __func__, cpu_to_le32(buf->OID)); */
+	/* pr_err("%s: OID = %08X\n", __func__, cpu_to_le32(buf->OID)); */
 	if (!params->dev)
 		return -ENOTSUPP;
 
@@ -659,15 +659,15 @@ static int rndis_set_response(struct rndis_params *params,
 	BufOffset = le32_to_cpu(buf->InformationBufferOffset);
 
 #ifdef	VERBOSE_DEBUG
-	pr_debug("%s: Length: %d\n", __func__, BufLength);
-	pr_debug("%s: Offset: %d\n", __func__, BufOffset);
-	pr_debug("%s: InfoBuffer: ", __func__);
+	pr_err("%s: Length: %d\n", __func__, BufLength);
+	pr_err("%s: Offset: %d\n", __func__, BufOffset);
+	pr_err("%s: InfoBuffer: ", __func__);
 
 	for (i = 0; i < BufLength; i++) {
-		pr_debug("%02x ", *(((u8 *) buf) + i + 8 + BufOffset));
+		pr_err("%02x ", *(((u8 *) buf) + i + 8 + BufOffset));
 	}
 
-	pr_debug("\n");
+	pr_err("\n");
 #endif
 
 	resp->MessageType = cpu_to_le32(RNDIS_MSG_SET_C);
@@ -814,7 +814,7 @@ int rndis_msg_parser(struct rndis_params *params, u8 *buf)
 	/* For USB: responses may take up to 10 seconds */
 	switch (MsgType) {
 	case RNDIS_MSG_INIT:
-		pr_debug("%s: RNDIS_MSG_INIT\n",
+		pr_err("%s: RNDIS_MSG_INIT\n",
 			__func__);
 		tmp++; /* to get RequestID */
 		major = get_unaligned_le32(tmp++);
@@ -825,16 +825,16 @@ int rndis_msg_parser(struct rndis_params *params, u8 *buf)
 		params->host_rndis_minor_ver = minor;
 		params->dl_max_xfer_size = max_transfer_size;
 
-		pr_debug("%s(): RNDIS Host Major:%d Minor:%d version\n",
+		pr_err("%s(): RNDIS Host Major:%d Minor:%d version\n",
 				__func__, major, minor);
-		pr_debug("%s(): UL Max Transfer size:%x\n", __func__,
+		pr_err("%s(): UL Max Transfer size:%x\n", __func__,
 				max_transfer_size);
 
 		params->state = RNDIS_INITIALIZED;
 		return rndis_init_response(params, (rndis_init_msg_type *)buf);
 
 	case RNDIS_MSG_HALT:
-		pr_debug("%s: RNDIS_MSG_HALT\n",
+		pr_err("%s: RNDIS_MSG_HALT\n",
 			__func__);
 		if (params->state == RNDIS_DATA_INITIALIZED) {
 			if (params->flow_ctrl_enable) {
@@ -857,7 +857,7 @@ int rndis_msg_parser(struct rndis_params *params, u8 *buf)
 		return rndis_set_response(params, (rndis_set_msg_type *)buf);
 
 	case RNDIS_MSG_RESET:
-		pr_debug("%s: RNDIS_MSG_RESET\n",
+		pr_err("%s: RNDIS_MSG_RESET\n",
 			__func__);
 		return rndis_reset_response(params,
 					(rndis_reset_msg_type *)buf);
@@ -865,7 +865,7 @@ int rndis_msg_parser(struct rndis_params *params, u8 *buf)
 	case RNDIS_MSG_KEEPALIVE:
 		/* For USB: host does this every 5 seconds */
 		if (rndis_debug > 1)
-			pr_debug("%s: RNDIS_MSG_KEEPALIVE\n",
+			pr_err("%s: RNDIS_MSG_KEEPALIVE\n",
 				__func__);
 		return rndis_keepalive_response(params,
 						 (rndis_keepalive_msg_type *)
@@ -908,7 +908,7 @@ struct rndis_params *rndis_register(void (*resp_avail)(void *v), void *v,
 
 	i = rndis_get_nr();
 	if (i < 0) {
-		pr_debug("failed\n");
+		pr_err("failed\n");
 
 		return ERR_PTR(-ENODEV);
 	}
@@ -945,7 +945,7 @@ struct rndis_params *rndis_register(void (*resp_avail)(void *v), void *v,
 	params->flow_ctrl_enable = flow_ctrl_enable;
 	params->v = v;
 	INIT_LIST_HEAD(&(params->resp_queue));
-	pr_debug("%s: configNr = %d\n", __func__, i);
+	pr_err("%s: configNr = %d\n", __func__, i);
 
 	return params;
 }
@@ -955,7 +955,7 @@ void rndis_deregister(struct rndis_params *params)
 {
 	int i;
 
-	pr_debug("%s:\n", __func__);
+	pr_err("%s:\n", __func__);
 
 	if (!params)
 		return;
@@ -978,7 +978,7 @@ EXPORT_SYMBOL_GPL(rndis_deregister);
 int rndis_set_param_dev(struct rndis_params *params, struct net_device *dev,
 			u16 *cdc_filter)
 {
-	pr_debug("%s:\n", __func__);
+	pr_err("%s:\n", __func__);
 	if (!dev)
 		return -EINVAL;
 	if (!params)
@@ -996,7 +996,7 @@ EXPORT_SYMBOL_GPL(rndis_set_param_dev);
 int rndis_set_param_vendor(struct rndis_params *params, u32 vendorID,
 			   const char *vendorDescr)
 {
-	pr_debug("%s:\n", __func__);
+	pr_err("%s:\n", __func__);
 	if (!vendorDescr) return -1;
 	if (!params)
 		return -1;
@@ -1010,7 +1010,7 @@ EXPORT_SYMBOL_GPL(rndis_set_param_vendor);
 
 int rndis_set_param_medium(struct rndis_params *params, u32 medium, u32 speed)
 {
-	pr_debug("%s: %u %u\n", __func__, medium, speed);
+	pr_err("%s: %u %u\n", __func__, medium, speed);
 	if (!params)
 		return -1;
 
@@ -1023,19 +1023,19 @@ EXPORT_SYMBOL_GPL(rndis_set_param_medium);
 
 u32 rndis_get_dl_max_xfer_size(struct rndis_params *params)
 {
-	pr_debug("%s:\n", __func__);
+	pr_err("%s:\n", __func__);
 	return params->dl_max_xfer_size;
 }
 
 u32 rndis_get_ul_max_xfer_size(struct rndis_params *params)
 {
-	pr_debug("%s:\n", __func__);
+	pr_err("%s:\n", __func__);
 	return params->ul_max_xfer_size;
 }
 
 void rndis_set_max_pkt_xfer(struct rndis_params *params, u8 max_pkt_per_xfer)
 {
-	pr_debug("%s:\n", __func__);
+	pr_err("%s:\n", __func__);
 
 	params->max_pkt_per_xfer = max_pkt_per_xfer;
 }
@@ -1055,7 +1055,7 @@ void rndis_flow_control(struct rndis_params *params, bool enable_flow_control)
 		return;
 	}
 
-	pr_debug("%s(): params->state:%x\n", __func__, params->state);
+	pr_err("%s(): params->state:%x\n", __func__, params->state);
 
 	if (enable_flow_control) {
 		if (params->state == RNDIS_DATA_INITIALIZED) {
@@ -1229,7 +1229,7 @@ EXPORT_SYMBOL_GPL(rndis_rm_hdr);
 void rndis_set_pkt_alignment_factor(struct rndis_params *params,
 		u8 pkt_alignment_factor)
 {
-	pr_debug("%s:\n", __func__);
+	pr_err("%s:\n", __func__);
 
 	if (!params) {
 		pr_err("%s: failed, params NULL\n", __func__);
@@ -1306,7 +1306,7 @@ static ssize_t rndis_proc_write(struct file *file, const char __user *buffer,
 			break;
 		default:
 			if (fl_speed) p->speed = speed;
-			else pr_debug("%c is not valid\n", c);
+			else pr_err("%c is not valid\n", c);
 			break;
 		}
 

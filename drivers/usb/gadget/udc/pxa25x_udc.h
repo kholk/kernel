@@ -148,7 +148,7 @@ static struct pxa25x_udc *the_controller;
 #define DBG_NOISY	3	/* ... even more: request level */
 #define DBG_VERY_NOISY	4	/* ... even more: packet level */
 
-#define DMSG(stuff...)	pr_debug("udc: " stuff)
+#define DMSG(stuff...)	pr_err("udc: " stuff)
 
 #ifdef DEBUG
 

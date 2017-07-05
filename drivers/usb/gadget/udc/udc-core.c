@@ -338,7 +338,7 @@ static void usb_udc_release(struct device *dev)
 	struct usb_udc *udc;
 
 	udc = container_of(dev, struct usb_udc, dev);
-	dev_dbg(dev, "releasing '%s'\n", dev_name(dev));
+	dev_err(dev, "releasing '%s'\n", dev_name(dev));
 	kfree(udc);
 }
 
@@ -446,7 +446,7 @@ EXPORT_SYMBOL_GPL(usb_add_gadget_udc);
 
 static void usb_gadget_remove_driver(struct usb_udc *udc)
 {
-	dev_dbg(&udc->dev, "unregistering UDC driver [%s]\n",
+	dev_err(&udc->dev, "unregistering UDC driver [%s]\n",
 			udc->driver->function);
 
 	kobject_uevent(&udc->dev.kobj, KOBJ_CHANGE);
@@ -497,7 +497,7 @@ static int udc_bind_to_driver(struct usb_udc *udc, struct usb_gadget_driver *dri
 {
 	int ret;
 
-	dev_dbg(&udc->dev, "registering UDC driver [%s]\n",
+	dev_err(&udc->dev, "registering UDC driver [%s]\n",
 			driver->function);
 
 	udc->driver = driver;
@@ -567,7 +567,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver)
 			goto found;
 	}
 
-	pr_debug("couldn't find an available UDC\n");
+	pr_err("couldn't find an available UDC\n");
 	mutex_unlock(&udc_lock);
 	return -ENODEV;
 found:

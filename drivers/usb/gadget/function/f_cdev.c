@@ -368,14 +368,14 @@ static void port_complete_set_line_coding(struct usb_ep *ep,
 	struct usb_composite_dev *cdev = port->port_usb.func.config->cdev;
 
 	if (req->status != 0) {
-		dev_dbg(&cdev->gadget->dev, "port(%s) completion, err %d\n",
+		dev_err(&cdev->gadget->dev, "port(%s) completion, err %d\n",
 				port->name, req->status);
 		return;
 	}
 
 	/* normal completion */
 	if (req->actual != sizeof(port->port_usb.port_line_coding)) {
-		dev_dbg(&cdev->gadget->dev, "port(%s) short resp, len %d\n",
+		dev_err(&cdev->gadget->dev, "port(%s) short resp, len %d\n",
 			port->name, req->actual);
 		usb_ep_set_halt(ep);
 	} else {
@@ -427,7 +427,7 @@ usb_cser_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 
 		value = 0;
 		port->port_usb.port_handshake_bits = w_value;
-		pr_debug("USB_CDC_REQ_SET_CONTROL_LINE_STATE: DTR:%d RST:%d\n",
+		pr_err("USB_CDC_REQ_SET_CONTROL_LINE_STATE: DTR:%d RST:%d\n",
 			w_value & ACM_CTRL_DTR ? 1 : 0,
 			w_value & ACM_CTRL_RTS ? 1 : 0);
 		if (port->port_usb.notify_modem)
@@ -437,7 +437,7 @@ usb_cser_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 
 	default:
 invalid:
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"invalid control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length);
@@ -445,7 +445,7 @@ invalid:
 
 	/* respond with data transfer or status phase? */
 	if (value >= 0) {
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"port(%s) req%02x.%02x v%04x i%04x l%d\n",
 			port->name, ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length);
@@ -468,7 +468,7 @@ static int usb_cser_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	int rc = 0;
 
 	if (port->port_usb.notify->driver_data) {
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"reset port(%s)\n", port->name);
 		usb_ep_disable(port->port_usb.notify);
 	}
@@ -490,12 +490,12 @@ static int usb_cser_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	port->port_usb.notify->driver_data = port;
 
 	if (port->port_usb.in->driver_data) {
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"reset port(%s)\n", port->name);
 		usb_cser_disconnect(port);
 	}
 	if (!port->port_usb.in->desc || !port->port_usb.out->desc) {
-		dev_dbg(&cdev->gadget->dev,
+		dev_err(&cdev->gadget->dev,
 			"activate port(%s)\n", port->name);
 		if (config_ep_by_speed(cdev->gadget, f, port->port_usb.in) ||
 			config_ep_by_speed(cdev->gadget, f,
@@ -515,7 +515,7 @@ static void usb_cser_disable(struct usb_function *f)
 	struct f_cdev	*port = func_to_port(f);
 	struct usb_composite_dev *cdev = f->config->cdev;
 
-	dev_dbg(&cdev->gadget->dev,
+	dev_err(&cdev->gadget->dev,
 		"port(%s) deactivated\n", port->name);
 
 	usb_cser_disconnect(port);
@@ -537,7 +537,7 @@ static int usb_cser_notify(struct f_cdev *port, u8 type, u16 value,
 	spin_lock_irqsave(&port->port_lock, flags);
 	if (!port->is_connected) {
 		spin_unlock_irqrestore(&port->port_lock, flags);
-		pr_debug("%s: port disconnected\n", __func__);
+		pr_err("%s: port disconnected\n", __func__);
 		return -ENODEV;
 	}
 
@@ -580,7 +580,7 @@ static int port_notify_serial_state(struct cserial *cser)
 	if (!port->port_usb.pending) {
 		port->port_usb.pending = true;
 		spin_unlock_irqrestore(&port->port_lock, flags);
-		dev_dbg(&cdev->gadget->dev, "port %d serial state %04x\n",
+		dev_err(&cdev->gadget->dev, "port %d serial state %04x\n",
 				port->port_num, port->port_usb.serial_state);
 		status = usb_cser_notify(port, USB_CDC_NOTIFY_SERIAL_STATE,
 				0, &port->port_usb.serial_state,
@@ -794,7 +794,7 @@ static int usb_cser_bind(struct usb_configuration *c, struct usb_function *f)
 	if (status)
 		goto fail;
 
-	dev_dbg(&cdev->gadget->dev, "usb serial port(%d): %s speed IN/%s OUT/%s\n",
+	dev_err(&cdev->gadget->dev, "usb serial port(%d): %s speed IN/%s OUT/%s\n",
 		port->port_num,
 		gadget_is_superspeed(c->cdev->gadget) ? "super" :
 		gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
@@ -846,13 +846,13 @@ static int usb_cser_alloc_requests(struct usb_ep *ep, struct list_head *head,
 	int i;
 	struct usb_request *req;
 
-	pr_debug("ep:%pK head:%pK num:%d size:%d cb:%pK",
+	pr_err("ep:%pK head:%pK num:%d size:%d cb:%pK",
 				ep, head, num, size, cb);
 
 	for (i = 0; i < num; i++) {
 		req = usb_cser_alloc_req(ep, size, GFP_ATOMIC);
 		if (!req) {
-			pr_debug("req allocated:%d\n", i);
+			pr_err("req allocated:%d\n", i);
 			return list_empty(head) ? -ENOMEM : 0;
 		}
 		req->complete = cb;
@@ -869,7 +869,7 @@ static void usb_cser_start_rx(struct f_cdev *port)
 	unsigned long		flags;
 	int ret;
 
-	pr_debug("start RX(USB OUT)\n");
+	pr_err("start RX(USB OUT)\n");
 	if (!port) {
 		pr_err("port is null\n");
 		return;
@@ -878,7 +878,7 @@ static void usb_cser_start_rx(struct f_cdev *port)
 	spin_lock_irqsave(&port->port_lock, flags);
 	if (!(port->is_connected && port->port_open)) {
 		spin_unlock_irqrestore(&port->port_lock, flags);
-		pr_debug("can't start rx.\n");
+		pr_err("can't start rx.\n");
 		return;
 	}
 
@@ -911,7 +911,7 @@ static void usb_cser_read_complete(struct usb_ep *ep, struct usb_request *req)
 	struct f_cdev *port = ep->driver_data;
 	unsigned long flags;
 
-	pr_debug("ep:(%pK)(%s) port:%pK req_status:%d req->actual:%u\n",
+	pr_err("ep:(%pK)(%s) port:%pK req_status:%d req->actual:%u\n",
 			ep, ep->name, port, req->status, req->actual);
 	if (!port) {
 		pr_err("port is null\n");
@@ -938,7 +938,7 @@ static void usb_cser_write_complete(struct usb_ep *ep, struct usb_request *req)
 	unsigned long flags;
 	struct f_cdev *port = ep->driver_data;
 
-	pr_debug("ep:(%pK)(%s) port:%pK req_stats:%d\n",
+	pr_err("ep:(%pK)(%s) port:%pK req_stats:%d\n",
 			ep, ep->name, port, req->status);
 
 	if (!port) {
@@ -953,7 +953,7 @@ static void usb_cser_write_complete(struct usb_ep *ep, struct usb_request *req)
 
 	switch (req->status) {
 	default:
-		pr_debug("unexpected %s status %d\n", ep->name, req->status);
+		pr_err("unexpected %s status %d\n", ep->name, req->status);
 		/* FALL THROUGH */
 	case 0:
 		/* normal completion */
@@ -961,7 +961,7 @@ static void usb_cser_write_complete(struct usb_ep *ep, struct usb_request *req)
 
 	case -ESHUTDOWN:
 		/* disconnect */
-		pr_debug("%s shutdown\n", ep->name);
+		pr_err("%s shutdown\n", ep->name);
 		break;
 	}
 
@@ -973,7 +973,7 @@ static void usb_cser_start_io(struct f_cdev *port)
 	int ret = -ENODEV;
 	unsigned long	flags;
 
-	pr_debug("port: %pK\n", port);
+	pr_err("port: %pK\n", port);
 
 	spin_lock_irqsave(&port->port_lock, flags);
 	if (!port->is_connected)
@@ -1016,7 +1016,7 @@ static void usb_cser_stop_io(struct f_cdev *port)
 	struct usb_ep	*out;
 	unsigned long	flags;
 
-	pr_debug("port:%pK\n", port);
+	pr_err("port:%pK\n", port);
 
 	in = port->port_usb.in;
 	out = port->port_usb.out;
@@ -1059,11 +1059,11 @@ int f_cdev_open(struct inode *inode, struct file *file)
 	}
 
 	file->private_data = port;
-	pr_debug("opening port(%s)(%pK)\n", port->name, port);
+	pr_err("opening port(%s)(%pK)\n", port->name, port);
 	ret = wait_event_interruptible(port->open_wq,
 					port->is_connected);
 	if (ret) {
-		pr_debug("open interrupted.\n");
+		pr_err("open interrupted.\n");
 		return ret;
 	}
 
@@ -1072,7 +1072,7 @@ int f_cdev_open(struct inode *inode, struct file *file)
 	spin_unlock_irqrestore(&port->port_lock, flags);
 	usb_cser_start_rx(port);
 
-	pr_debug("port(%s)(%pK) open is success\n", port->name, port);
+	pr_err("port(%s)(%pK) open is success\n", port->name, port);
 
 	return 0;
 }
@@ -1092,7 +1092,7 @@ int f_cdev_release(struct inode *inode, struct file *file)
 	port->port_open = false;
 	port->cbits_updated = false;
 	spin_unlock_irqrestore(&port->port_lock, flags);
-	pr_debug("port(%s)(%pK) is closed.\n", port->name, port);
+	pr_err("port(%s)(%pK) is closed.\n", port->name, port);
 
 	return 0;
 }
@@ -1116,7 +1116,7 @@ ssize_t f_cdev_read(struct file *file,
 		return -EINVAL;
 	}
 
-	pr_debug("read on port(%s)(%pK) count:%zu\n", port->name, port, count);
+	pr_err("read on port(%s)(%pK) count:%zu\n", port->name, port, count);
 	spin_lock_irqsave(&port->port_lock, flags);
 	current_rx_req = port->current_rx_req;
 	pending_rx_bytes = port->pending_rx_bytes;
@@ -1128,7 +1128,7 @@ ssize_t f_cdev_read(struct file *file,
 
 	if (list_empty(&port->read_queued) && !pending_rx_bytes) {
 		spin_unlock_irqrestore(&port->port_lock, flags);
-		pr_debug("%s(): read_queued list is empty.\n", __func__);
+		pr_err("%s(): read_queued list is empty.\n", __func__);
 		goto start_rx;
 	}
 
@@ -1157,7 +1157,7 @@ ssize_t f_cdev_read(struct file *file,
 		if (size > pending_rx_bytes)
 			size = pending_rx_bytes;
 
-		pr_debug("pending_rx_bytes:%zu count:%zu size:%zu\n",
+		pr_err("pending_rx_bytes:%zu count:%zu size:%zu\n",
 					pending_rx_bytes, count, size);
 		size -= copy_to_user(buf, current_rx_buf, size);
 		port->nbytes_to_port_bridge += size;
@@ -1217,7 +1217,7 @@ ssize_t f_cdev_write(struct file *file,
 	}
 
 	spin_lock_irqsave(&port->port_lock, flags);
-	pr_debug("write on port(%s)(%pK)\n", port->name, port);
+	pr_err("write on port(%s)(%pK)\n", port->name, port);
 
 	if (!port->is_connected) {
 		spin_unlock_irqrestore(&port->port_lock, flags);
@@ -1227,7 +1227,7 @@ ssize_t f_cdev_write(struct file *file,
 
 	if (list_empty(&port->write_pool)) {
 		spin_unlock_irqrestore(&port->port_lock, flags);
-		pr_debug("%s: Request list is empty.\n", __func__);
+		pr_err("%s: Request list is empty.\n", __func__);
 		return 0;
 	}
 
@@ -1237,7 +1237,7 @@ ssize_t f_cdev_write(struct file *file,
 	list_del_init(&req->list);
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
-	pr_debug("%s: write buf size:%zu\n", __func__, count);
+	pr_err("%s: write buf size:%zu\n", __func__, count);
 	if (count > BRIDGE_TX_BUF_SIZE)
 		xfer_size = BRIDGE_TX_BUF_SIZE;
 	else
@@ -1287,12 +1287,12 @@ static unsigned int f_cdev_poll(struct file *file, poll_table *wait)
 		spin_lock_irqsave(&port->port_lock, flags);
 		if (!list_empty(&port->read_queued)) {
 			mask |= POLLIN | POLLRDNORM;
-			pr_debug("sets POLLIN for %s\n", port->name);
+			pr_err("sets POLLIN for %s\n", port->name);
 		}
 
 		if (port->cbits_updated) {
 			mask |= POLLPRI;
-			pr_debug("sets POLLPRI for %s\n", port->name);
+			pr_err("sets POLLPRI for %s\n", port->name);
 		}
 		spin_unlock_irqrestore(&port->port_lock, flags);
 	} else {
@@ -1386,7 +1386,7 @@ static long f_cdev_ioctl(struct file *fp, unsigned cmd,
 	case TIOCMBIC:
 	case TIOCMBIS:
 	case TIOCMSET:
-		pr_debug("TIOCMSET on port(%s)%pK\n", port->name, port);
+		pr_err("TIOCMSET on port(%s)%pK\n", port->name, port);
 		i = get_user(val, (uint32_t *)arg);
 		if (i) {
 			pr_err("Error getting TIOCMSET value\n");
@@ -1395,7 +1395,7 @@ static long f_cdev_ioctl(struct file *fp, unsigned cmd,
 		ret = f_cdev_tiocmset(port, val, ~val);
 		break;
 	case TIOCMGET:
-		pr_debug("TIOCMGET on port(%s)%pK\n", port->name, port);
+		pr_err("TIOCMGET on port(%s)%pK\n", port->name, port);
 		ret = f_cdev_tiocmget(port);
 		if (ret >= 0) {
 			ret = put_user(ret, (uint32_t *)arg);
@@ -1421,7 +1421,7 @@ static void usb_cser_notify_modem(void *fport, int ctrl_bits)
 		return;
 	}
 
-	pr_debug("port(%s): ctrl_bits:%x\n", port->name, ctrl_bits);
+	pr_err("port(%s): ctrl_bits:%x\n", port->name, ctrl_bits);
 
 	temp = convert_acm_sigs_to_uart(ctrl_bits);
 
@@ -1445,7 +1445,7 @@ int usb_cser_connect(struct f_cdev *port)
 		return -ENODEV;
 	}
 
-	pr_debug("port(%s) (%pK)\n", port->name, port);
+	pr_err("port(%s) (%pK)\n", port->name, port);
 
 	cser = &port->port_usb;
 	cser->notify_modem = usb_cser_notify_modem;
@@ -1767,7 +1767,7 @@ static int cser_set_inst_name(struct usb_function_instance *f, const char *name)
 		pr_err("err: port number not found\n");
 		return -EINVAL;
 	}
-	pr_debug("str:%s\n", str);
+	pr_err("str:%s\n", str);
 
 	*str = '\0';
 	str++;
@@ -1778,7 +1778,7 @@ static int cser_set_inst_name(struct usb_function_instance *f, const char *name)
 		return -EINVAL;
 	}
 
-	pr_debug("gser: port_num:%d func_name:%s\n",
+	pr_err("gser: port_num:%d func_name:%s\n",
 			opts->port_num, opts->func_name);
 
 	port = f_cdev_alloc(opts->func_name, opts->port_num);
