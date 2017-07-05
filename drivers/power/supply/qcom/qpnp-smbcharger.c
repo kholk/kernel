@@ -7025,12 +7025,15 @@ static irqreturn_t src_detect_handler(int irq, void *_chip)
 	if (chip->hvdcp_3_det_ignore_uv)
 		goto out;
 
-#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+#if defined(CONFIG_QPNP_SMBCHARGER_EXTENSION) || \
+    defined(CONFIG_EXTCON_CABLEDETECT_EXTENSION)
 	if (!src_detect) {
 		union power_supply_propval prop = {0, };
 
 		power_supply_set_property(chip->usb_psy,
 					POWER_SUPPLY_PROP_USBIN_DET, &prop);
+		extcon_set_cable_state_(chip->extcon,
+			EXTCON_USB_CABLEDETECT, 0);
 	}
 #endif
 
@@ -7214,10 +7217,13 @@ static int determine_initial_status(struct smbchg_chip *chip)
 
 	if (chip->usb_present) {
 		int rc = 0;
-#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+#if defined(CONFIG_QPNP_SMBCHARGER_EXTENSION) || \
+    defined(CONFIG_EXTCON_CABLEDETECT_EXTENSION)
 		union power_supply_propval prop = {chip->usb_present, };
 		power_supply_set_property(chip->usb_psy,
 					POWER_SUPPLY_PROP_USBIN_DET, &prop);
+		extcon_set_cable_state_(chip->extcon,
+			EXTCON_USB_CABLEDETECT, chip->usb_present);
 #endif
 		pr_smb(PR_MISC, "setting usb dp=f dm=f\n");
 		if (chip->dpdm_reg && !regulator_is_enabled(chip->dpdm_reg))

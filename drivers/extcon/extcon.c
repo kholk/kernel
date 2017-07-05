@@ -84,6 +84,10 @@ static const char *extcon_name[] =  {
 	[EXTCON_VBUS_DROP]		= "VBUS-DROP",
 #endif
 
+#ifdef CONFIG_EXTCON_CABLEDETECT_EXTENSION
+	[EXTCON_USB_CABLEDETECT]	= "CABLE-DETECT",
+#endif
+
 	NULL,
 };
 

@@ -79,7 +79,7 @@
 #define PM_QOS_SAMPLE_SEC	2
 #define PM_QOS_THRESHOLD	400
 
-#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+#ifdef CONFIG_ARCH_SONY_LOIRE
 #define USB_SWITCH_PORT_USB1 0
 #define USB_SWITCH_PORT_USB2 1
 
@@ -197,10 +197,16 @@ pr_err("phy-msm-usb usb_otg: %s", event);
 }
 
 
-#ifdef CONFIG_MACH_SONY_SUZU
 static void msm_otg_select_usb_switch(struct msm_otg *motg)
 {
+#ifdef CONFIG_ARCH_SONY_LOIRE
 	int out;
+
+	if (!motg->pdata) {
+		pr_err("NO PDATA IN MOTG!!!!!!!!!\n");
+		return;
+	}
+
 
 	if (!gpio_is_valid(motg->pdata->usb_switch_sel_gpio)) {
 		dev_dbg(motg->phy.dev, "gpio for usb switch is invalid\n");
@@ -214,8 +220,8 @@ static void msm_otg_select_usb_switch(struct msm_otg *motg)
 
 	gpio_set_value(motg->pdata->usb_switch_sel_gpio, out);
 	dev_info(motg->phy.dev, "select port USB%d\n", out + 1);
-}
 #endif
+}
 
 static int msm_hsusb_ldo_init(struct msm_otg *motg, int init)
 {
@@ -497,7 +503,7 @@ static struct usb_phy_io_ops msm_otg_io_ops = {
 };
 
 
-#ifdef CONFIG_MACH_SONY_SUZU
+#ifdef CONFIG_ARCH_SONY_LOIRE
 static inline u32 get_field_value(u32 val, const u32 mask)
 {
 	u32 shift = find_first_bit((void *)&mask, 8);
@@ -508,7 +514,7 @@ static inline u32 get_field_value(u32 val, const u32 mask)
 }
 #endif
 
-#ifndef CONFIG_MACH_SONY_SUZU
+#ifndef CONFIG_ARCH_SONY_LOIRE
 static void ulpi_init(struct msm_otg *motg)
 {
 	struct msm_otg_platform_data *pdata = motg->pdata;
@@ -865,7 +871,7 @@ static int msm_otg_reset(struct usb_phy *phy)
 	msm_usb_phy_reset(motg);
 
 	/* Program USB PHY Override registers. */
-#ifndef CONFIG_MACH_SONY_SUZU
+#ifndef CONFIG_ARCH_SONY_LOIRE
 	ulpi_init(motg);
 #else
 	ulpi_init(motg, USB_PERIPHERAL);
@@ -2051,7 +2057,7 @@ static void msm_otg_start_host(struct usb_otg *otg, int on)
 			val &= ~APF_CTRL_EN;
 			writel_relaxed(val, USB_HS_APF_CTRL);
 		}
-#ifdef CONFIG_MACH_SONY_SUZU
+#ifdef CONFIG_ARCH_SONY_LOIRE
 		ulpi_init(motg, USB_HOST);
 #endif
 		usb_add_hcd(hcd, hcd->irq, IRQF_SHARED);
@@ -2246,7 +2252,7 @@ static void msm_otg_start_peripheral(struct usb_otg *otg, int on)
 		msm_otg_dbg_log_event(&motg->phy, "GADGET ON",
 				motg->inputs, otg->state);
 
-#ifdef CONFIG_MACH_SONY_SUZU
+#ifdef CONFIG_ARCH_SONY_LOIRE
 		ulpi_init(motg, USB_PERIPHERAL);
 #endif
 
@@ -2953,6 +2959,9 @@ static void msm_otg_sm_work(struct work_struct *w)
 					motg->inputs, otg->state);
 			switch (motg->chg_state) {
 			case USB_CHG_STATE_UNDEFINED:
+#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+				motg->chg_det_cnt++;
+#endif
 				/* put at the end of chg_det or disconnect */
 				pm_runtime_get_sync(otg->usb_phy->dev);
 				msm_otg_dbg_log_event(&motg->phy, "PM CHG GET",
@@ -2961,6 +2970,26 @@ static void msm_otg_sm_work(struct work_struct *w)
 				msm_chg_detect_work(&motg->chg_work.work);
 				break;
 			case USB_CHG_STATE_DETECTED:
+#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+				if ((USB_SDP_CHARGER != motg->chg_type) &&
+							motg->chg_det_cnt) {
+					if (motg->chg_det_cnt <=
+							USB_CHG_DET_RETRY_MAX) {
+						pr_info("chg det retry=%u\n",
+							motg->chg_det_cnt);
+						motg->chg_type =
+							USB_RETRY_DET_CHARGER;
+						motg->chg_det_retrying = 2;
+					} else {
+						pr_warn("retry expired=%u\n",
+							motg->chg_det_cnt);
+						pr_warn("INVALID(FLOATED)");
+						motg->chg_type =
+							USB_INVALID_CHARGER;
+						motg->chg_det_retrying = 0;
+					}
+				}
+#endif
 				switch (motg->chg_type) {
 				case USB_DCP_CHARGER:
 					/* fall through */
@@ -2988,6 +3017,21 @@ static void msm_otg_sm_work(struct work_struct *w)
 					mod_timer(&motg->chg_check_timer,
 							CHG_RECHECK_DELAY);
 					break;
+#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+				case USB_INVALID_CHARGER:
+					msm_otg_notify_charger(motg, 0);
+					work = 0;
+					msm_otg_dbg_log_event(&motg->phy,
+					"PM RUNTIME: INVCHG PUT",
+					get_pm_runtime_counter(otg->phy->dev),
+					0);
+					pm_runtime_put_sync(otg->phy->dev);
+					break;
+				case USB_RETRY_DET_CHARGER:
+					msm_otg_notify_charger(motg, 0);
+					work = 0;
+					break;
+#endif
 				default:
 					break;
 				}
@@ -3251,6 +3295,10 @@ static void msm_id_status_w(struct work_struct *w)
 		motg->id_state = gpio_get_value(motg->pdata->usb_id_gpio);
 	else if (motg->phy_irq)
 		motg->id_state = msm_otg_read_phy_id_state(motg);
+
+#ifdef CONFIG_ARCH_SONY_LOIRE
+	msm_otg_select_usb_switch(motg);
+#endif
 
 	if (motg->err_event_seen)
 		return;
@@ -4097,6 +4145,13 @@ struct msm_otg_platform_data *msm_otg_dt_to_pdata(struct platform_device *pdev)
 	if (pdata->switch_sel_gpio < 0)
 		pr_err("switch_sel_gpio is not available\n");
 
+#ifdef CONFIG_ARCH_SONY_LOIRE
+	pdata->usb_switch_sel_gpio =
+			of_get_named_gpio(node, "qcom,usb-switch-sel-gpio", 0);
+	if (pdata->usb_switch_sel_gpio < 0)
+		pr_debug("usb_switch_sel_gpio is not available\n");
+#endif
+
 	pdata->usb_id_gpio =
 			of_get_named_gpio(node, "qcom,usbid-gpio", 0);
 	if (pdata->usb_id_gpio < 0)
@@ -4147,7 +4202,7 @@ static int msm_otg_usbid_notifier(struct notifier_block *nb,
 	struct msm_otg *motg = container_of(nb,
 			struct msm_otg, usbid_notifier);
 
-	pr_err("%s: Setting vbus state: %lu\n", __func__, event);
+	pr_err("%s: Setting usbid state: %lu\n", __func__, event);
 	motg->id_state = event ? USB_ID_GROUND : USB_ID_FLOAT;
 	queue_work(motg->otg_wq, &motg->id_status_work);
 
@@ -4159,6 +4214,24 @@ static int msm_otg_vbus_notifier(struct notifier_block *nb,
 {
 	pr_err("%s: Setting vbus state: %lu\n", __func__, event);
 	msm_otg_set_vbus_state(event);
+
+	return NOTIFY_DONE;
+}
+
+static int msm_otg_cabledet_notifier(struct notifier_block *nb,
+		unsigned long event, void *ptr)
+{
+	struct msm_otg *motg = container_of(nb,
+			struct msm_otg, usbid_notifier);
+
+	if (motg == NULL) {
+		pr_err("MOTG IS NULL IN CABLEDET NOTIFIER WTF!!!!!!!!\n");
+		return -EINVAL;
+	}
+
+	pr_err("%s: Setting cable state: %lu\n", __func__, event);
+	motg->usbin_state = event ? true : false;
+	msm_otg_select_usb_switch(motg);
 
 	return NOTIFY_DONE;
 }
@@ -4190,16 +4263,13 @@ static int msm_otg_extcon_probe(struct platform_device *pdev,
 	}
 	pr_err("%s: Extcon VBUS notifier registered.\n", __func__);
 
+	goto try_third_edev;
 try_second_edev:
-	/* If a second phandle for USBID wasn't provided, just go out. */
-	if (!(of_count_phandle_with_args(node, "extcon", NULL) > 1))
-		return 0;
-
 	edev = extcon_get_edev_by_phandle(&pdev->dev, 1);
 	if (IS_ERR(edev)) {
 		if (PTR_ERR(edev) != -ENODEV) {
 			rc = PTR_ERR(edev);
-			goto err;
+			goto try_third_edev;
 		}
 		return 0;
 	}
@@ -4214,7 +4284,34 @@ try_second_edev:
 	}
 	pr_err("%s: Extcon USB ID notifier registered.\n", __func__);
 
+try_third_edev:
+	/* If a second phandle for USBID wasn't provided, just go out. */
+	if (!(of_count_phandle_with_args(node, "extcon", NULL) > 2))
+		return 0;
+	edev = extcon_get_edev_by_phandle(&pdev->dev, 2);
+	if (IS_ERR(edev)) {
+		if (PTR_ERR(edev) != -ENODEV) {
+			rc = PTR_ERR(edev);
+			goto err;
+		}
+		return 0;
+	}
+
+	msm_otg->ec_cabledet = edev;
+	msm_otg->cabledet_notifier.notifier_call = msm_otg_cabledet_notifier;
+	rc = extcon_register_notifier(edev,
+		EXTCON_USB_CABLEDETECT, &msm_otg->cabledet_notifier);
+	if (rc < 0) {
+		dev_err(&pdev->dev, "Cannot register extcon"
+			"cable detection notifier\n");
+		goto cd_err;
+	}
+
 	return 0;
+cd_err:
+	if (msm_otg->ec_usbid)
+		extcon_unregister_notifier(msm_otg->ec_usbid,
+			EXTCON_USB_HOST, &msm_otg->usbid_notifier);
 err:
 	if (msm_otg->ec_vbus)
 		extcon_unregister_notifier(msm_otg->ec_vbus,
@@ -4883,6 +4980,11 @@ static int msm_otg_probe(struct platform_device *pdev)
 							EXTCON_USB_HOST))
 			msm_otg_usbid_notifier(&motg->usbid_notifier,
 						true, NULL);
+
+//		if (motg->ec_cabledet && extcon_get_cable_state_(
+//				motg->ec_cabledet, EXTCON_USB_CABLEDETECT))
+//			msm_otg_cabledet_notifier(&motg->cabledet_notifier,
+//						true, NULL);
 	}
 
 	motg->pm_notify.notifier_call = msm_otg_pm_notify;
@@ -5065,12 +5167,39 @@ static int msm_otg_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+static void msm_otg_wait_vbus_settled_down(struct msm_otg *motg, int mv,
+							int itvl, int tmout)
+{
+	int rc;
+	int cnt = 0;
+	int usbin = mv;
+
+	do {
+		msleep(itvl);
+		rc = otg_get_prop_usbin_voltage_now(motg);
+		if (IS_ERR_VALUE(rc))
+			goto waitremain;
+		usbin = rc / 1000;
+		cnt++;
+	} while (usbin >= mv && tmout > (cnt * itvl));
+waitremain:
+	if (usbin >= mv && tmout > (cnt * itvl))
+		msleep(tmout - (cnt * itvl));
+}
+#endif
+
 static void msm_otg_shutdown(struct platform_device *pdev)
 {
 	struct msm_otg *motg = platform_get_drvdata(pdev);
 
 	dev_err(&pdev->dev, "OTG shutdown\n");
 	msm_hsusb_vbus_power(motg, 0);
+#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+	if (!motg->usbin_state)
+		msm_otg_wait_vbus_settled_down(motg, USB_VBUS_WAIT_VOLT,
+				USB_VBUS_WAIT_ITVL, USB_VBUS_WAIT_TMOUT);
+#endif
 }
 
 #ifdef CONFIG_PM

@@ -123,4 +123,11 @@ config EXTCON_SOMC_EXTENSION
 	help
 	  Say Y here to enable SoMC extensions for EXTCON API
 
+config EXTCON_CABLEDETECT_EXTENSION
+	bool "Cable detection addition for EXTCON"
+	depends on USB_MSM_OTG
+	help
+	  Say Y here to enable the additional cabledetect notification
+	  for the EXTCON API. This is currently used by SoMC Loire.
+
 endif

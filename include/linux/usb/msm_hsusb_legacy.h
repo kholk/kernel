@@ -329,6 +329,10 @@ struct msm_otg_platform_data {
 	bool enable_streaming;
 	bool enable_axi_prefetch;
 	bool enable_sdp_typec_current_limit;
+#ifdef CONFIG_ARCH_SONY_LOIRE
+	int *phy_init_seq_host;
+	int usb_switch_sel_gpio;
+#endif
 };
 
 /* phy related flags */
@@ -555,11 +559,17 @@ struct msm_otg {
 	struct pm_qos_request pm_qos_req_dma;
 	struct delayed_work perf_vote_work;
 
+#ifdef CONFIG_ARCH_SONY_LOIRE
+	bool usbin_state;
+#endif
+
 	/* EXTCON */
 	struct extcon_dev *ec_vbus;
 	struct extcon_dev *ec_usbid;
+	struct extcon_dev *ec_cabledet;
 	struct notifier_block vbus_notifier;
 	struct notifier_block usbid_notifier;
+	struct notifier_block cabledet_notifier;
 };
 
 struct ci13xxx_platform_data {

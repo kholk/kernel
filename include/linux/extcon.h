@@ -73,10 +73,15 @@
 #define EXTCON_MECHANICAL	62
 
 #ifdef CONFIG_EXTCON_SOMC_EXTENSION
-#define EXTCON_VBUS_DROP	63
-#define EXTCON_NUM		64
+ #define EXTCON_VBUS_DROP	63
+ #define EXTCON_NUM		64
 #else
-#define EXTCON_NUM		63
+ #ifdef CONFIG_EXTCON_CABLEDETECT_EXTENSION
+  #define EXTCON_USB_CABLEDETECT 63
+  #define EXTCON_NUM		64
+ #else
+  #define EXTCON_NUM		63
+ #endif
 #endif
 
 struct extcon_cable;
