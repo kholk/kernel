@@ -2051,6 +2051,9 @@ static void msm_otg_start_host(struct usb_otg *otg, int on)
 			val &= ~APF_CTRL_EN;
 			writel_relaxed(val, USB_HS_APF_CTRL);
 		}
+#ifdef CONFIG_MACH_SONY_SUZU
+		ulpi_init(motg, USB_HOST);
+#endif
 		usb_add_hcd(hcd, hcd->irq, IRQF_SHARED);
 #ifdef CONFIG_SMP
 		motg->pm_qos_req_dma.type = PM_QOS_REQ_AFFINE_IRQ;
@@ -2093,6 +2096,23 @@ static void msm_otg_start_host(struct usb_otg *otg, int on)
 	pm_runtime_put_autosuspend(otg->usb_phy->dev);
 }
 
+#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+/**
+ * msm_hsusb_ocp_notification - ocp notification callback from regulator.
+ * @ctxt: Pointer to the msm_otg context
+ *
+ * NOTE: This can be called in interrupt context.
+ */
+static void msm_hsusb_ocp_notification(void *ctxt)
+{
+	struct msm_otg *motg = (struct msm_otg *)ctxt;
+
+	set_bit(A_VBUS_DROP_DET, &motg->inputs);
+	pr_info("%s: receive ocp notification\n", __func__);
+	queue_work(motg->otg_wq, &motg->sm_work);
+}
+#endif
+
 static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 {
 	int ret;
@@ -2121,7 +2141,17 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 	 * current from the source.
 	 */
 	if (on) {
+#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+		struct regulator_ocp_notification ocp_ntf = {
+					msm_hsusb_ocp_notification, motg};
 		msm_otg_notify_host_mode(motg, on);
+		/* register ocp notification */
+		ret = regulator_register_ocp_notification(vbus_otg, &ocp_ntf);
+		if (ret)
+			pr_err("unable to register ocp\n");
+#else
+		msm_otg_notify_host_mode(motg, on);
+#endif
 		ret = regulator_enable(vbus_otg);
 		if (ret) {
 			pr_err("unable to enable vbus_otg\n");
@@ -2129,6 +2159,12 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 		}
 		vbus_is_on = true;
 	} else {
+#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+		/* unregister ocp notification */
+		ret = regulator_register_ocp_notification(vbus_otg, NULL);
+		if (ret)
+			pr_err("unable to unregister ocp\n");
+#endif
 		ret = regulator_disable(vbus_otg);
 		if (ret) {
 			pr_err("unable to disable vbus_otg\n");
@@ -2209,6 +2245,10 @@ static void msm_otg_start_peripheral(struct usb_otg *otg, int on)
 		dev_err(otg->usb_phy->dev, "gadget on\n");
 		msm_otg_dbg_log_event(&motg->phy, "GADGET ON",
 				motg->inputs, otg->state);
+
+#ifdef CONFIG_MACH_SONY_SUZU
+		ulpi_init(motg, USB_PERIPHERAL);
+#endif
 
 		/* Configure BUS performance parameters for MAX bandwidth */
 		if (debug_bus_voting_enabled)
@@ -2571,9 +2611,17 @@ static const char *chg_to_string(enum usb_chg_type chg_type)
 	case USB_CDP_CHARGER:		return "USB_CDP_CHARGER";
 	case USB_PROPRIETARY_CHARGER:	return "USB_PROPRIETARY_CHARGER";
 	case USB_FLOATED_CHARGER:	return "USB_FLOATED_CHARGER";
+#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+	case USB_RETRY_DET_CHARGER:	return "USB_RETRY_DET_CHARGER";
+#endif
 	default:			return "INVALID_CHARGER";
 	}
 }
+
+
+#ifdef CONFIG_MACH_SONY_TULIP
+static int external_chg_type = 0;
+#endif
 
 #define MSM_CHG_DCD_TIMEOUT		(750 * HZ/1000) /* 750 msec */
 #define MSM_CHG_DCD_POLL_TIME		(50 * HZ/1000) /* 50 msec */
@@ -2637,6 +2685,10 @@ static void msm_chg_detect_work(struct work_struct *w)
 				motg->chg_type = USB_PROPRIETARY_CHARGER;
 			else if (!dcd && floated_charger_enable)
 				motg->chg_type = USB_FLOATED_CHARGER;
+#ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
+			else if (!dcd)
+				motg->chg_type = USB_INVALID_CHARGER;
+#endif
 			else
 				motg->chg_type = USB_SDP_CHARGER;
 
@@ -2687,7 +2739,17 @@ static void msm_chg_detect_work(struct work_struct *w)
 
 	msm_otg_dbg_log_event(phy, "CHG WORK: QUEUE", motg->chg_type, delay);
 	queue_delayed_work(motg->otg_wq, &motg->chg_work, delay);
+#ifdef CONFIG_MACH_SONY_TULIP
+	external_chg_type = motg->chg_type;
+#endif
 }
+
+#ifdef CONFIG_MACH_SONY_TULIP
+int get_chg_type(void)
+{
+	return external_chg_type;
+}
+#endif
 
 #define VBUS_INIT_TIMEOUT	msecs_to_jiffies(5000)
 
