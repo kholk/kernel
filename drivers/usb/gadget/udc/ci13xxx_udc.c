@@ -2415,6 +2415,10 @@ __acquires(udc->lock)
 	if (retval)
 		goto done;
 
+	udc->status = usb_ep_alloc_request(&udc->ep0in.ep, GFP_ATOMIC);
+	if (udc->status == NULL)
+		retval = -ENOMEM;
+
 	usb_gadget_set_state(&udc->gadget, USB_STATE_DEFAULT);
 
 	spin_lock(udc->lock);
@@ -2516,9 +2520,15 @@ __acquires(mEp->lock)
 	if (mEp == NULL || setup == NULL)
 		return -EINVAL;
 
+	spin_unlock(mEp->lock);
+	req = usb_ep_alloc_request(&mEp->ep, GFP_ATOMIC);
+	spin_lock(mEp->lock);
+	if (req == NULL)
+		return -ENOMEM;
+
 	req->complete = isr_get_status_complete;
 	req->length   = 2;
-	req->buf      = udc->status_buf;
+	req->buf      = kzalloc(req->length, GFP_ATOMIC); //udc->status_buf;
 
 	if ((setup->bRequestType & USB_RECIP_MASK) == USB_RECIP_DEVICE) {
 		*((u16 *)req->buf) = _udc->gadget.remote_wakeup << 1 |
@@ -2579,7 +2589,7 @@ __acquires(mEp->lock)
 	mEp = (udc->ep0_dir == TX) ? &udc->ep0out : &udc->ep0in;
 	udc->status->context = udc;
 	udc->status->complete = isr_setup_status_complete;
-	udc->status->length = 0;
+	//udc->status->length = 0;
 
 	spin_unlock(mEp->lock);
 	retval = usb_ep_queue(&mEp->ep, udc->status, GFP_ATOMIC);
@@ -3589,6 +3599,7 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 	retval = usb_ep_enable(&udc->ep0in.ep);
 	if (retval)
 		goto pm_put;
+#ifndef NEW_STATUS
 	udc->status = usb_ep_alloc_request(&udc->ep0in.ep, GFP_KERNEL);
 	if (!udc->status) {
 		retval = -ENOMEM;
@@ -3601,6 +3612,7 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 		retval = -ENOMEM;
 		goto pm_put;
 	}
+#endif
 	spin_lock_irqsave(udc->lock, flags);
 
 	udc->gadget.ep0 = &udc->ep0in.ep;
