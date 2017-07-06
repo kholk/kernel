@@ -71,6 +71,7 @@
 
 #include "ci13xxx_udc.h"
 
+#define NEW_STATUS
 /******************************************************************************
  * DEFINE
  *****************************************************************************/
@@ -2264,7 +2265,8 @@ static void release_ep_request(struct ci13xxx_ep  *mEp,
 		if ((mEp->type == USB_ENDPOINT_XFER_CONTROL) &&
 			mReq->req.length)
 			mEpTemp = &_udc->ep0in;
-		mReq->req.complete(&mEpTemp->ep, &mReq->req);
+		//mReq->req.complete(&mEpTemp->ep, &mReq->req);
+		usb_gadget_giveback_request(&mEpTemp->ep, &mReq->req);
 		if (mEp->type == USB_ENDPOINT_XFER_CONTROL)
 			mReq->req.complete = NULL;
 		spin_lock(mEp->lock);
@@ -2356,7 +2358,7 @@ static int _gadget_stop_activity(struct usb_gadget *gadget)
 
 #ifdef NEW_STATUS
 	if (udc->status != NULL) {
-		usb_ep_free_request(&udc->ep0in.ep, &udc->status);
+		usb_ep_free_request(&udc->ep0in.ep, udc->status);
 		udc->status = NULL;
 	}
 #endif
@@ -3282,7 +3284,8 @@ static int ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 		if ((mEp->type == USB_ENDPOINT_XFER_CONTROL) &&
 				mReq->req.length)
 			mEpTemp = &_udc->ep0in;
-		mReq->req.complete(&mEpTemp->ep, &mReq->req);
+		//mReq->req.complete(&mEpTemp->ep, &mReq->req);
+		usb_gadget_giveback_request(&mEpTemp->ep, &mReq->req);
 		if (mEp->type == USB_ENDPOINT_XFER_CONTROL)
 			mReq->req.complete = NULL;
 		spin_lock(mEp->lock);
