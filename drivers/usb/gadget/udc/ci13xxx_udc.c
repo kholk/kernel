@@ -2341,7 +2341,7 @@ static int _gadget_stop_activity(struct usb_gadget *gadget)
 	udc->configured = 0;
 	spin_unlock_irqrestore(udc->lock, flags);
 
-	usb_gadget_udc_reset(gadget, udc->driver);
+	udc->driver->disconnect(gadget);
 
 	spin_lock_irqsave(udc->lock, flags);
 	_ep_nuke(&udc->ep0out);
