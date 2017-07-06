@@ -1815,7 +1815,6 @@ static void setup_td_bits_msm(struct ci13xxx_req *mReq,
 	}
 }
 
-#if 0
 static void setup_td_bits(struct td_node *tdnode, unsigned length)
 {
 	memset(tdnode->ptr, 0, sizeof(*tdnode->ptr));
@@ -1823,15 +1822,12 @@ static void setup_td_bits(struct td_node *tdnode, unsigned length)
 	tdnode->ptr->token &= cpu_to_le32(TD_TOTAL_BYTES);
 	tdnode->ptr->token |= cpu_to_le32(TD_STATUS_ACTIVE);
 }
-#endif
 
 static int add_td_to_list(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq,
 			  unsigned length)
 {
 	struct td_node *lastnode, *node = kzalloc(sizeof(struct td_node),
 						  GFP_ATOMIC);
-	int i;
-	u32 temp;
 
 	if (node == NULL)
 		return -ENOMEM;
@@ -1839,28 +1835,7 @@ static int add_td_to_list(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq,
 	node->ptr = dma_pool_alloc(mEp->td_pool, GFP_ATOMIC,
 				   &node->dma);
 
-	if (node->ptr == NULL) {
-		kfree(node);
-		return -ENOMEM;
-	}
-
-	memset(node->ptr, 0, sizeof(*node->ptr));
-	node->ptr->token = cpu_to_le32(length << __ffs(TD_TOTAL_BYTES));
-	node->ptr->token &= cpu_to_le32(TD_TOTAL_BYTES);
-	node->ptr->token |= cpu_to_le32(TD_STATUS_ACTIVE);
-	setup_td_bits_msm(mReq, node, length);
-
-	temp = (u32) (mReq->req.dma + mReq->req.actual);
-	if (length) {
-		node->ptr->page[0] = cpu_to_le32(temp);
-		for (i = 1; i < TD_PAGE_COUNT; i++) {
-			u32 page = temp + i * CI13XXX_PAGE_SIZE;
-			page &= ~TD_RESERVED_MASK;
-			node->ptr->page[i] = cpu_to_le32(page);
-		}
-	}
-
-	mReq->req.actual += length;
+	setup_td_bits(node, length);
 
 	if (!list_empty(&mReq->tds)) {
 		/* get the last entry */
@@ -1959,10 +1934,9 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 {
 	unsigned i;
 	int ret = 0;
+	unsigned length = mReq->req.length;
 	struct ci13xxx *udc = _udc;
 	struct td_node *firstnode, *lastnode;
-	unsigned rest = mReq->req.length;
-	int pages = TD_PAGE_COUNT;
 
 	trace("%pK, %pK", mEp, mReq);
 
@@ -1976,32 +1950,19 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 	if (ret)
 		return ret;
 
-	/*
-	 * The first buffer could be not page aligned.
-	 * In that case we have to span into one extra td.
-	 */
-	if (mReq->req.dma % PAGE_SIZE)
-		pages--;
-
-	if (rest == 0)
-		add_td_to_list(mEp, mReq, 0);
-
-	while (rest > 0) {
-		unsigned count = min(mReq->req.length - mReq->req.actual,
-					(unsigned)(pages * CI13XXX_PAGE_SIZE));
-		add_td_to_list(mEp, mReq, count);
-		rest -= count;
-	}
-
-	if (mReq->req.zero && mReq->req.length
-	    && (mReq->req.length % mEp->ep.maxpacket == 0))
-		add_td_to_list(mEp, mReq, 0);
-
 	firstnode = list_first_entry(&mReq->tds,
 			struct td_node, td);
 
-//	setup_td_bits(firstnode, length);
-//	setup_td_bits_msm(mReq, firstnode, length);
+	setup_td_bits(firstnode, length);
+	setup_td_bits_msm(mReq, firstnode, length);
+
+	firstnode->ptr->page[0] = cpu_to_le32(mReq->req.dma);
+	for (i = 1; i < 5; i++)
+		firstnode->ptr->page[i] = (mReq->req.dma + i * CI13XXX_PAGE_SIZE) &
+							~TD_RESERVED_MASK;
+
+	if (mReq->req.zero && length && (length % mEp->ep.maxpacket == 0))
+		add_td_to_list(mEp, mReq, 0);
 
 	lastnode = list_entry(mReq->tds.prev,
 		struct td_node, td);
@@ -2031,7 +1992,6 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		schedule_delayed_work(&udc->rw_work, REMOTE_WAKEUP_DELAY);
 	}
 
-	mReq->req.actual = 0;
 	if (!list_empty(&mEp->qh.queue)) {
 		struct ci13xxx_req *mReqPrev;
 		int n = hw_ep_bit(mEp->num, mEp->dir);
@@ -2160,19 +2120,6 @@ done:
 	return ret;
 }
 
-/*
- * free_pending_td: remove a pending request for the endpoint
- * @mEp: endpoint
- */
-static void free_pending_td(struct ci13xxx_ep *mEp)
-{
-	struct td_node *pending = mEp->pending_td;
-
-	dma_pool_free(mEp->td_pool, pending->ptr, pending->dma);
-	mEp->pending_td = NULL;
-	kfree(pending);
-}
-
 /**
  * _hardware_dequeue: handles a request at hardware level
  * @gadget: gadget
@@ -2183,9 +2130,7 @@ static void free_pending_td(struct ci13xxx_ep *mEp)
 static int _hardware_dequeue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 {
 	u32 tmptoken;
-	struct td_node *node, *tmpnode;
-	unsigned remaining_length;
-	unsigned actual = mReq->req.length;
+	struct td_node *node, *tmpnode, *firstnode;
 	struct ci13xxx *udc = _udc;
 
 	trace("%pK, %pK", mEp, mReq);
@@ -2201,54 +2146,37 @@ static int _hardware_dequeue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 			(mReq->req.udc_priv & MSM_IS_FINITE_TRANSFER))
 			return -EBUSY;
 
-	mReq->req.status = 0;
+	firstnode = list_first_entry(&mReq->tds,
+		struct td_node, td);
 
 	list_for_each_entry_safe(node, tmpnode, &mReq->tds, td) {
 		tmptoken = le32_to_cpu(node->ptr->token);
-		if ((TD_STATUS_ACTIVE & tmptoken) != 0) {
-			mReq->req.status = -EALREADY;
+		if ((TD_STATUS_ACTIVE & tmptoken) != 0)
 			return -EBUSY;
+		if (node != firstnode) {
+			dma_pool_free(mEp->td_pool, node->ptr, node->dma);
+			list_del_init(&node->td);
+			node->ptr = NULL;
+			kfree(node);
 		}
-		remaining_length = (tmptoken & TD_TOTAL_BYTES);
-		remaining_length >>= __ffs(TD_TOTAL_BYTES);
-		actual -= remaining_length;
-
-		mReq->req.status = tmptoken & TD_STATUS;
-		if ((TD_STATUS_HALTED & mReq->req.status)) {
-			mReq->req.status = -EPIPE;
-			break;
-		} else if ((TD_STATUS_DT_ERR & mReq->req.status)) {
-			mReq->req.status = -EPROTO;
-			break;
-		} else if ((TD_STATUS_TR_ERR & mReq->req.status)) {
-			mReq->req.status = -EILSEQ;
-			break;
-		}
-
-		if (remaining_length) {
-			if (mEp->dir) {
-				mReq->req.status = -EPROTO;
-				break;
-			}
-		}
-		/*
-		 * As the hardware could still address the freed td
-		 * which will run the udc unusable, the cleanup of the
-		 * td has to be delayed by one.
-		 */
-		if (mEp->pending_td)
-			free_pending_td(mEp);
-
-		mEp->pending_td = node;
-		list_del_init(&node->td);
 	}
+
+	mReq->req.status = 0;
 
 	usb_gadget_unmap_request(&udc->gadget, &mReq->req, mEp->dir);
 
-	mReq->req.actual += actual;
+	mReq->req.status = tmptoken & TD_STATUS;
+	if ((TD_STATUS_HALTED & mReq->req.status) != 0)
+		mReq->req.status = -1;
+	else if ((TD_STATUS_DT_ERR & mReq->req.status) != 0)
+		mReq->req.status = -1;
+	else if ((TD_STATUS_TR_ERR & mReq->req.status) != 0)
+		mReq->req.status = -1;
 
-	if (mReq->req.status)
-		return mReq->req.status;
+	mReq->req.actual   = tmptoken & TD_TOTAL_BYTES;
+	mReq->req.actual >>= ffs_nr(TD_TOTAL_BYTES);
+	mReq->req.actual   = mReq->req.length - mReq->req.actual;
+	mReq->req.actual   = mReq->req.status ? 0 : mReq->req.actual;
 
 	return mReq->req.actual;
 }
@@ -2391,7 +2319,7 @@ static int _ep_nuke(struct ci13xxx_ep *mEp)
 __releases(mEp->lock)
 __acquires(mEp->lock)
 {
-	struct td_node *node, *tmpnode;
+	struct td_node *node, *tmpnode, *firstnode;
 	trace("%pK", mEp);
 
 	if (mEp == NULL)
@@ -2408,11 +2336,17 @@ __acquires(mEp->lock)
 			list_entry(mEp->qh.queue.next,
 				   struct ci13xxx_req, queue);
 
+		firstnode = list_first_entry(&mReq->tds,
+			struct td_node, td);
+
 		list_for_each_entry_safe(node, tmpnode, &mReq->tds, td) {
-			dma_pool_free(mEp->td_pool, node->ptr, node->dma);
-			list_del_init(&node->td);
-			node->ptr = NULL;
-			kfree(node);
+			if (node != firstnode) {
+				dma_pool_free(mEp->td_pool, node->ptr,
+					      node->dma);
+				list_del_init(&node->td);
+				node->ptr = NULL;
+				kfree(node);
+			}
 		}
 
 		list_del_init(&mReq->queue);
@@ -2420,7 +2354,6 @@ __acquires(mEp->lock)
 		release_ep_request(mEp, mReq);
 	}
 
-#if 0
 	/* Clear the requests pending at the remote-wakeup queue */
 	while (!list_empty(&mEp->rw_queue)) {
 
@@ -2433,10 +2366,6 @@ __acquires(mEp->lock)
 
 		release_ep_request(mEp, mReq);
 	}
-#endif
-
-	if (mEp->pending_td)
-		free_pending_td(mEp);
 
 	return 0;
 }
@@ -2731,6 +2660,7 @@ __acquires(mEp->lock)
 	int uninitialized_var(retval);
 	int req_dequeue = 1;
 	struct ci13xxx *udc = _udc;
+	struct td_node *firstnode;
 
 	trace("%pK", mEp);
 
@@ -2742,6 +2672,9 @@ __acquires(mEp->lock)
 	list_for_each_entry_safe(mReq, mReqTemp, &mEp->qh.queue,
 			queue) {
 dequeue:
+		firstnode = list_first_entry(&mReq->tds,
+			struct td_node, td);
+
 		retval = _hardware_dequeue(mEp, mReq);
 		if (retval < 0) {
 			/*
@@ -3143,7 +3076,9 @@ static int ep_disable(struct usb_ep *ep)
  */
 static struct usb_request *ep_alloc_request(struct usb_ep *ep, gfp_t gfp_flags)
 {
+	struct ci13xxx_ep  *mEp  = container_of(ep, struct ci13xxx_ep, ep);
 	struct ci13xxx_req *mReq = NULL;
+	struct td_node *node;
 
 	trace("%pK, %i", ep, gfp_flags);
 
@@ -3153,10 +3088,25 @@ static struct usb_request *ep_alloc_request(struct usb_ep *ep, gfp_t gfp_flags)
 	}
 
 	mReq = kzalloc(sizeof(struct ci13xxx_req), gfp_flags);
-	if (mReq != NULL) {
+	node = kzalloc(sizeof(struct td_node), gfp_flags);
+	if (mReq != NULL && node != NULL) {
 		INIT_LIST_HEAD(&mReq->queue);
 		INIT_LIST_HEAD(&mReq->tds);
+		INIT_LIST_HEAD(&node->td);
+		//mReq->req.dma = DMA_ERROR_CODE;
+
+		node->ptr = dma_pool_alloc(mEp->td_pool, gfp_flags,
+					   &node->dma);
+		if (node->ptr == NULL) {
+			kfree(node);
+			kfree(mReq);
+			mReq = NULL;
+		} else {
+			list_add_tail(&node->td, &mReq->tds);
+		}
 	}
+
+	dbg_event(_usb_addr(mEp), "ALLOC", mReq == NULL);
 
 	return (mReq == NULL) ? NULL : &mReq->req;
 }
@@ -3170,7 +3120,7 @@ static void ep_free_request(struct usb_ep *ep, struct usb_request *req)
 {
 	struct ci13xxx_ep  *mEp  = container_of(ep,  struct ci13xxx_ep, ep);
 	struct ci13xxx_req *mReq = container_of(req, struct ci13xxx_req, req);
-	struct td_node *node, *tmpnode;
+	struct td_node *firstnode;
 	unsigned long flags;
 
 	trace("%pK, %pK", ep, req);
@@ -3185,13 +3135,11 @@ static void ep_free_request(struct usb_ep *ep, struct usb_request *req)
 
 	spin_lock_irqsave(mEp->lock, flags);
 
-	list_for_each_entry_safe(node, tmpnode, &mReq->tds, td) {
-		dma_pool_free(mEp->td_pool, node->ptr, node->dma);
-		list_del_init(&node->td);
-		node->ptr = NULL;
-		kfree(node);
-	}
+	firstnode = list_first_entry(&mReq->tds,
+		struct td_node, td);
 
+	if (firstnode->ptr)
+		dma_pool_free(mEp->td_pool, firstnode->ptr, firstnode->dma);
 	kfree(mReq);
 
 	dbg_event(_usb_addr(mEp), "FREE", 0);
