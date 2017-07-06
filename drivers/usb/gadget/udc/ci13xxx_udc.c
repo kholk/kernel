@@ -2354,6 +2354,12 @@ static int _gadget_stop_activity(struct usb_gadget *gadget)
 		udc->ep0in.last_zptr = NULL;
 	}
 
+#ifdef NEW_STATUS
+	if (udc->status != NULL) {
+		usb_ep_free_request(&udc->ep0in.ep, &udc->status);
+		udc->status = NULL;
+	}
+#endif
 	return 0;
 }
 
@@ -2485,6 +2491,8 @@ static void isr_get_status_complete(struct usb_ep *ep, struct usb_request *req)
 
 	if (req->status)
 		err("GET_STATUS failed");
+
+	usb_ep_free_request(ep, req);
 }
 
 /**
@@ -2669,7 +2677,8 @@ done:
 			if ((mEp->type == USB_ENDPOINT_XFER_CONTROL) &&
 					mReq->req.length)
 				mEpTemp = &_udc->ep0in;
-			mReq->req.complete(&mEpTemp->ep, &mReq->req);
+			//mReq->req.complete(&mEpTemp->ep, &mReq->req);
+			usb_gadget_giveback_request(&mEpTemp->ep, &mReq->req);
 			spin_lock(mEp->lock);
 		}
 	}
@@ -3445,7 +3454,9 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 			hw_device_state(udc->ep0out.qh.dma);
 		}
 		usb_gadget_set_state(_gadget, USB_STATE_POWERED);
+		usb_udc_vbus_handler(_gadget, true);
 	} else {
+		usb_udc_vbus_handler(_gadget, false);
 		hw_device_state(0);
 		_gadget_stop_activity(&udc->gadget);
 		if (udc->udc_driver->notify_event)
@@ -3544,7 +3555,7 @@ static int ci13xxx_start(struct usb_gadget *gadget,
 
 	trace("%pK", driver);
 pr_info("CI13XXX START\n");
-
+/*
 	if (driver             == NULL ||
 	    driver->setup      == NULL ||
 	    driver->disconnect == NULL)
@@ -3553,9 +3564,12 @@ pr_info("CI13XXX START\n");
 		return -ENODEV;
 	else if (udc->driver != NULL)
 		return -EBUSY;
+*/
+	if (driver->disconnect == NULL)
+		return -EINVAL;
 
 pr_err("CI13XXX DRIVER STARTING...\n");
-
+/*
 	spin_lock_irqsave(udc->lock, flags);
 
 	pr_info("hw_ep_max = %d", hw_ep_max);
@@ -3563,7 +3577,7 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 	udc->gadget.dev.driver = NULL;
 
 	spin_unlock_irqrestore(udc->lock, flags);
-
+*/
 	pm_runtime_get_sync(&udc->gadget.dev);
 
 	udc->ep0out.ep.desc = &ctrl_endpt_out_desc;
@@ -3591,18 +3605,14 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 
 	udc->gadget.ep0 = &udc->ep0in.ep;
 	/* bind gadget */
-	driver->driver.bus     = NULL;
-	udc->gadget.dev.driver = &driver->driver;
+	//driver->driver.bus     = NULL;
+	//udc->gadget.dev.driver = &driver->driver;
 
 	udc->driver = driver;
-	if (udc->udc_driver->flags & CI13XXX_PULLUP_ON_VBUS) {
-		if (udc->vbus_active) {
-			if (udc->udc_driver->flags & CI13XXX_REGS_SHARED)
-				hw_device_reset(udc);
-		} else {
-			goto done;
-		}
-	}
+	if (udc->vbus_active)
+		hw_device_reset(udc);
+	else
+		goto done;
 
 	if (!udc->softconnect)
 		goto done;
@@ -3863,7 +3873,7 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 			if (i == 0) {
 				mEp->ep.caps.type_control = true;
 			} else {
-				mEp->ep.caps.type_iso = true;
+				mEp->ep.caps.type_iso = false;
 				mEp->ep.caps.type_bulk = true;
 				mEp->ep.caps.type_int = true;
 			}
