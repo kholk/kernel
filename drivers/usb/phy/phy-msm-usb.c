@@ -79,7 +79,7 @@
 #define PM_QOS_SAMPLE_SEC	2
 #define PM_QOS_THRESHOLD	400
 
-#ifdef CONFIG_ARCH_SONY_LOIRE
+#ifdef CONFIG_ARCH_SONY_LOIRE_DISABLED
 #define USB_SWITCH_PORT_USB1 0
 #define USB_SWITCH_PORT_USB2 1
 
@@ -199,7 +199,7 @@ pr_err("phy-msm-usb usb_otg: %s", event);
 
 static void msm_otg_select_usb_switch(struct msm_otg *motg)
 {
-#ifdef CONFIG_ARCH_SONY_LOIRE
+#ifdef CONFIG_ARCH_SONY_LOIRE_DISABLED
 	int out;
 
 	if (!motg->pdata) {
@@ -503,7 +503,7 @@ static struct usb_phy_io_ops msm_otg_io_ops = {
 };
 
 
-#ifdef CONFIG_ARCH_SONY_LOIRE
+#ifdef CONFIG_ARCH_SONY_LOIRE_DISABLED
 static inline u32 get_field_value(u32 val, const u32 mask)
 {
 	u32 shift = find_first_bit((void *)&mask, 8);
@@ -514,7 +514,7 @@ static inline u32 get_field_value(u32 val, const u32 mask)
 }
 #endif
 
-#ifndef CONFIG_ARCH_SONY_LOIRE
+#ifndef CONFIG_ARCH_SONY_LOIRE_DISABLED
 static void ulpi_init(struct msm_otg *motg)
 {
 	struct msm_otg_platform_data *pdata = motg->pdata;
@@ -871,7 +871,7 @@ static int msm_otg_reset(struct usb_phy *phy)
 	msm_usb_phy_reset(motg);
 
 	/* Program USB PHY Override registers. */
-#ifndef CONFIG_ARCH_SONY_LOIRE
+#ifndef CONFIG_ARCH_SONY_LOIRE_DISABLED
 	ulpi_init(motg);
 #else
 	ulpi_init(motg, USB_PERIPHERAL);
@@ -2058,7 +2058,7 @@ static void msm_otg_start_host(struct usb_otg *otg, int on)
 			val &= ~APF_CTRL_EN;
 			writel_relaxed(val, USB_HS_APF_CTRL);
 		}
-#ifdef CONFIG_ARCH_SONY_LOIRE
+#ifdef CONFIG_ARCH_SONY_LOIRE_DISABLED
 		ulpi_init(motg, USB_HOST);
 #endif
 		usb_add_hcd(hcd, hcd->irq, IRQF_SHARED);
@@ -2253,7 +2253,7 @@ static void msm_otg_start_peripheral(struct usb_otg *otg, int on)
 		msm_otg_dbg_log_event(&motg->phy, "GADGET ON",
 				motg->inputs, otg->state);
 
-#ifdef CONFIG_ARCH_SONY_LOIRE
+#ifdef CONFIG_ARCH_SONY_LOIRE_DISABLED
 		ulpi_init(motg, USB_PERIPHERAL);
 #endif
 
@@ -3297,7 +3297,7 @@ static void msm_id_status_w(struct work_struct *w)
 	else if (motg->phy_irq)
 		motg->id_state = msm_otg_read_phy_id_state(motg);
 
-#ifdef CONFIG_ARCH_SONY_LOIRE
+#ifdef CONFIG_ARCH_SONY_LOIRE_DISABLED
 	msm_otg_select_usb_switch(motg);
 #endif
 
@@ -4399,7 +4399,7 @@ struct msm_otg_platform_data *msm_otg_dt_to_pdata(struct platform_device *pdev)
 	if (pdata->switch_sel_gpio < 0)
 		pr_err("switch_sel_gpio is not available\n");
 
-#ifdef CONFIG_ARCH_SONY_LOIRE
+#ifdef CONFIG_ARCH_SONY_LOIRE_DISABLED
 	pdata->usb_switch_sel_gpio =
 			of_get_named_gpio(node, "qcom,usb-switch-sel-gpio", 0);
 	if (pdata->usb_switch_sel_gpio < 0)
@@ -4496,9 +4496,9 @@ static int msm_otg_extcon_probe(struct platform_device *pdev,
 	struct device_node *node = pdev->dev.of_node;
 	struct extcon_dev *edev;
 	int rc;
-
+return -EINVAL;
 	if (!of_property_read_bool(node, "extcon"))
-		return 0;
+		return -ENODEV;
 
 	edev = extcon_get_edev_by_phandle(&pdev->dev, 0);
 	if (IS_ERR(edev)) {
