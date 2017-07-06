@@ -44,7 +44,7 @@
  *
  * TODO List
  * - OTG
- * - Interrupt Traffic
+ * - Isochronous & Interrupt Traffic
  * - Handle requests which spawns into several TDs
  * - GET_STATUS(device) - always reports 0
  * - Gadget API (majority of optional features)
@@ -2059,14 +2059,6 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 	mEp->qh.ptr->td.token &= ~TD_STATUS;   /* clear status */
 	mEp->qh.ptr->cap |=  QH_ZLT;
 
-	if (mEp->type == USB_ENDPOINT_XFER_ISOC) {
-		u32 mul = mReq->req.length / mEp->ep.maxpacket;
-
-		if (mReq->req.length % mEp->ep.maxpacket)
-			mul++;
-		mEp->qh.ptr->cap |= mul << __ffs(QH_MULT);
-	}
-
 prime:
 	wmb();   /* synchronize before ep prime */
 
@@ -2926,8 +2918,7 @@ static int ep_enable(struct usb_ep *ep,
 	mEp->num  = usb_endpoint_num(desc);
 	mEp->type = usb_endpoint_type(desc);
 
-	mEp->ep.maxpacket = usb_endpoint_maxp(desc) & 0x07ff;
-	mEp->ep.mult = QH_ISO_MULT(usb_endpoint_maxp(desc));
+	mEp->ep.maxpacket = usb_endpoint_maxp(desc);
 
 	dbg_event(_usb_addr(mEp), "ENABLE", 0);
 
@@ -3123,12 +3114,6 @@ static int ep_queue(struct usb_ep *ep, struct usb_request *req,
 		}
 	}
 
-	if (usb_endpoint_xfer_isoc(mEp->ep.desc) &&
-	    mReq->req.length > (1 + mEp->ep.mult) * mEp->ep.maxpacket) {
-		dev_err(mEp->device, "request length too big for isochronous\n");
-		return -EMSGSIZE;
-	}
-
 	if (ep->endless && udc->gadget.speed == USB_SPEED_FULL) {
 		err("Queueing endless req is not supported for FS");
 		retval = -EINVAL;
@@ -3311,12 +3296,6 @@ static int ep_set_halt(struct usb_ep *ep, int value)
 
 	if (ep == NULL || mEp->desc == NULL)
 		return -EINVAL;
-
-	if (usb_endpoint_xfer_isoc(mEp->ep.desc)) {
-		dev_err(udc->transceiver->dev,
-			"Cannot halt isochronous transfers.\n");
-		return -EOPNOTSUPP;
-	}
 
 	if (udc->suspended) {
 		dev_err(udc->transceiver->dev,
