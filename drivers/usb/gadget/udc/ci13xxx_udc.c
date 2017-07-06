@@ -71,6 +71,9 @@
 
 #include "ci13xxx_udc.h"
 
+static bool setaddr = false;
+static u8 address = 0;
+
 /******************************************************************************
  * DEFINE
  *****************************************************************************/
@@ -2176,7 +2179,7 @@ static void purge_rw_queue(struct ci13xxx *udc)
 					if (mEp->type ==
 					    USB_ENDPOINT_XFER_CONTROL)
 						mReq->req.complete(
-							&(_udc->ep0in.ep),
+							&(_udc->ep0in->ep),
 							&mReq->req);
 					else
 						mReq->req.complete(
@@ -2263,7 +2266,7 @@ static void release_ep_request(struct ci13xxx_ep  *mEp,
 		spin_unlock(mEp->lock);
 		if ((mEp->type == USB_ENDPOINT_XFER_CONTROL) &&
 			mReq->req.length)
-			mEpTemp = &_udc->ep0in;
+			mEpTemp = _udc->ep0in;
 		mReq->req.complete(&mEpTemp->ep, &mReq->req);
 		if (mEp->type == USB_ENDPOINT_XFER_CONTROL)
 			mReq->req.complete = NULL;
@@ -2344,14 +2347,14 @@ static int _gadget_stop_activity(struct usb_gadget *gadget)
 	udc->driver->disconnect(gadget);
 
 	spin_lock_irqsave(udc->lock, flags);
-	_ep_nuke(&udc->ep0out);
-	_ep_nuke(&udc->ep0in);
+	_ep_nuke(udc->ep0out);
+	_ep_nuke(udc->ep0in);
 	spin_unlock_irqrestore(udc->lock, flags);
 
-	if (udc->ep0in.last_zptr) {
-		dma_pool_free(udc->ep0in.td_pool, udc->ep0in.last_zptr,
-				udc->ep0in.last_zdma);
-		udc->ep0in.last_zptr = NULL;
+	if (udc->ep0in->last_zptr) {
+		dma_pool_free(udc->ep0in->td_pool, udc->ep0in->last_zptr,
+				udc->ep0in->last_zdma);
+		udc->ep0in->last_zptr = NULL;
 	}
 
 	return 0;
@@ -2392,6 +2395,9 @@ __acquires(udc->lock)
 		udc->driver->resume(&udc->gadget);
 		udc->suspended = 0;
 	}
+
+	if (udc->gadget.speed != USB_SPEED_UNKNOWN)
+		usb_gadget_udc_reset(&udc->gadget, udc->driver);
 
 	/*stop charging upon reset */
 	if (!IS_ERR_OR_NULL(udc->transceiver))
@@ -2488,6 +2494,138 @@ static void isr_get_status_complete(struct usb_ep *ep, struct usb_request *req)
 }
 
 /**
+ * _ep_queue: queues (submits) an I/O request to an endpoint
+ *
+ * Caller must hold lock
+ */
+static int _ep_queue(struct usb_ep *ep, struct usb_request *req,
+		    gfp_t __maybe_unused gfp_flags)
+{
+	struct ci13xxx_ep  *mEp  = container_of(ep,  struct ci13xxx_ep, ep);
+	struct ci13xxx_req *mReq = container_of(req, struct ci13xxx_req, req);
+	int retval = 0;
+	struct ci13xxx *udc = _udc;
+
+	trace("%pK, %pK, %X", ep, req, gfp_flags);
+
+	if (ep == NULL || req == NULL || mEp->desc == NULL) {
+		retval = -EINVAL;
+		goto done;
+	}
+
+	if (!udc->softconnect) {
+		retval = -ENODEV;
+		goto done;
+	}
+
+	if (!udc->configured && mEp->type !=
+		USB_ENDPOINT_XFER_CONTROL) {
+		trace("usb is not configured"
+			"ept #%d, ept name#%s\n",
+			mEp->num, mEp->ep.name);
+		retval = -ESHUTDOWN;
+		goto done;
+	}
+
+	if (mEp->type == USB_ENDPOINT_XFER_CONTROL) {
+		if (req->length)
+			mEp = (_udc->ep0_dir == RX) ?
+				_udc->ep0out : _udc->ep0in;
+		if (!list_empty(&mEp->qh.queue)) {
+			_ep_nuke(mEp);
+			retval = -EOVERFLOW;
+			warn("endpoint ctrl %X nuked", _usb_addr(mEp));
+		}
+	}
+
+	if (ep->endless && udc->gadget.speed == USB_SPEED_FULL) {
+		err("Queueing endless req is not supported for FS");
+		retval = -EINVAL;
+		goto done;
+	}
+
+	/* first nuke then test link, e.g. previous status has not sent */
+	if (!list_empty(&mReq->queue)) {
+		retval = -EBUSY;
+		err("request already in queue");
+		goto done;
+	}
+	if (mEp->multi_req) {
+		retval = -EAGAIN;
+		err("Large request is in progress. come again");
+		goto done;
+	}
+
+	if (req->length > (4 * CI13XXX_PAGE_SIZE)) {
+		if (!list_empty(&mEp->qh.queue)) {
+			retval = -EAGAIN;
+			err("Queue is busy. Large req is not allowed");
+			goto done;
+		}
+		if ((mEp->type != USB_ENDPOINT_XFER_BULK) ||
+				(mEp->dir != RX)) {
+			retval = -EINVAL;
+			err("Larger req is supported only for Bulk OUT");
+			goto done;
+		}
+		mEp->multi_req = true;
+		mReq->multi.len = req->length;
+		mReq->multi.buf = req->buf;
+		req->length = (4 * CI13XXX_PAGE_SIZE);
+	}
+
+	dbg_queue(_usb_addr(mEp), req, retval);
+
+	/* push request */
+	mReq->req.status = -EINPROGRESS;
+	mReq->req.actual = 0;
+
+	if (udc->rw_pending) {
+		list_add_tail(&mReq->queue, &mEp->rw_queue);
+		retval = 0;
+		goto done;
+	}
+
+	if (udc->suspended) {
+		/* Remote Wakeup */
+		if (!udc->gadget.remote_wakeup) {
+
+			dev_err(mEp->device, "%s: queue failed (suspend).",
+					__func__);
+			dev_err(mEp->device, "%s: Remote wakeup is not supported. ept #%d\n",
+					__func__, mEp->num);
+
+			retval = -EAGAIN;
+			goto done;
+		}
+
+		list_add_tail(&mReq->queue, &mEp->rw_queue);
+
+		udc->rw_pending = true;
+		schedule_delayed_work(&udc->rw_work,
+				      REMOTE_WAKEUP_DELAY);
+
+		retval = 0;
+		goto done;
+	}
+
+	retval = _hardware_enqueue(mEp, mReq);
+
+	if (retval == -EALREADY) {
+		dbg_event(_usb_addr(mEp), "QUEUE", retval);
+		retval = 0;
+	}
+	if (!retval)
+		list_add_tail(&mReq->queue, &mEp->qh.queue);
+	else if (mEp->multi_req)
+		mEp->multi_req = false;
+
+ done:
+	return retval;
+}
+
+
+/**
  * isr_get_status_response: get_status request response
  * @udc: udc struct
  * @setup: setup request packet
@@ -2499,7 +2637,7 @@ static int isr_get_status_response(struct ci13xxx *udc,
 __releases(mEp->lock)
 __acquires(mEp->lock)
 {
-	struct ci13xxx_ep *mEp = &udc->ep0in;
+	struct ci13xxx_ep *mEp = udc->ep0in;
 	struct usb_request *req = udc->status;
 	int dir, num, retval;
 
@@ -2525,9 +2663,9 @@ __acquires(mEp->lock)
 	}
 	/* else do nothing; reserved for future use */
 
-	spin_unlock(mEp->lock);
-	retval = usb_ep_queue(&mEp->ep, req, GFP_ATOMIC);
-	spin_lock(mEp->lock);
+	//spin_unlock(mEp->lock);
+	retval = _ep_queue(&mEp->ep, req, GFP_ATOMIC);
+	//spin_lock(mEp->lock);
 	return retval;
 }
 
@@ -2546,6 +2684,13 @@ isr_setup_status_complete(struct usb_ep *ep, struct usb_request *req)
 	unsigned long flags;
 
 	trace("%pK, %pK", ep, req);
+
+	if (setaddr) {
+		hw_usb_set_address(address);
+		setaddr = false;
+		if (address)
+			usb_gadget_set_state(&udc->gadget, USB_STATE_ADDRESS);
+	}
 
 	spin_lock_irqsave(udc->lock, flags);
 	if (udc->test_mode)
@@ -2568,14 +2713,14 @@ __acquires(mEp->lock)
 
 	trace("%pK", udc);
 
-	mEp = (udc->ep0_dir == TX) ? &udc->ep0out : &udc->ep0in;
+	mEp = (udc->ep0_dir == TX) ? udc->ep0out : udc->ep0in;
 	udc->status->context = udc;
 	udc->status->complete = isr_setup_status_complete;
 	udc->status->length = 0;
 
-	spin_unlock(mEp->lock);
-	retval = usb_ep_queue(&mEp->ep, udc->status, GFP_ATOMIC);
-	spin_lock(mEp->lock);
+//	spin_unlock(mEp->lock);
+	retval = _ep_queue(&mEp->ep, udc->status, GFP_ATOMIC);
+//	spin_lock(mEp->lock);
 
 	return retval;
 }
@@ -2668,7 +2813,7 @@ done:
 			spin_unlock(mEp->lock);
 			if ((mEp->type == USB_ENDPOINT_XFER_CONTROL) &&
 					mReq->req.length)
-				mEpTemp = &_udc->ep0in;
+				mEpTemp = _udc->ep0in;
 			mReq->req.complete(&mEpTemp->ep, &mReq->req);
 			spin_lock(mEp->lock);
 		}
@@ -2739,8 +2884,8 @@ __acquires(udc->lock)
 		 * Flush data and handshake transactions of previous
 		 * setup packet.
 		 */
-		_ep_nuke(&udc->ep0out);
-		_ep_nuke(&udc->ep0in);
+		_ep_nuke(udc->ep0out);
+		_ep_nuke(udc->ep0in);
 
 		/* read_setup_packet */
 		do {
@@ -2804,11 +2949,15 @@ __acquires(udc->lock)
 			if (le16_to_cpu(req.wLength) != 0 ||
 			    le16_to_cpu(req.wIndex)  != 0)
 				break;
+/*
 			err = hw_usb_set_address((u8)le16_to_cpu(req.wValue));
 			if (err)
 				break;
+*/
+			address = (u8)le16_to_cpu(req.wValue);
+			setaddr = true;
 			err = isr_setup_status_phase(udc);
-			usb_gadget_set_state(&udc->gadget, USB_STATE_ADDRESS);
+//			usb_gadget_set_state(&udc->gadget, USB_STATE_ADDRESS);
 			break;
 		case USB_REQ_SET_CONFIGURATION:
 			if (type == (USB_DIR_OUT|USB_TYPE_STANDARD))
@@ -3075,127 +3224,14 @@ static int ep_queue(struct usb_ep *ep, struct usb_request *req,
 		    gfp_t __maybe_unused gfp_flags)
 {
 	struct ci13xxx_ep  *mEp  = container_of(ep,  struct ci13xxx_ep, ep);
-	struct ci13xxx_req *mReq = container_of(req, struct ci13xxx_req, req);
 	int retval = 0;
 	unsigned long flags;
-	struct ci13xxx *udc = _udc;
 
-	trace("%pK, %pK, %X", ep, req, gfp_flags);
+	if (ep == NULL || req == NULL || mEp->ep.desc == NULL)
+		return -EINVAL;
 
 	spin_lock_irqsave(mEp->lock, flags);
-	if (ep == NULL || req == NULL || mEp->desc == NULL) {
-		retval = -EINVAL;
-		goto done;
-	}
-
-	if (!udc->softconnect) {
-		retval = -ENODEV;
-		goto done;
-	}
-
-	if (!udc->configured && mEp->type !=
-		USB_ENDPOINT_XFER_CONTROL) {
-		trace("usb is not configured"
-			"ept #%d, ept name#%s\n",
-			mEp->num, mEp->ep.name);
-		retval = -ESHUTDOWN;
-		goto done;
-	}
-
-	if (mEp->type == USB_ENDPOINT_XFER_CONTROL) {
-		if (req->length)
-			mEp = (_udc->ep0_dir == RX) ?
-				&_udc->ep0out : &_udc->ep0in;
-		if (!list_empty(&mEp->qh.queue)) {
-			_ep_nuke(mEp);
-			retval = -EOVERFLOW;
-			warn("endpoint ctrl %X nuked", _usb_addr(mEp));
-		}
-	}
-
-	if (ep->endless && udc->gadget.speed == USB_SPEED_FULL) {
-		err("Queueing endless req is not supported for FS");
-		retval = -EINVAL;
-		goto done;
-	}
-
-	/* first nuke then test link, e.g. previous status has not sent */
-	if (!list_empty(&mReq->queue)) {
-		retval = -EBUSY;
-		err("request already in queue");
-		goto done;
-	}
-	if (mEp->multi_req) {
-		retval = -EAGAIN;
-		err("Large request is in progress. come again");
-		goto done;
-	}
-
-	if (req->length > (4 * CI13XXX_PAGE_SIZE)) {
-		if (!list_empty(&mEp->qh.queue)) {
-			retval = -EAGAIN;
-			err("Queue is busy. Large req is not allowed");
-			goto done;
-		}
-		if ((mEp->type != USB_ENDPOINT_XFER_BULK) ||
-				(mEp->dir != RX)) {
-			retval = -EINVAL;
-			err("Larger req is supported only for Bulk OUT");
-			goto done;
-		}
-		mEp->multi_req = true;
-		mReq->multi.len = req->length;
-		mReq->multi.buf = req->buf;
-		req->length = (4 * CI13XXX_PAGE_SIZE);
-	}
-
-	dbg_queue(_usb_addr(mEp), req, retval);
-
-	/* push request */
-	mReq->req.status = -EINPROGRESS;
-	mReq->req.actual = 0;
-
-	if (udc->rw_pending) {
-		list_add_tail(&mReq->queue, &mEp->rw_queue);
-		retval = 0;
-		goto done;
-	}
-
-	if (udc->suspended) {
-		/* Remote Wakeup */
-		if (!udc->gadget.remote_wakeup) {
-
-			dev_err(mEp->device, "%s: queue failed (suspend).",
-					__func__);
-			dev_err(mEp->device, "%s: Remote wakeup is not supported. ept #%d\n",
-					__func__, mEp->num);
-
-			retval = -EAGAIN;
-			goto done;
-		}
-
-		list_add_tail(&mReq->queue, &mEp->rw_queue);
-
-		udc->rw_pending = true;
-		schedule_delayed_work(&udc->rw_work,
-				      REMOTE_WAKEUP_DELAY);
-
-		retval = 0;
-		goto done;
-	}
-
-	retval = _hardware_enqueue(mEp, mReq);
-
-	if (retval == -EALREADY) {
-		dbg_event(_usb_addr(mEp), "QUEUE", retval);
-		retval = 0;
-	}
-	if (!retval)
-		list_add_tail(&mReq->queue, &mEp->qh.queue);
-	else if (mEp->multi_req)
-		mEp->multi_req = false;
-
- done:
+	retval = _ep_queue(ep, req, gfp_flags);
 	spin_unlock_irqrestore(mEp->lock, flags);
 	return retval;
 }
@@ -3230,7 +3266,7 @@ static int ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 		mEp->desc == NULL || list_empty(&mReq->queue) ||
 		(list_empty(&mEp->qh.queue) && ((mEp->type !=
 			USB_ENDPOINT_XFER_CONTROL) ||
-			list_empty(&_udc->ep0out.qh.queue)))) {
+			list_empty(&_udc->ep0out->qh.queue)))) {
 		spin_unlock_irqrestore(mEp->lock, flags);
 		return -EINVAL;
 	}
@@ -3238,8 +3274,8 @@ static int ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 	dbg_event(_usb_addr(mEp), "DEQUEUE", 0);
 
 	if ((mEp->type == USB_ENDPOINT_XFER_CONTROL)) {
-		hw_ep_flush(_udc->ep0out.num, RX);
-		hw_ep_flush(_udc->ep0in.num, TX);
+		hw_ep_flush(_udc->ep0out->num, RX);
+		hw_ep_flush(_udc->ep0in->num, TX);
 	} else {
 		hw_ep_flush(mEp->num, mEp->dir);
 	}
@@ -3262,7 +3298,7 @@ static int ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 		spin_unlock(mEp->lock);
 		if ((mEp->type == USB_ENDPOINT_XFER_CONTROL) &&
 				mReq->req.length)
-			mEpTemp = &_udc->ep0in;
+			mEpTemp = _udc->ep0in;
 		mReq->req.complete(&mEpTemp->ep, &mReq->req);
 		if (mEp->type == USB_ENDPOINT_XFER_CONTROL)
 			mReq->req.complete = NULL;
@@ -3442,7 +3478,7 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 		if (udc->softconnect) {
 			dbg_event(0xFF, "BAM EN2", false);
 			msm_usb_bam_enable(CI_CTRL, false);
-			hw_device_state(udc->ep0out.qh.dma);
+			hw_device_state(udc->ep0out->qh.dma);
 		}
 		usb_gadget_set_state(_gadget, USB_STATE_POWERED);
 	} else {
@@ -3516,7 +3552,7 @@ static int ci13xxx_pullup(struct usb_gadget *_gadget, int is_active)
 			udc->udc_driver->notify_event(udc,
 				CI13XXX_CONTROLLER_CONNECT_EVENT);
 		spin_lock(udc->lock);
-		hw_device_state(udc->ep0out.qh.dma);
+		hw_device_state(udc->ep0out->qh.dma);
 	} else {
 		hw_device_state(0);
 	}
@@ -3566,16 +3602,16 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 
 	pm_runtime_get_sync(&udc->gadget.dev);
 
-	udc->ep0out.ep.desc = &ctrl_endpt_out_desc;
-	retval = usb_ep_enable(&udc->ep0out.ep);
+	udc->ep0out->ep.desc = &ctrl_endpt_out_desc;
+	retval = usb_ep_enable(&udc->ep0out->ep);
 	if (retval)
 		goto pm_put;
 
-	udc->ep0in.ep.desc = &ctrl_endpt_in_desc;
-	retval = usb_ep_enable(&udc->ep0in.ep);
+	udc->ep0in->ep.desc = &ctrl_endpt_in_desc;
+	retval = usb_ep_enable(&udc->ep0in->ep);
 	if (retval)
 		goto pm_put;
-	udc->status = usb_ep_alloc_request(&udc->ep0in.ep, GFP_KERNEL);
+	udc->status = usb_ep_alloc_request(&udc->ep0in->ep, GFP_KERNEL);
 	if (!udc->status) {
 		retval = -ENOMEM;
 		goto pm_put;
@@ -3583,13 +3619,13 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 
 	udc->status_buf = kzalloc(2, GFP_KERNEL); /* for GET_STATUS */
 	if (!udc->status_buf) {
-		usb_ep_free_request(&udc->ep0in.ep, udc->status);
+		usb_ep_free_request(&udc->ep0in->ep, udc->status);
 		retval = -ENOMEM;
 		goto pm_put;
 	}
 	spin_lock_irqsave(udc->lock, flags);
 
-	udc->gadget.ep0 = &udc->ep0in.ep;
+	udc->gadget.ep0 = &udc->ep0in->ep;
 	/* bind gadget */
 	driver->driver.bus     = NULL;
 	udc->gadget.dev.driver = &driver->driver;
@@ -3607,7 +3643,7 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 	if (!udc->softconnect)
 		goto done;
 
-	retval = hw_device_state(udc->ep0out.qh.dma);
+	retval = hw_device_state(udc->ep0out->qh.dma);
 
 done:
 	spin_unlock_irqrestore(udc->lock, flags);
@@ -3654,16 +3690,16 @@ static int ci13xxx_stop(struct usb_gadget *gadget)
 
 	spin_unlock_irqrestore(udc->lock, flags);
 
-	usb_ep_free_request(&udc->ep0in.ep, udc->status);
+	usb_ep_free_request(&udc->ep0in->ep, udc->status);
 	kfree(udc->status_buf);
 
 	return 0;
 }
-
+/*
 static int ci13xxx_selfpowered(struct usb_gadget *gadget, int is_on)
 {
 	struct ci13xxx *udc = _udc;
-	struct ci13xxx_ep *hwep = &udc->ep0in;
+	struct ci13xxx_ep *hwep = udc->ep0in;
 	unsigned long flags;
 
 	spin_lock_irqsave(hwep->lock, flags);
@@ -3672,7 +3708,7 @@ static int ci13xxx_selfpowered(struct usb_gadget *gadget, int is_on)
 
 	return 0;
 }
-
+*/
 /**
  * Device operations part of the API to the USB controller hardware,
  * which don't involve endpoints (or i/o)
@@ -3681,7 +3717,7 @@ static int ci13xxx_selfpowered(struct usb_gadget *gadget, int is_on)
 static const struct usb_gadget_ops usb_gadget_ops = {
 	.vbus_session	= ci13xxx_vbus_session,
 	.wakeup		= ci13xxx_wakeup,
-	.set_selfpowered= ci13xxx_selfpowered,
+//	.set_selfpowered= ci13xxx_selfpowered,
 	.vbus_draw	= ci13xxx_vbus_draw,
 	.pullup		= ci13xxx_pullup,
 	.udc_start	= ci13xxx_start,
@@ -3852,7 +3888,7 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 
 			scnprintf(mEp->name, sizeof(mEp->name), "ep%i%s", i,
 					(j == TX)  ? "in" : "out");
-
+pr_err("Probing %s", mEp->name);
 			mEp->lock         = udc->lock;
 			mEp->device       = &udc->gadget.dev;
 			mEp->td_pool      = udc->td_pool;
@@ -3863,9 +3899,9 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 			if (i == 0) {
 				mEp->ep.caps.type_control = true;
 			} else {
-				mEp->ep.caps.type_iso = true;
+				mEp->ep.caps.type_iso = false;
 				mEp->ep.caps.type_bulk = true;
-				mEp->ep.caps.type_int = true;
+				mEp->ep.caps.type_int = false;
 			}
 
 			if (j == TX)
@@ -3873,8 +3909,11 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 			else
 				mEp->ep.caps.dir_out = true;
 
+			//usb_ep_set_maxpacket_limit(&mEp->ep,
+			//	k ? USHRT_MAX : CTRL_PAYLOAD_MAX);
+
 			usb_ep_set_maxpacket_limit(&mEp->ep,
-				k ? USHRT_MAX : CTRL_PAYLOAD_MAX);
+				(unsigned short)~0);
 
 			INIT_LIST_HEAD(&mEp->qh.queue);
 			mEp->qh.ptr = dma_pool_alloc(udc->qh_pool, GFP_KERNEL,
@@ -3885,8 +3924,16 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 				memset(mEp->qh.ptr, 0, sizeof(*mEp->qh.ptr));
 
 			/* skip ep0 out and in endpoints  */
-			if (i == 0)
+			if (i == 0) {
+				if (j == RX)
+					udc->ep0out = mEp;
+				else
+					udc->ep0in = mEp;
+
+				usb_ep_set_maxpacket_limit(&mEp->ep,
+							CTRL_PAYLOAD_MAX);
 				continue;
+			}
 
 			list_add_tail(&mEp->ep.ep_list, &udc->gadget.ep_list);
 		}
@@ -3895,7 +3942,7 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 	if (retval)
 		goto free_dma_pools;
 
-	udc->gadget.ep0 = &udc->ep0in.ep;
+	udc->gadget.ep0 = &udc->ep0in->ep;
 
 	if (udc->udc_driver->flags & CI13XXX_REQUIRE_TRANSCEIVER) {
 		udc->transceiver = usb_get_phy(USB_PHY_TYPE_USB2);
