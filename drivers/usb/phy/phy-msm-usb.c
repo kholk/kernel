@@ -1101,7 +1101,7 @@ static void msm_otg_bus_vote(struct msm_otg *motg, enum usb_bus_vote vote)
 	else
 		msm_otg_bus_clks_disable(motg);
 }
-
+#ifdef CONFIG_PM
 static void msm_otg_enable_phy_hv_int(struct msm_otg *motg)
 {
 	bool bsv_id_hv_int = false;
@@ -1146,7 +1146,7 @@ static void msm_otg_enable_phy_hv_int(struct msm_otg *motg)
 	msm_otg_dbg_log_event(&motg->phy, "PHY HV INTR ENABLED",
 			bsv_id_hv_int, dp_dm_hv_int);
 }
-
+#endif
 static void msm_otg_disable_phy_hv_int(struct msm_otg *motg)
 {
 	bool bsv_id_hv_int = false;
@@ -1192,7 +1192,7 @@ static void msm_otg_disable_phy_hv_int(struct msm_otg *motg)
 	msm_otg_dbg_log_event(&motg->phy, "PHY HV INTR DISABLED",
 			bsv_id_hv_int, dp_dm_hv_int);
 }
-
+#ifdef CONFIG_PM
 static void msm_otg_enter_phy_retention(struct msm_otg *motg)
 {
 	u32 val;
@@ -1216,7 +1216,7 @@ static void msm_otg_enter_phy_retention(struct msm_otg *motg)
 	msm_otg_dbg_log_event(&motg->phy, "USB PHY ENTER RETENTION",
 			motg->pdata->phy_type, 0);
 }
-
+#endif
 static void msm_otg_exit_phy_retention(struct msm_otg *motg)
 {
 	int val;
@@ -1268,7 +1268,7 @@ static irqreturn_t msm_otg_phy_irq_handler(int irq, void *data)
 static void msm_otg_set_vbus_state(int online);
 static void msm_otg_perf_vote_update(struct msm_otg *motg, bool perf_mode);
 
-#ifdef CONFIG_PM_SLEEP
+#ifdef CONFIG_PM
 static int msm_otg_suspend(struct msm_otg *motg)
 {
 	struct usb_phy *phy = &motg->phy;
@@ -1625,6 +1625,7 @@ phy_suspend_fail:
 		enable_irq(motg->phy_irq);
 	return ret;
 }
+#endif
 
 static int msm_otg_resume(struct msm_otg *motg)
 {
@@ -1790,7 +1791,7 @@ skip_phy_resume:
 
 	return 0;
 }
-#endif
+
 
 static void msm_otg_notify_host_mode(struct msm_otg *motg, bool host_mode)
 {

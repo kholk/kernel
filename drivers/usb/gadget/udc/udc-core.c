@@ -306,6 +306,7 @@ EXPORT_SYMBOL_GPL(usb_gadget_udc_reset);
  */
 static inline int usb_gadget_udc_start(struct usb_udc *udc)
 {
+	pr_err("STARTING UDC.... %s\n", udc->driver->driver.name);
 	return udc->gadget->ops->udc_start(udc->gadget, udc->driver);
 }
 
@@ -505,10 +506,13 @@ static int udc_bind_to_driver(struct usb_udc *udc, struct usb_gadget_driver *dri
 	udc->gadget->dev.driver = &driver->driver;
 
 	ret = driver->bind(udc->gadget, driver);
-	if (ret)
+	if (ret) {
+		pr_err("BIND FAILED----------------------\n");
 		goto err1;
+	}
 	ret = usb_gadget_udc_start(udc);
 	if (ret) {
+		pr_err("START FAILED----------------------\n");
 		driver->unbind(udc->gadget);
 		goto err1;
 	}

@@ -220,6 +220,10 @@ int usb_add_function(struct usb_configuration *config,
 			function->name, function,
 			config->label, config);
 
+	pr_err("adding '%s'/%pK to config '%s'/%pK\n",
+			function->name, function,
+			config->label, config);
+
 	if (!function->set_alt || !function->disable)
 		goto done;
 
@@ -229,6 +233,7 @@ int usb_add_function(struct usb_configuration *config,
 
 	if (function->bind_deactivated) {
 		value = usb_function_deactivate(function);
+		pr_err("CANNOT DEACTIVATE\n");
 		if (value)
 			goto done;
 	}
@@ -237,6 +242,7 @@ int usb_add_function(struct usb_configuration *config,
 	if (function->bind) {
 		value = function->bind(config, function);
 		if (value < 0) {
+			pr_err("COMPOSITE.C FUNCTION BIND FAILED\n");
 			list_del(&function->list);
 			function->config = NULL;
 		}
@@ -256,9 +262,13 @@ int usb_add_function(struct usb_configuration *config,
 		config->superspeed = true;
 
 done:
-	if (value)
+	if (value) {
 		DBG(config->cdev, "adding '%s'/%pK --> %d\n",
 				function->name, function, value);
+		pr_err("adding '%s'/%pK --> %d\n",
+				function->name, function, value);
+	}
+
 	return value;
 }
 EXPORT_SYMBOL_GPL(usb_add_function);
@@ -2259,7 +2269,7 @@ static int composite_bind(struct usb_gadget *gadget,
 	struct usb_composite_dev	*cdev;
 	struct usb_composite_driver	*composite = to_cdriver(gdriver);
 	int				status = -ENOMEM;
-
+pr_err("COMPOSITE BIND\n");
 	cdev = kzalloc(sizeof *cdev, GFP_KERNEL);
 	if (!cdev)
 		return status;

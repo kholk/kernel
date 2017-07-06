@@ -1287,13 +1287,15 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 	struct usb_string		*s;
 	unsigned			i;
 	int				ret;
-
+pr_err("CONFIGFS_COMPOSITE_BIND\n");
 	/* the gi->lock is hold by the caller */
 	cdev->gadget = gadget;
 	set_gadget_data(gadget, cdev);
 	ret = composite_dev_prepare(composite, cdev);
-	if (ret)
+	if (ret) {
+		pr_err("CANNOT PREPARE COMPOSITE DEV\n");
 		return ret;
+	}
 	/* and now the gadget bind */
 	ret = -EINVAL;
 
@@ -1335,6 +1337,7 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 		s = usb_gstrings_attach(&gi->cdev, gi->gstrings,
 				USB_GADGET_FIRST_AVAIL_IDX);
 		if (IS_ERR(s)) {
+			pr_err("CANNOT ATTACH GSTRINGS\n");
 			ret = PTR_ERR(s);
 			goto err_comp_cleanup;
 		}
@@ -1385,6 +1388,7 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 			cfg->gstrings[i] = NULL;
 			s = usb_gstrings_attach(&gi->cdev, cfg->gstrings, 1);
 			if (IS_ERR(s)) {
+				pr_err("CANNOT ATTACH GSTRINGS IN ATTACH ALL\n");
 				ret = PTR_ERR(s);
 				goto err_comp_cleanup;
 			}
@@ -1395,6 +1399,7 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 			list_del(&f->list);
 			ret = usb_add_function(c, f);
 			if (ret) {
+				pr_err("CANNOT ADD USB FUNCTION %s FOR CONFIGURATION %s\n", f->name, c->label);
 				list_add(&f->list, &cfg->func_list);
 				goto err_purge_funcs;
 			}
@@ -1408,6 +1413,7 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 	}
 
 	usb_ep_autoconfig_reset(cdev->gadget);
+			pr_err("CONFIGFS BIND SUCCESS\n");
 	return 0;
 
 err_purge_funcs:

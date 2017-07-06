@@ -199,33 +199,34 @@ static void ci13xxx_msm_notify_event(struct ci13xxx *udc, unsigned event)
 
 	switch (event) {
 	case CI13XXX_CONTROLLER_RESET_EVENT:
-		dev_info(dev, "CI13XXX_CONTROLLER_RESET_EVENT received\n");
+		dev_err(dev, "CI13XXX_CONTROLLER_RESET_EVENT received\n");
 		ci13xxx_msm_reset();
 		break;
 	case CI13XXX_CONTROLLER_DISCONNECT_EVENT:
-		dev_info(dev, "CI13XXX_CONTROLLER_DISCONNECT_EVENT received\n");
+		dev_err(dev, "CI13XXX_CONTROLLER_DISCONNECT_EVENT received\n");
 		ci13xxx_msm_disconnect();
 		ci13xxx_msm_resume();
 		break;
 	case CI13XXX_CONTROLLER_CONNECT_EVENT:
-		dev_info(dev, "CI13XXX_CONTROLLER_CONNECT_EVENT received\n");
+		dev_err(dev, "CI13XXX_CONTROLLER_CONNECT_EVENT received\n");
 		ci13xxx_msm_connect();
 		break;
 	case CI13XXX_CONTROLLER_SUSPEND_EVENT:
-		dev_info(dev, "CI13XXX_CONTROLLER_SUSPEND_EVENT received\n");
+		dev_err(dev, "CI13XXX_CONTROLLER_SUSPEND_EVENT received\n");
 		ci13xxx_msm_suspend();
 		break;
 	case CI13XXX_CONTROLLER_RESUME_EVENT:
-		dev_info(dev, "CI13XXX_CONTROLLER_RESUME_EVENT received\n");
+		dev_err(dev, "CI13XXX_CONTROLLER_RESUME_EVENT received\n");
 		ci13xxx_msm_resume();
 		break;
 	case CI13XXX_CONTROLLER_ERROR_EVENT:
-		dev_info(dev, "CI13XXX_CONTROLLER_ERROR_EVENT received\n");
+		dev_err(dev, "CI13XXX_CONTROLLER_ERROR_EVENT received\n");
 		ci13xxx_msm_mark_err_event();
 		break;
 	case CI13XXX_CONTROLLER_UDC_STARTED_EVENT:
-		dev_info(dev,
+		dev_err(dev,
 			 "CI13XXX_CONTROLLER_UDC_STARTED_EVENT received\n");
+		pr_err("CI13XXX UDC STARTED EVENT RECEIVED\n");
 		//udc->gadget.interrupt_num = _udc_ctxt.irq;
 		break;
 	default:

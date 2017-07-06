@@ -3685,6 +3685,7 @@ static int ci13xxx_start(struct usb_gadget *gadget,
 	int retval = -ENOMEM;
 
 	trace("%pK", driver);
+pr_info("CI13XXX START\n");
 
 	if (driver             == NULL ||
 	    driver->setup      == NULL ||
@@ -3695,9 +3696,11 @@ static int ci13xxx_start(struct usb_gadget *gadget,
 	else if (udc->driver != NULL)
 		return -EBUSY;
 
+pr_err("CI13XXX DRIVER STARTING...\n");
+
 	spin_lock_irqsave(udc->lock, flags);
 
-	info("hw_ep_max = %d", hw_ep_max);
+	pr_info("hw_ep_max = %d", hw_ep_max);
 
 	udc->gadget.dev.driver = NULL;
 
@@ -3756,6 +3759,8 @@ done:
 				CI13XXX_CONTROLLER_UDC_STARTED_EVENT);
 pm_put:
 	pm_runtime_put(&udc->gadget.dev);
+
+	pr_err("CHIPIDEA START ending: %d\n", retval);
 
 	return retval;
 }
