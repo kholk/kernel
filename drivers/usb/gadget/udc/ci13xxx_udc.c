@@ -1862,7 +1862,7 @@ static inline u8 _usb_addr(struct ci13xxx_ep *ep)
 {
 	return ((ep->dir == TX) ? USB_ENDPOINT_DIR_MASK : 0) | ep->num;
 }
-
+#if 0
 static void ep_prime_timer_func(unsigned long data)
 {
 	struct ci13xxx_ep *mep = (struct ci13xxx_ep *)data;
@@ -1921,6 +1921,7 @@ out:
 	spin_unlock_irqrestore(mep->lock, flags);
 
 }
+#endif
 
 /**
  * _hardware_queue: configures a request at hardware level
@@ -3392,6 +3393,7 @@ delegate:
 			ci->ep0_dir = TX;
 
 		spin_unlock(ci->lock);
+		pr_err("CI13XXX: Calling driver setup....\n");
 		err = ci->driver->setup(&ci->gadget, &req);
 		spin_lock(ci->lock);
 		break;
@@ -4525,16 +4527,7 @@ static int ci13xxx_start(struct usb_gadget *gadget,
 
 	trace("%pK", driver);
 pr_info("CI13XXX START\n");
-/*
-	if (driver             == NULL ||
-	    driver->setup      == NULL ||
-	    driver->disconnect == NULL)
-		return -EINVAL;
-	else if (udc         == NULL)
-		return -ENODEV;
-	else if (udc->driver != NULL)
-		return -EBUSY;
-*/
+
 	if (driver->disconnect == NULL)
 		return -EINVAL;
 
@@ -4559,32 +4552,19 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 	retval = usb_ep_enable(&udc->ep0in.ep);
 	if (retval)
 		goto pm_put;
-#ifndef NEW_STATUS
-	udc->status = usb_ep_alloc_request(&udc->ep0in.ep, GFP_KERNEL);
-	if (!udc->status) {
-		retval = -ENOMEM;
-		goto pm_put;
-	}
 
-	udc->status_buf = kzalloc(2, GFP_KERNEL); /* for GET_STATUS */
-	if (!udc->status_buf) {
-		usb_ep_free_request(&udc->ep0in.ep, udc->status);
-		retval = -ENOMEM;
-		goto pm_put;
-	}
-#endif
 	spin_lock_irqsave(udc->lock, flags);
 
-	udc->gadget.ep0 = &udc->ep0in.ep;
-	/* bind gadget */
-	//driver->driver.bus     = NULL;
-	//udc->gadget.dev.driver = &driver->driver;
+//	udc->gadget.ep0 = &udc->ep0in.ep;
 
 	udc->driver = driver;
-	if (udc->vbus_active)
+	if (udc->vbus_active) {
 		hw_device_reset(udc);
-	else
+	} else {
+		usb_udc_vbus_handler(&udc->gadget, false);
+		pm_runtime_put_sync(&udc->gadget.dev);
 		goto done;
+	}
 
 	if (!udc->softconnect)
 		goto done;
@@ -4598,7 +4578,8 @@ done:
 			udc->udc_driver->notify_event(udc,
 				CI13XXX_CONTROLLER_UDC_STARTED_EVENT);
 pm_put:
-	pm_runtime_put(&udc->gadget.dev);
+	if (retval)
+		pm_runtime_put_sync(&udc->gadget.dev);
 
 	pr_err("CHIPIDEA START ending: %d\n", retval);
 
@@ -4616,14 +4597,7 @@ static int ci13xxx_stop(struct usb_gadget *gadget)
 	unsigned long flags;
 
 	trace("%pK", driver);
-/*
-	if (driver             == NULL ||
-	    driver->unbind     == NULL ||
-	    driver->setup      == NULL ||
-	    driver->disconnect == NULL ||
-	    driver             != udc->driver)
-		return -EINVAL;
-*/
+
 	spin_lock_irqsave(udc->lock, flags);
 
 	if (!(udc->udc_driver->flags & CI13XXX_PULLUP_ON_VBUS) ||
@@ -4674,6 +4648,86 @@ static const struct usb_gadget_ops usb_gadget_ops = {
 /******************************************************************************
  * BUS block
  *****************************************************************************/
+static int init_eps(struct ci13xxx *ci)
+{
+	int retval = 0, i, j;
+
+	for (i = 0; i < hw_ep_max/2; i++)
+		for (j = RX; j <= TX; j++) {
+			int k = i + j * hw_ep_max/2;
+			struct ci13xxx_ep *hwep = &ci->ci13xxx_ep[k];
+
+			scnprintf(hwep->name, sizeof(hwep->name), "ep%i%s", i,
+					(j == TX)  ? "in" : "out");
+
+			hwep->ci           = ci;
+			hwep->lock         = ci->lock;
+			hwep->td_pool      = ci->td_pool;
+			hwep->device       = &ci->gadget.dev; /*mmh...*/
+
+			hwep->ep.name      = hwep->name;
+			hwep->ep.ops       = &usb_ep_ops;
+
+			if (i == 0) {
+				hwep->ep.caps.type_control = true;
+			} else {
+				hwep->ep.caps.type_iso = true;
+				hwep->ep.caps.type_bulk = true;
+				hwep->ep.caps.type_int = true;
+			}
+
+			if (j == TX)
+				hwep->ep.caps.dir_in = true;
+			else
+				hwep->ep.caps.dir_out = true;
+
+			/*
+			 * for ep0: maxP defined in desc, for other
+			 * eps, maxP is set by epautoconfig() called
+			 * by gadget layer
+			 */
+			usb_ep_set_maxpacket_limit(&hwep->ep, (unsigned short)~0);
+
+			INIT_LIST_HEAD(&hwep->qh.queue);
+			hwep->qh.ptr = dma_pool_zalloc(ci->qh_pool, GFP_KERNEL,
+						       &hwep->qh.dma);
+			if (hwep->qh.ptr == NULL)
+				retval = -ENOMEM;
+
+			/*
+			 * set up shorthands for ep0 out and in endpoints,
+			 * don't add to gadget's ep_list
+			 */
+			if (i == 0) {
+			/*
+				if (j == RX)
+					ci->ep0out = hwep;
+				else
+					ci->ep0in = hwep;
+			*/
+				usb_ep_set_maxpacket_limit(&hwep->ep, CTRL_PAYLOAD_MAX);
+				continue;
+			}
+
+			list_add_tail(&hwep->ep.ep_list, &ci->gadget.ep_list);
+		}
+
+	return retval;
+}
+
+static void destroy_eps(struct ci13xxx *ci)
+{
+	int i;
+
+	for (i = 0; i < hw_ep_max; i++) {
+		struct ci13xxx_ep *hwep = &ci->ci13xxx_ep[i];
+
+		if (hwep->pending_td)
+			free_pending_td(hwep);
+		dma_pool_free(ci->qh_pool, hwep->qh.ptr, hwep->qh.dma);
+	}
+}
+
 /**
  * udc_irq: global interrupt handler
  *
@@ -4747,7 +4801,7 @@ static irqreturn_t udc_irq(void)
 
 	return retval;
 }
-
+#if 0
 static void destroy_eps(struct ci13xxx *ci)
 {
 	int i;
@@ -4758,7 +4812,7 @@ static void destroy_eps(struct ci13xxx *ci)
 		dma_pool_free(ci->qh_pool, mEp->qh.ptr, mEp->qh.dma);
 	}
 }
-
+#endif
 /**
  * udc_probe: parent probe must call this to initialize UDC
  * @dev:  parent device
@@ -4773,7 +4827,7 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 		void __iomem *regs)
 {
 	struct ci13xxx *udc;
-	int retval = 0, i, j;
+	int retval = 0, i; // j;
 
 	trace("%pK, %pK, %pK", dev, regs, driver->name);
 
@@ -4819,6 +4873,7 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 		goto free_qh_pool;
 
 	INIT_LIST_HEAD(&udc->gadget.ep_list);
+#if 0
 	for (i = 0; i < hw_ep_max; i++) {
 		struct ci13xxx_ep *mEp = &udc->ci13xxx_ep[i];
 		INIT_LIST_HEAD(&mEp->ep.ep_list);
@@ -4876,6 +4931,19 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 
 	if (retval)
 		goto free_dma_pools;
+#endif
+
+	for (i = 0; i < hw_ep_max; i++) {
+		struct ci13xxx_ep *mEp = &udc->ci13xxx_ep[i];
+		INIT_LIST_HEAD(&mEp->ep.ep_list);
+		INIT_LIST_HEAD(&mEp->rw_queue);
+//		setup_timer(&mEp->prime_timer, ep_prime_timer_func,
+//			(unsigned long) mEp);
+	}
+
+	retval = init_eps(udc);
+	if (retval)
+		goto free_dma_pools;
 
 	udc->gadget.ep0 = &udc->ep0in.ep;
 
@@ -4911,6 +4979,11 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 		goto del_udc;
 	}
 #endif
+/*
+	retval = usb_add_gadget_udc(dev, &udc->gadget);
+	if (retval)
+		goto remove_trans;
+*/
 
 	pm_runtime_no_callbacks(&udc->gadget.dev);
 	pm_runtime_set_active(&udc->gadget.dev);

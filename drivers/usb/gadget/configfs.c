@@ -1675,7 +1675,7 @@ static struct config_group *gadgets_make(
 		const char *name)
 {
 	struct gadget_info *gi;
-
+pr_err("GADGETS_MAKE\n");
 	gi = kzalloc(sizeof(*gi), GFP_KERNEL);
 	if (!gi)
 		return ERR_PTR(-ENOMEM);
@@ -1714,11 +1714,16 @@ static struct config_group *gadgets_make(
 	gi->composite.gadget_driver.function = kstrdup(name, GFP_KERNEL);
 	gi->composite.name = gi->composite.gadget_driver.function;
 
-	if (!gi->composite.gadget_driver.function)
+	if (!gi->composite.gadget_driver.function) {
+		pr_err("=======NO GADGET DRIVER FUNCTION WTF??=====\n");
 		goto err;
+	}
 
-	if (android_device_create(gi) < 0)
+	if (android_device_create(gi) < 0) {
+		pr_err("=========CANNOT CREATE ANDROID DEVICE=========\n");
 		goto err;
+	} else
+		pr_err("=====ANDROID DEVICE CREATED=====\n");
 
 	config_group_init_type_name(&gi->group, name,
 				&gadget_root_type);

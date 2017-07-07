@@ -229,6 +229,12 @@ static void ci13xxx_msm_notify_event(struct ci13xxx *udc, unsigned event)
 		pr_err("CI13XXX UDC STARTED EVENT RECEIVED\n");
 		//udc->gadget.interrupt_num = _udc_ctxt.irq;
 		break;
+	case CI13XXX_CONTROLLER_STOPPED_EVENT:
+		pr_err("CI13XXX STOPPED EVENT RECEIVED\n");
+		/* Put the phy in non-driving mode to ensure host
+		 * detects soft-disconnection
+		 */
+		usb_phy_notify_disconnect(udc->transceiver, USB_SPEED_UNKNOWN);
 	default:
 		dev_err(dev, "unknown ci13xxx_udc event\n");
 		break;

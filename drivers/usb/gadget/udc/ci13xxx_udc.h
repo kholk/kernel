@@ -124,6 +124,7 @@ struct ci13xxx_ep {
 	int                                    wedge;
 
 	/* global resources */
+	struct ci13xxx				*ci;
 	spinlock_t                            *lock;
 	struct device                         *device;
 	struct dma_pool                       *td_pool;
@@ -160,6 +161,7 @@ struct ci13xxx_udc_driver {
 #define CI13XXX_CONTROLLER_DISCONNECT_EVENT		5
 #define CI13XXX_CONTROLLER_UDC_STARTED_EVENT		6
 #define CI13XXX_CONTROLLER_ERROR_EVENT			7
+#define CI13XXX_CONTROLLER_STOPPED_EVENT		8
 
 	void	(*notify_event)(struct ci13xxx *udc, unsigned event);
 	bool    (*in_lpm)(struct ci13xxx *udc);
