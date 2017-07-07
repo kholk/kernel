@@ -196,7 +196,8 @@ pr_err("phy-msm-usb usb_otg: %s", event);
 	write_unlock_irqrestore(&motg->dbg_lock, flags);
 }
 
-
+#if defined(CONFIG_EXTCON_CABLEDETECT_EXTENSION) || \
+    defined(CONFIG_ARCH_SONY_LOIRE_DISABLED)
 static void msm_otg_select_usb_switch(struct msm_otg *motg)
 {
 #ifdef CONFIG_ARCH_SONY_LOIRE_DISABLED
@@ -222,6 +223,7 @@ static void msm_otg_select_usb_switch(struct msm_otg *motg)
 	dev_info(motg->phy.dev, "select port USB%d\n", out + 1);
 #endif
 }
+#endif
 
 static int msm_hsusb_ldo_init(struct msm_otg *motg, int init)
 {
@@ -3797,7 +3799,7 @@ static int otg_power_set_property_usb(struct power_supply *psy,
 			motg->chg_state = USB_CHG_STATE_DETECTED;
 		}
 
-		dev_dbg(motg->phy.dev, "%s: charger type = %s\n", __func__,
+		dev_err(motg->phy.dev, "%s: charger type = %s\n", __func__,
 			chg_to_string(motg->chg_type));
 		msm_otg_dbg_log_event(&motg->phy, "SET CHARGER TYPE ",
 				motg->chg_type, motg->usb_type);
@@ -4478,6 +4480,7 @@ static int msm_otg_vbus_notifier(struct notifier_block *nb,
 	return NOTIFY_DONE;
 }
 
+#ifdef CONFIG_EXTCON_CABLEDETECT_EXTENSION
 static int msm_otg_cabledet_notifier(struct notifier_block *nb,
 		unsigned long event, void *ptr)
 {
@@ -4495,6 +4498,7 @@ static int msm_otg_cabledet_notifier(struct notifier_block *nb,
 
 	return NOTIFY_DONE;
 }
+#endif
 
 static int msm_otg_extcon_probe(struct platform_device *pdev,
 			struct msm_otg *msm_otg)
@@ -4545,6 +4549,7 @@ try_second_edev:
 	pr_err("%s: Extcon USB ID notifier registered.\n", __func__);
 
 try_third_edev:
+#ifdef CONFIG_EXTCON_CABLEDETECT_EXTENSION
 	/* If a second phandle for USBID wasn't provided, just go out. */
 	if (!(of_count_phandle_with_args(node, "extcon", NULL) > 2))
 		return 0;
@@ -4566,12 +4571,15 @@ try_third_edev:
 			"cable detection notifier\n");
 		goto cd_err;
 	}
-
+#endif
 	return 0;
+
+#ifdef CONFIG_EXTCON_CABLEDETECT_EXTENSION
 cd_err:
 	if (msm_otg->ec_usbid)
 		extcon_unregister_notifier(msm_otg->ec_usbid,
 			EXTCON_USB_HOST, &msm_otg->usbid_notifier);
+#endif
 err:
 	if (msm_otg->ec_vbus)
 		extcon_unregister_notifier(msm_otg->ec_vbus,

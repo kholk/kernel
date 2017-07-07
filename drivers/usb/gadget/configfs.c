@@ -1514,6 +1514,7 @@ static int android_setup(struct usb_gadget *gadget,
 	spin_unlock_irqrestore(&cdev->lock, flags);
 	list_for_each_entry(fi, &gi->available_func, cfs_list) {
 		if (fi != NULL && fi->f != NULL && fi->f->setup != NULL) {
+			pr_err("android_setup: setting up %s", fi->f->name);
 			value = fi->f->setup(fi->f, c);
 			if (value >= 0)
 				break;

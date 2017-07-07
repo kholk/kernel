@@ -4653,6 +4653,8 @@ static int smbchg_change_usb_supply_type(struct smbchg_chip *chip,
 #endif
 	pr_smb(PR_STATUS, "Type %d: setting mA = %d\n",
 		type, current_limit_ma);
+	pr_err("smbcharger: setting Type %d: setting mA = %d\n",
+		type, current_limit_ma);
 	rc = vote(chip->usb_icl_votable, PSY_ICL_VOTER, true,
 				current_limit_ma);
 	if (rc < 0) {
@@ -4938,6 +4940,7 @@ static void handle_usb_removal(struct smbchg_chip *chip)
 		pval.intval = chip->usb_present;
 		power_supply_set_property(chip->usb_psy,
 				POWER_SUPPLY_PROP_PRESENT, &pval);
+		set_usb_psy_dp_dm(chip, POWER_SUPPLY_DP_DM_DPR_DMR);
 	}
 #endif /* CONFIG_USB_MSM_OTG */
 
@@ -8743,6 +8746,7 @@ static int smbchg_check_chg_version(struct smbchg_chip *chip)
 		chip->schg_version = QPNP_SCHG;
 		break;
 	case PMI8950:
+		chip->wa_flags |= SMBCHG_RESTART_WA;
 	case PMI8937:
 		chip->wa_flags |= SMBCHG_BATT_OV_WA;
 		if (pmic_rev_id->rev4 < 2) /* PMI8950 1.0 */ {
