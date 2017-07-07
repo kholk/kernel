@@ -539,7 +539,7 @@ static void ulpi_init(struct msm_otg *motg, enum usb_mode_type mode)
 	int *seq = NULL;
 
 	switch (mode) {
-	case USB_HOST:
+	case USB_DR_MODE_HOST:
 		if (override_phy_init_host) {
 			pr_info("%s(): HUSB PHY Init Host override:%s\n",
 					__func__, override_phy_init_host);
@@ -550,7 +550,7 @@ static void ulpi_init(struct msm_otg *motg, enum usb_mode_type mode)
 			seq = pdata->phy_init_seq_host;
 		}
 		break;
-	case USB_PERIPHERAL:
+	case USB_DR_MODE_PERIPHERAL:
 	default:
 		if (override_phy_init) {
 			pr_info("%s(): HUSB PHY Init override:%s\n",
@@ -876,7 +876,7 @@ static int msm_otg_reset(struct usb_phy *phy)
 #ifndef CONFIG_ARCH_SONY_LOIRE_DISABLED
 	ulpi_init(motg);
 #else
-	ulpi_init(motg, USB_PERIPHERAL);
+	ulpi_init(motg, USB_DR_MODE_PERIPHERAL);
 #endif
 
 	/*
@@ -888,10 +888,10 @@ static int msm_otg_reset(struct usb_phy *phy)
 
 	if (pdata->otg_control == OTG_PHY_CONTROL) {
 		val = readl_relaxed(USB_OTGSC);
-		if (pdata->mode == USB_OTG) {
+		if (pdata->mode == USB_DR_MODE_OTG) {
 			ulpi_val = ULPI_INT_IDGRD | ULPI_INT_SESS_VALID;
 			val |= OTGSC_IDIE | OTGSC_BSVIE;
-		} else if (pdata->mode == USB_PERIPHERAL) {
+		} else if (pdata->mode == USB_DR_MODE_PERIPHERAL) {
 			ulpi_val = ULPI_INT_SESS_VALID;
 			val |= OTGSC_BSVIE;
 		}
@@ -1916,7 +1916,10 @@ static void msm_otg_notify_charger(struct msm_otg *motg, unsigned mA)
 	dev_err(motg->phy.dev, "Requested curr from USB = %u, max-type-c:%u\n",
 					mA, motg->typec_current_max);
 
-	if ((mA > 0 && motg->typec_current_max > 0) &&
+	if (mA > 0 && mA < 10)
+		mA = 500;
+
+	if ((mA > 0 && motg->typec_current_max > 0) &&	
 	     motg->typec_current_max > mA)
 		mA = motg->typec_current_max;
 
@@ -2066,7 +2069,7 @@ static void msm_otg_start_host(struct usb_otg *otg, int on)
 			writel_relaxed(val, USB_HS_APF_CTRL);
 		}
 #ifdef CONFIG_ARCH_SONY_LOIRE_DISABLED
-		ulpi_init(motg, USB_HOST);
+		ulpi_init(motg, USB_DR_MODE_HOST);
 #endif
 		usb_add_hcd(hcd, hcd->irq, IRQF_SHARED);
 #ifdef CONFIG_SMP
@@ -2198,7 +2201,7 @@ static int msm_otg_set_host(struct usb_otg *otg, struct usb_bus *host)
 	 * Fail host registration if this board can support
 	 * only peripheral configuration.
 	 */
-	if (motg->pdata->mode == USB_PERIPHERAL) {
+	if (motg->pdata->mode == USB_DR_MODE_PERIPHERAL) {
 		dev_info(otg->usb_phy->dev, "Host mode is not supported\n");
 		return -ENODEV;
 	}
@@ -2236,7 +2239,7 @@ static int msm_otg_set_host(struct usb_otg *otg, struct usb_bus *host)
 	 * Kick the state machine work, if peripheral is not supported
 	 * or peripheral is already registered with us.
 	 */
-	if (motg->pdata->mode == USB_HOST || otg->gadget)
+	if (motg->pdata->mode == USB_DR_MODE_HOST || otg->gadget)
 		queue_work(motg->otg_wq, &motg->sm_work);
 
 	return 0;
@@ -2261,7 +2264,7 @@ static void msm_otg_start_peripheral(struct usb_otg *otg, int on)
 				motg->inputs, otg->state);
 
 #ifdef CONFIG_ARCH_SONY_LOIRE_DISABLED
-		ulpi_init(motg, USB_PERIPHERAL);
+		ulpi_init(motg, USB_DR_MODE_PERIPHERAL);
 #endif
 
 		/* Configure BUS performance parameters for MAX bandwidth */
@@ -2335,7 +2338,7 @@ static int msm_otg_set_peripheral(struct usb_otg *otg,
 	 * Fail peripheral registration if this board can support
 	 * only host configuration.
 	 */
-	if (motg->pdata->mode == USB_HOST) {
+	if (motg->pdata->mode == USB_DR_MODE_HOST) {
 		dev_info(otg->usb_phy->dev, "Peripheral mode is not supported\n");
 		return -ENODEV;
 	}
@@ -2364,7 +2367,7 @@ static int msm_otg_set_peripheral(struct usb_otg *otg,
 	 * Kick the state machine work, if host is not supported
 	 * or host is already registered with us.
 	 */
-	if (motg->pdata->mode == USB_PERIPHERAL || otg->host)
+	if (motg->pdata->mode == USB_DR_MODE_PERIPHERAL || otg->host)
 		queue_work(motg->otg_wq, &motg->sm_work);
 
 	return 0;
@@ -2781,11 +2784,11 @@ static void msm_otg_init_sm(struct msm_otg *motg)
 	int ret;
 
 	switch (pdata->mode) {
-	case USB_OTG:
+	case USB_DR_MODE_OTG:
 		if (pdata->otg_control == OTG_USER_CONTROL) {
-			if (pdata->default_mode == USB_HOST) {
+			if (pdata->default_mode == USB_DR_MODE_HOST) {
 				clear_bit(ID, &motg->inputs);
-			} else if (pdata->default_mode == USB_PERIPHERAL) {
+			} else if (pdata->default_mode == USB_DR_MODE_PERIPHERAL) {
 				set_bit(ID, &motg->inputs);
 				set_bit(B_SESS_VLD, &motg->inputs);
 			} else {
@@ -2827,10 +2830,10 @@ static void msm_otg_init_sm(struct msm_otg *motg)
 			}
 		}
 		break;
-	case USB_HOST:
+	case USB_DR_MODE_HOST:
 		clear_bit(ID, &motg->inputs);
 		break;
-	case USB_PERIPHERAL:
+	case USB_DR_MODE_PERIPHERAL:
 		set_bit(ID, &motg->inputs);
 		if (pdata->otg_control == OTG_PHY_CONTROL) {
 			if (otgsc & OTGSC_BSV)
@@ -3419,7 +3422,7 @@ static ssize_t msm_otg_mode_write(struct file *file, const char __user *ubuf,
 	char buf[16];
 	struct usb_phy *phy = &motg->phy;
 	int status = count;
-	enum usb_mode_type req_mode;
+	enum usb_dr_mode req_mode;
 
 	memset(buf, 0x00, sizeof(buf));
 
@@ -3429,18 +3432,18 @@ static ssize_t msm_otg_mode_write(struct file *file, const char __user *ubuf,
 	}
 
 	if (!strncmp(buf, "host", 4)) {
-		req_mode = USB_HOST;
+		req_mode = USB_DR_MODE_HOST;
 	} else if (!strncmp(buf, "peripheral", 10)) {
-		req_mode = USB_PERIPHERAL;
+		req_mode = USB_DR_MODE_PERIPHERAL;
 	} else if (!strncmp(buf, "none", 4)) {
-		req_mode = USB_NONE;
+		req_mode = USB_DR_MODE_UNKNOWN;
 	} else {
 		status = -EINVAL;
 		goto out;
 	}
 
 	switch (req_mode) {
-	case USB_NONE:
+	case USB_DR_MODE_UNKNOWN:
 		switch (phy->otg->state) {
 		case OTG_STATE_A_HOST:
 		case OTG_STATE_B_PERIPHERAL:
@@ -3452,7 +3455,7 @@ static ssize_t msm_otg_mode_write(struct file *file, const char __user *ubuf,
 			goto out;
 		}
 		break;
-	case USB_PERIPHERAL:
+	case USB_DR_MODE_PERIPHERAL:
 		switch (phy->otg->state) {
 		case OTG_STATE_B_IDLE:
 		case OTG_STATE_A_HOST:
@@ -3463,7 +3466,7 @@ static ssize_t msm_otg_mode_write(struct file *file, const char __user *ubuf,
 			goto out;
 		}
 		break;
-	case USB_HOST:
+	case USB_DR_MODE_HOST:
 		switch (phy->otg->state) {
 		case OTG_STATE_B_IDLE:
 		case OTG_STATE_B_PERIPHERAL:
@@ -3636,7 +3639,7 @@ static int msm_otg_pmic_dp_dm(struct msm_otg *motg, int value)
 			ret = msm_hsusb_ldo_enable(motg, USB_PHY_REG_3P3_ON);
 			if (!ret) {
 				motg->rm_pulldown = true;
-				msm_otg_dbg_log_event(&motg->phy, "RM Pulldown",
+				msm_otg_dbg_log_event(&motg->phy, "RM Pulldown true",
 						motg->rm_pulldown, 0);
 			}
 		}
@@ -3646,7 +3649,7 @@ static int msm_otg_pmic_dp_dm(struct msm_otg *motg, int value)
 			ret = msm_hsusb_ldo_enable(motg, USB_PHY_REG_3P3_OFF);
 			if (!ret) {
 				motg->rm_pulldown = false;
-				msm_otg_dbg_log_event(&motg->phy, "RM Pulldown",
+				msm_otg_dbg_log_event(&motg->phy, "RM Pulldown false",
 						motg->rm_pulldown, 0);
 			}
 		}
@@ -3878,7 +3881,7 @@ static int msm_otg_debugfs_init(struct msm_otg *motg)
 	if (!msm_otg_dbg_root || IS_ERR(msm_otg_dbg_root))
 		return -ENODEV;
 
-	if ((pdata->mode == USB_OTG || pdata->mode == USB_PERIPHERAL) &&
+	if ((pdata->mode == USB_DR_MODE_OTG || pdata->mode == USB_DR_MODE_PERIPHERAL) &&
 		pdata->otg_control == OTG_USER_CONTROL) {
 
 		msm_otg_dentry = debugfs_create_file("mode", S_IRUGO |
@@ -4058,7 +4061,7 @@ error:
 }
 
 static int msm_otg_setup_devices(struct platform_device *ofdev,
-		enum usb_mode_type mode, bool init)
+		enum usb_dr_mode mode, bool init)
 {
 	const char *gadget_name = "msm_hsusb";
 	const char *host_name = "msm_hsusb_host";
@@ -4078,9 +4081,9 @@ static int msm_otg_setup_devices(struct platform_device *ofdev,
 	}
 
 	switch (mode) {
-	case USB_OTG:
+	case USB_DR_MODE_OTG:
 		/* fall through */
-	case USB_PERIPHERAL:
+	case USB_DR_MODE_PERIPHERAL:
 		gadget_pdev = msm_otg_add_pdev(ofdev, gadget_name);
 		if (IS_ERR(gadget_pdev)) {
 			retval = PTR_ERR(gadget_pdev);
@@ -4088,14 +4091,14 @@ static int msm_otg_setup_devices(struct platform_device *ofdev,
 		}
 		if (device_create_file(&gadget_pdev->dev, &dev_attr_perf_mode))
 			dev_err(&gadget_pdev->dev, "perf_mode file failed\n");
-		if (mode == USB_PERIPHERAL)
+		if (mode == USB_DR_MODE_PERIPHERAL)
 			break;
 		/* fall through */
-	case USB_HOST:
+	case USB_DR_MODE_HOST:
 		host_pdev = msm_otg_add_pdev(ofdev, host_name);
 		if (IS_ERR(host_pdev)) {
 			retval = PTR_ERR(host_pdev);
-			if (mode == USB_OTG) {
+			if (mode == USB_DR_MODE_OTG) {
 				platform_device_unregister(gadget_pdev);
 				device_remove_file(&gadget_pdev->dev,
 						   &dev_attr_perf_mode);
@@ -4267,7 +4270,7 @@ static int msm_otg_setup_ext_chg_cdev(struct msm_otg *motg)
 {
 	int ret;
 
-	if (motg->pdata->enable_sec_phy || motg->pdata->mode == USB_HOST ||
+	if (motg->pdata->enable_sec_phy || motg->pdata->mode == USB_DR_MODE_HOST ||
 			motg->pdata->otg_control != OTG_PMIC_CONTROL ||
 			psy != motg->usb_psy) {
 		pr_err("usb ext chg is not supported by msm otg\n");
@@ -4784,6 +4787,10 @@ static int msm_otg_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto disable_phy_csr_clk;
 	}
+	pdata->mode = usb_get_dr_mode(&pdev->dev);
+	if (pdata->mode == USB_DR_MODE_UNKNOWN)
+		pdata->mode = USB_DR_MODE_OTG;
+
 	pdev->dev.platform_data = pdata;
 
 	pdata->bus_scale_table = msm_bus_cl_get_pdata(pdev);
@@ -5109,7 +5116,7 @@ static int msm_otg_probe(struct platform_device *pdev)
 		goto free_async_irq;
 	}
 
-	if (motg->pdata->mode == USB_OTG &&
+	if (motg->pdata->mode == USB_DR_MODE_OTG &&
 		motg->pdata->otg_control == OTG_PMIC_CONTROL &&
 		!motg->phy_irq) {
 
@@ -5191,7 +5198,7 @@ static int msm_otg_probe(struct platform_device *pdev)
 			"not available\n");
 
 	if (motg->pdata->otg_control == OTG_PMIC_CONTROL &&
-			(!(motg->pdata->mode == USB_OTG) ||
+			(!(motg->pdata->mode == USB_DR_MODE_OTG) ||
 			 motg->ext_id_irq || !motg->phy_irq))
 		motg->caps = ALLOW_PHY_POWER_COLLAPSE | ALLOW_PHY_RETENTION;
 
