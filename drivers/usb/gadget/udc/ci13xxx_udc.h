@@ -19,6 +19,7 @@
 /******************************************************************************
  * DEFINE
  *****************************************************************************/
+#define TD_PAGE_COUNT      5
 #define CI13XXX_PAGE_SIZE  4096ul /* page size for TD's */
 #define ENDPT_MAX          (32)
 #define CTRL_PAYLOAD_MAX   (64)
@@ -68,6 +69,7 @@ struct ci13xxx_qh {
 #define QH_ZLT                BIT(29)
 #define QH_MULT               (0x0003UL << 30)
 #define QH_MULT_SHIFT         11
+#define QH_ISO_MULT(x)		((x >> 11) & 0x03)
 	/* 1 */
 	u32 curr;
 	/* 2 - 8 */
@@ -76,6 +78,12 @@ struct ci13xxx_qh {
 	u32 RESERVED;
 	struct usb_ctrlrequest   setup;
 } __attribute__ ((packed, aligned(4)));
+
+struct td_node {
+	struct list_head	td;
+	dma_addr_t		dma;
+	struct ci13xxx_td		*ptr;
+};
 
 /* cache of larger request's original attributes */
 struct ci13xxx_multi_req {
@@ -89,6 +97,9 @@ struct ci13xxx_req {
 	struct usb_request   req;
 	unsigned             map;
 	struct list_head     queue;
+	struct list_head	tds;
+
+
 	struct ci13xxx_td   *ptr;
 	dma_addr_t           dma;
 	struct ci13xxx_td   *zptr;
@@ -116,6 +127,8 @@ struct ci13xxx_ep {
 	spinlock_t                            *lock;
 	struct device                         *device;
 	struct dma_pool                       *td_pool;
+	struct td_node				*pending_td;
+
 	struct ci13xxx_td                     *last_zptr;
 	dma_addr_t                            last_zdma;
 	unsigned long                         dTD_update_fail_count;
@@ -181,6 +194,8 @@ struct ci13xxx {
 	bool                      skip_flush; /* skip flushing remaining EP
 						upon flush timeout for the
 						first EP. */
+	u8 address;
+	bool setaddr;
 };
 
 /******************************************************************************
