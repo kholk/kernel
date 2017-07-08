@@ -19,3 +19,5 @@ ifeq ($(CONFIG_USB_GADGET),y)
  obj-y += function/
  endif
 endif
+
+obj-$(CONFIG_USB_CI13XXX_MSM) += udc/ci13xxx_msm.o

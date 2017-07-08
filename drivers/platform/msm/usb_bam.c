@@ -70,8 +70,8 @@ do {									\
 	}								\
 } while (0)
 
-#define log_event_none(x, ...) log_event(LOGLEVEL_NONE, x, ##__VA_ARGS__)
-#define log_event_dbg(x, ...) log_event(LOGLEVEL_DEBUG, x, ##__VA_ARGS__)
+#define log_event_none(x, ...) log_event(LOGLEVEL_ERR, x, ##__VA_ARGS__)
+#define log_event_dbg(x, ...) log_event(LOGLEVEL_ERR, x, ##__VA_ARGS__)
 #define log_event_err(x, ...) log_event(LOGLEVEL_ERR, x, ##__VA_ARGS__)
 
 struct usb_bam_sps_type {
