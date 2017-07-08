@@ -1994,6 +1994,22 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 	lastnode->ptr->next = cpu_to_le32(TD_TERMINATE);
 	if (!mReq->req.no_interrupt)
 		lastnode->ptr->token |= cpu_to_le32(TD_IOC);
+
+	/* MSM Specific: updating the request as required for
+	 * SPS mode. Enable MSM DMA engine according
+	 * to the UDC private data in the request.
+	 */
+	if (mReq->req.udc_priv & MSM_SPS_MODE) {
+		lastnode->ptr->token = TD_STATUS_ACTIVE;
+		if (mReq->req.udc_priv & MSM_IS_FINITE_TRANSFER)
+			lastnode->ptr->next = cpu_to_le32(TD_TERMINATE);
+		else
+			lastnode->ptr->next = cpu_to_le32(MSM_ETD_TYPE) | mReq->dma;
+		if (!mReq->req.no_interrupt)
+			lastnode->ptr->token |= cpu_to_le32(MSM_ETD_IOC);
+	}
+	mReq->req.dma = 0;
+
 	wmb();
 
 	mReq->req.actual = 0;
@@ -2287,6 +2303,10 @@ static int _hardware_dequeue(struct ci13xxx_ep *hwep,
 
 	if (hwreq->req.status != -EALREADY)
 		return -EINVAL;
+
+	if ((hwreq->req.udc_priv & MSM_SPS_MODE) &&
+		(hwreq->req.udc_priv & MSM_IS_FINITE_TRANSFER))
+		return -EBUSY;
 
 	hwreq->req.status = 0;
 
@@ -2611,27 +2631,12 @@ __releases(hwep->lock)
 __acquires(hwep->lock)
 {
 	struct td_node *node, *tmpnode;
+	unsigned int val;
+
 	if (hwep == NULL)
 		return -EINVAL;
 
 	hw_ep_flush(hwep->num, hwep->dir);
-
-
-	/* MSM Specific: Clear end point specific register */
-/*	if (CI13XX_REQ_VENDOR_ID(mReq->req.udc_priv) == MSM_VENDOR_ID) {
-		if (mReq->req.udc_priv & MSM_SPS_MODE) {
-			val = hw_cread(CAP_ENDPTPIPEID +
-				mEp->num * sizeof(u32),
-				~0);
-
-			if (val != MSM_EP_PIPE_ID_RESET_VAL)
-				hw_cwrite(
-					CAP_ENDPTPIPEID +
-					 mEp->num * sizeof(u32),
-					~0, MSM_EP_PIPE_ID_RESET_VAL);
-		}
-	}
-*/
 
 	while (!list_empty(&hwep->qh.queue)) {
 
@@ -2647,6 +2652,19 @@ __acquires(hwep->lock)
 		}
 
 		list_del_init(&hwreq->queue);
+
+		/* MSM Specific: Clear end point specific register */
+		if (hwreq->req.udc_priv & MSM_SPS_MODE) {
+			val = hw_cread(CAP_ENDPTPIPEID +
+				hwep->num * sizeof(u32),
+				~0);
+
+			if (val != MSM_EP_PIPE_ID_RESET_VAL)
+				hw_cwrite(
+					CAP_ENDPTPIPEID +
+					 hwep->num * sizeof(u32),
+					~0, MSM_EP_PIPE_ID_RESET_VAL);
+		}
 
 		hwreq->req.status = -ESHUTDOWN;
 
@@ -2666,7 +2684,8 @@ __acquires(hwep->lock)
 static int _ep_set_halt(struct usb_ep *ep, int value, bool check_transfer)
 {
 	struct ci13xxx_ep *hwep = container_of(ep, struct ci13xxx_ep, ep);
-	int direction, retval = 0;
+	struct ci13xxx_req *hwreq = NULL;
+	int direction, is_sps_req, retval = 0;
 	unsigned long flags;
 
 	if (ep == NULL || hwep->ep.desc == NULL)
@@ -2676,6 +2695,9 @@ static int _ep_set_halt(struct usb_ep *ep, int value, bool check_transfer)
 		return -EOPNOTSUPP;
 
 	spin_lock_irqsave(hwep->lock, flags);
+
+	hwreq = list_entry(hwep->qh.queue.next, struct ci13xxx_req, queue);
+	is_sps_req = hwreq->req.udc_priv & MSM_SPS_MODE;
 
 	if (value && hwep->dir == TX && check_transfer &&
 		!list_empty(&hwep->qh.queue) &&
@@ -4434,8 +4456,8 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 				CI13XXX_CONTROLLER_CONNECT_EVENT);
 		/* Enable BAM (if needed) before starting controller */
 		if (udc->softconnect) {
-			dbg_event(0xFF, "BAM EN2", true);
-			msm_usb_bam_enable(CI_CTRL, true); //false);
+			dbg_event(0xFF, "BAM EN2", _gadget->bam2bam_func_enabled);
+			msm_usb_bam_enable(CI_CTRL, _gadget->bam2bam_func_enabled); //false);
 			hw_device_state(udc->ep0out.qh.dma);
 		}
 		usb_gadget_set_state(_gadget, USB_STATE_POWERED);
@@ -4520,8 +4542,8 @@ static int ci13xxx_pullup(struct usb_gadget *_gadget, int is_active)
 #ifdef USE_PER_COMPOSITION_BAM
 	/* Enable BAM (if needed) before starting controller */
 	if (is_active) {
-		dbg_event(0xFF, "BAM EN1", true);
-		msm_usb_bam_enable(CI_CTRL, true);
+		dbg_event(0xFF, "BAM EN1", _gadget->bam2bam_func_enabled);
+		msm_usb_bam_enable(CI_CTRL, _gadget->bam2bam_func_enabled);
 	}
 #endif
 
