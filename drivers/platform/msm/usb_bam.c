@@ -3055,6 +3055,7 @@ static int usb_bam_init(struct platform_device *pdev)
 	if (pdata->enable_hsusb_bam_on_boot && bam_type == CI_CTRL) {
 		pr_debug("Register and enable HSUSB BAM\n");
 		props.options |= SPS_BAM_OPT_ENABLE_AT_BOOT;
+		props.options |= SPS_BAM_FORCE_RESET;
 	}
 	ret = sps_register_bam_device(&props, &ctx->h_bam);
 
