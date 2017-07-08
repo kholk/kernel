@@ -4562,6 +4562,7 @@ static int ci13xxx_start(struct usb_gadget *gadget,
 	struct ci13xxx *udc = _udc;
 	unsigned long flags;
 	int retval = -ENOMEM;
+	bool unlock = false;
 
 	trace("%pK", driver);
 pr_info("CI13XXX START\n");
@@ -4591,12 +4592,12 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 	if (retval)
 		goto pm_put;
 
-	spin_lock_irqsave(udc->lock, flags);
-
 //	udc->gadget.ep0 = &udc->ep0in.ep;
 
 	udc->driver = driver;
 	if (udc->vbus_active) {
+		unlock = true;
+		spin_lock_irqsave(udc->lock, flags);
 		hw_device_reset(udc);
 	} else {
 		usb_udc_vbus_handler(&udc->gadget, false);
@@ -4609,9 +4610,9 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 
 	retval = hw_device_state(udc->ep0out.qh.dma);
 
+	if (unlock)
+		spin_unlock_irqrestore(udc->lock, flags);
 done:
-	spin_unlock_irqrestore(udc->lock, flags);
-
 	if (udc->udc_driver->notify_event)
 			udc->udc_driver->notify_event(udc,
 				CI13XXX_CONTROLLER_UDC_STARTED_EVENT);
