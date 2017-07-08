@@ -3296,8 +3296,12 @@ static int usb_bam_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 
 	spin_lock_init(&usb_bam_ipa_handshake_info_lock);
+#ifdef CONFIG_ARCH_MSM8916
+	if (ipa_is_ready())
+#else
 	if (ipa_get_transport_type() == IPA_TRANSPORT_TYPE_SPS &&
 			ipa_is_ready())
+#endif
 		usb_bam_ipa_create_resources(bam_type);
 	spin_lock_init(&ctx->usb_bam_lock);
 
