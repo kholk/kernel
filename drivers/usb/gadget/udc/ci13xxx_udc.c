@@ -71,6 +71,7 @@
 
 #include "ci13xxx_udc.h"
 
+#define USE_PER_COMPOSITION_BAM
 #define NEW_STATUS
 /******************************************************************************
  * DEFINE
@@ -2934,11 +2935,16 @@ static int _ep_queue(struct usb_ep *ep, struct usb_request *req,
 {
 	struct ci13xxx_ep  *hwep  = container_of(ep,  struct ci13xxx_ep, ep);
 	struct ci13xxx_req *hwreq = container_of(req, struct ci13xxx_req, req);
-	struct ci13xxx *ci = _udc;
+	struct ci13xxx *ci = hwep->ci; //_udc;
 	int retval = 0;
 
 	if (ep == NULL || req == NULL || hwep->ep.desc == NULL)
 		return -EINVAL;
+
+	if (!ci->softconnect) {
+		pr_err("SOFTCONNECT IS FALSE. RETURNING ENODEV\n");
+		return -ENODEV;
+	}
 
 	if (hwep->type == USB_ENDPOINT_XFER_CONTROL) {
 		if (req->length)
@@ -3025,8 +3031,9 @@ __acquires(mEp->lock)
 	/* else do nothing; reserved for future use */
 
 	//spin_unlock(mEp->lock);
-	retval = usb_ep_queue(&mEp->ep, req, GFP_ATOMIC);
+	//retval = usb_ep_queue(&mEp->ep, req, GFP_ATOMIC);
 	//spin_lock(mEp->lock);
+	retval = _ep_queue(&mEp->ep, req, gfp_flags);
 	if (retval)
 		goto err_free_buf;
 
@@ -3090,9 +3097,11 @@ __acquires(mEp->lock)
 	udc->status->complete = isr_setup_status_complete;
 	//udc->status->length = 0;
 
-	spin_unlock(mEp->lock);
+/*	spin_unlock(mEp->lock);
 	retval = usb_ep_queue(&mEp->ep, udc->status, GFP_ATOMIC);
 	spin_lock(mEp->lock);
+*/
+	retval = _ep_queue(&mEp->ep, udc->status, GFP_ATOMIC);
 
 	return retval;
 }
@@ -4425,7 +4434,7 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 				CI13XXX_CONTROLLER_CONNECT_EVENT);
 		/* Enable BAM (if needed) before starting controller */
 		if (udc->softconnect) {
-			dbg_event(0xFF, "BAM EN2", false);
+			dbg_event(0xFF, "BAM EN2", true);
 			msm_usb_bam_enable(CI_CTRL, true); //false);
 			hw_device_state(udc->ep0out.qh.dma);
 		}
@@ -4451,16 +4460,16 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 			if (udc->softconnect) {
 				hw_device_state(udc->ep0out.qh.dma);
 			}
-//			usb_gadget_set_state(_gadget, USB_STATE_POWERED);
-//			usb_udc_vbus_handler(_gadget, true);
+			usb_gadget_set_state(_gadget, USB_STATE_POWERED);
+			usb_udc_vbus_handler(_gadget, true);
 		} else {
-//			usb_udc_vbus_handler(_gadget, false);
+			usb_udc_vbus_handler(_gadget, false);
 			hw_device_state(0);
 			_gadget_stop_activity(&udc->gadget);
 			if (udc->udc_driver->notify_event)
 				udc->udc_driver->notify_event(udc,
 					CI13XXX_CONTROLLER_DISCONNECT_EVENT);
-//			usb_gadget_set_state(_gadget, USB_STATE_NOTATTACHED);
+			usb_gadget_set_state(_gadget, USB_STATE_NOTATTACHED);
 		}
 	}
 #endif

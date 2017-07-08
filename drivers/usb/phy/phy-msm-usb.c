@@ -51,6 +51,8 @@
 
 #include <linux/msm-bus.h>
 
+#define USE_PER_COMPOSITION_BAM
+
 #define MSM_USB_BASE	(motg->regs)
 #define MSM_USB_PHY_CSR_BASE (motg->phy_csr_regs)
 
@@ -928,7 +930,7 @@ static int msm_otg_reset(struct usb_phy *phy)
 	 * block reset also resets USB BAM registers.
 	 */
 	if (test_bit(ID, &motg->inputs)) {
-		msm_usb_bam_enable(CI_CTRL, true);
+		msm_usb_bam_enable(CI_CTRL, false);
 	}
 #endif
 
