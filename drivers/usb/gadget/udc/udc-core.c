@@ -568,6 +568,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver)
 	list_for_each_entry(udc, &udc_list, list) {
 		/* For now we take the first one */
 //		if (!udc->driver)
+//			goto found;
 		/* Match according to usb_core_id */
 		if (!udc->driver && udc->gadget
 		    && udc->gadget->usb_core_id == driver->usb_core_id)

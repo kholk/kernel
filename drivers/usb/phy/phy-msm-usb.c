@@ -191,7 +191,7 @@ msm_otg_dbg_log_event(struct usb_phy *phy, char *event, int d1, int d2)
 			"[%5lu.%06lu]: %s :%d:%d",
 			(unsigned long)t, nanosec, event, d1, d2);
 
-pr_err("phy-msm-usb usb_otg: %s", event);
+pr_err("phy-msm-usb usb_otg: %s :%d:%d", event, d1, d2);
 
 	motg->dbg_idx++;
 	motg->dbg_idx = motg->dbg_idx % DEBUG_MAX_MSG;
@@ -3733,6 +3733,7 @@ static int otg_power_set_property_usb(struct power_supply *psy,
 	msm_otg_dbg_log_event(&motg->phy, "SET PWR PROPERTY", psp, motg->usb_type);
 	switch (psp) {
 	case POWER_SUPPLY_PROP_USB_OTG:
+		pr_err("POWER_SUPPLY_PROP_USB_OTG\n");
 		motg->id_state = val->intval ? USB_ID_GROUND : USB_ID_FLOAT;
 		queue_work(motg->otg_wq, &motg->id_status_work.work);
 		break;

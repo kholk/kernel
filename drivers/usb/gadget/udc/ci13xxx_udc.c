@@ -2692,6 +2692,12 @@ static int _ep_set_halt(struct usb_ep *ep, int value, bool check_transfer)
 	if (ep == NULL || hwep->ep.desc == NULL)
 		return -EINVAL;
 
+	if (hwep->ci->suspended) {
+		dev_err(hwep->ci->transceiver->dev,
+			"%s: Unable to halt EP while suspended\n", __func__);
+		return -EINVAL;
+	}
+
 	if (usb_endpoint_xfer_isoc(hwep->ep.desc))
 		return -EOPNOTSUPP;
 
@@ -2977,6 +2983,11 @@ static int _ep_queue(struct usb_ep *ep, struct usb_request *req,
 			pr_warn("endpoint ctrl %X nuked\n",
 				 _usb_addr(hwep));
 		}
+	}
+
+	if (ep->endless && ci->gadget.speed == USB_SPEED_FULL) {
+		pr_err("CI13XXX: Queueing endless req is not supported for FS");
+		return -EINVAL;
 	}
 
 	if (usb_endpoint_xfer_isoc(hwep->ep.desc) &&
@@ -4242,8 +4253,16 @@ static int ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 {
 	struct ci13xxx_ep  *hwep  = container_of(ep,  struct ci13xxx_ep, ep);
 	struct ci13xxx_req *hwreq = container_of(req, struct ci13xxx_req, req);
+	struct ci13xxx *udc = hwep->ci;
 	unsigned long flags;
 	struct td_node *node, *tmpnode;
+
+	if (udc->udc_driver->in_lpm && udc->udc_driver->in_lpm(udc)) {
+		dev_err(udc->transceiver->dev,
+				"%s: Unable to dequeue while in LPM\n",
+				__func__);
+		return -EAGAIN;
+	}
 
 	if (ep == NULL || req == NULL || hwreq->req.status != -EALREADY ||
 		hwep->ep.desc == NULL || list_empty(&hwreq->queue) ||
@@ -4625,7 +4644,7 @@ pr_err("CI13XXX DRIVER STARTING...\n");
 	if (retval)
 		goto pm_put;
 
-	udc->gadget.ep0 = &udc->ep0in.ep;
+//	udc->gadget.ep0 = &udc->ep0in.ep;
 
 	udc->driver = driver;
 	if (udc->vbus_active) {
