@@ -4888,6 +4888,7 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 		void __iomem *regs)
 {
 	struct ci13xxx *udc;
+	struct ci13xxx_platform_data *pdata;
 	int retval = 0, i; // j;
 
 	trace("%pK, %pK, %pK", dev, regs, driver->name);
@@ -5007,6 +5008,13 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 		goto free_dma_pools;
 
 	udc->gadget.ep0 = &udc->ep0in.ep;
+
+	pdata = dev->platform_data;
+	if (pdata) {
+		udc->gadget.usb_core_id = pdata->usb_core_id;
+//		if (pdata->enable_axi_prefetch)
+//			udc->gadget.extra_buf_alloc = EXTRA_ALLOCATION_SIZE;
+	}
 
 	if (udc->udc_driver->flags & CI13XXX_REQUIRE_TRANSCEIVER) {
 		udc->transceiver = usb_get_phy(USB_PHY_TYPE_USB2);

@@ -930,7 +930,7 @@ static int msm_otg_reset(struct usb_phy *phy)
 	 * block reset also resets USB BAM registers.
 	 */
 	if (test_bit(ID, &motg->inputs)) {
-		msm_usb_bam_enable(CI_CTRL, false);
+		msm_usb_bam_enable(CI_CTRL,  phy->otg->gadget->bam2bam_func_enabled);
 	}
 #endif
 

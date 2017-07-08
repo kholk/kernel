@@ -4403,18 +4403,18 @@ static int android_probe(struct platform_device *pdev)
 		dev_dbg(&pdev->dev, "failed to get mem resource\n");
 	}
 
-//	if (pdata)
-//		android_usb_driver.gadget_driver.usb_core_id =
-//						pdata->usb_core_id;
-	ret = android_create_device(android_dev, 0);
-//			android_usb_driver.gadget_driver.usb_core_id);
+	if (pdata)
+		android_usb_driver.gadget_driver.usb_core_id =
+						pdata->usb_core_id;
+	ret = android_create_device(android_dev,
+			android_usb_driver.gadget_driver.usb_core_id);
 	if (ret) {
 		pr_err("%s(): android_create_device failed\n", __func__);
 		goto err_dev;
 	}
 
-//	pr_debug("%s(): registering android_usb_driver with core id:%d\n",
-//		__func__, android_usb_driver.gadget_driver.usb_core_id);
+	pr_err("%s(): registering android_usb_driver with core id:%d\n",
+		__func__, android_usb_driver.gadget_driver.usb_core_id);
 	ret = usb_composite_probe(&android_usb_driver);
 	if (ret) {
 		/* Perhaps UDC hasn't probed yet, try again later */
