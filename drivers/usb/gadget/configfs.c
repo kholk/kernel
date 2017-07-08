@@ -1358,6 +1358,7 @@ pr_err("CONFIGFS_COMPOSITE_BIND\n");
 
 		usb_desc = usb_otg_descriptor_alloc(gadget);
 		if (!usb_desc) {
+			pr_err("CANNOT ALLOCATE DESCRIPTOR!!!\n");
 			ret = -ENOMEM;
 			goto err_comp_cleanup;
 		}
@@ -1403,13 +1404,16 @@ pr_err("CONFIGFS_COMPOSITE_BIND\n");
 				list_add(&f->list, &cfg->func_list);
 				goto err_purge_funcs;
 			}
+			pr_err("Added function %s for configuration %s\n", f->name, c->label);
 		}
 		usb_ep_autoconfig_reset(cdev->gadget);
 	}
 	if (cdev->use_os_string) {
 		ret = composite_os_desc_req_prepare(cdev, gadget->ep0);
-		if (ret)
+		if (ret) {
+			pr_err("CANNOT PREPARE OS DESC\n");
 			goto err_purge_funcs;
+		}
 	}
 
 	usb_ep_autoconfig_reset(cdev->gadget);
@@ -1420,6 +1424,7 @@ err_purge_funcs:
 	purge_configs_funcs(gi);
 err_comp_cleanup:
 	composite_dev_cleanup(cdev);
+	pr_err("CONFIGFS FAILURE RETURNS %d", ret);
 	return ret;
 }
 
@@ -1452,26 +1457,26 @@ static void android_work(struct work_struct *data)
 	if (status[0]) {
 		kobject_uevent_env(&android_device->kobj,
 					KOBJ_CHANGE, connected);
-		pr_info("%s: sent uevent %s\n", __func__, connected[0]);
+		pr_err("%s: sent uevent %s\n", __func__, connected[0]);
 		uevent_sent = true;
 	}
 
 	if (status[1]) {
 		kobject_uevent_env(&android_device->kobj,
 					KOBJ_CHANGE, configured);
-		pr_info("%s: sent uevent %s\n", __func__, configured[0]);
+		pr_err("%s: sent uevent %s\n", __func__, configured[0]);
 		uevent_sent = true;
 	}
 
 	if (status[2]) {
 		kobject_uevent_env(&android_device->kobj,
 					KOBJ_CHANGE, disconnected);
-		pr_info("%s: sent uevent %s\n", __func__, disconnected[0]);
+		pr_err("%s: sent uevent %s\n", __func__, disconnected[0]);
 		uevent_sent = true;
 	}
 
 	if (!uevent_sent) {
-		pr_info("%s: did not send uevent (%d %d %pK)\n", __func__,
+		pr_err("%s: did not send uevent (%d %d %pK)\n", __func__,
 			gi->connected, gi->sw_connected, cdev->config);
 	}
 }
@@ -1505,6 +1510,9 @@ static int android_setup(struct usb_gadget *gadget,
 	struct gadget_info *gi = container_of(cdev, struct gadget_info, cdev);
 	int value = -EOPNOTSUPP;
 	struct usb_function_instance *fi;
+	int num_of_entries = 0;
+
+pr_err("=======ANDROID_SETUP=======\n");
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (!gi->connected) {
@@ -1513,6 +1521,15 @@ static int android_setup(struct usb_gadget *gadget,
 	}
 	spin_unlock_irqrestore(&cdev->lock, flags);
 	list_for_each_entry(fi, &gi->available_func, cfs_list) {
+		num_of_entries++;
+
+		if (fi == NULL)
+			pr_err("fi is null wtf\n");
+		else if (fi->f == NULL)
+			pr_err("no fi function wtf\n");
+		else if (fi->f->setup == NULL)
+			pr_err("no fi function setup!??!?!\n");
+
 		if (fi != NULL && fi->f != NULL && fi->f->setup != NULL) {
 			pr_err("android_setup: setting up %s", fi->f->name);
 			value = fi->f->setup(fi->f, c);
@@ -1520,6 +1537,8 @@ static int android_setup(struct usb_gadget *gadget,
 				break;
 		}
 	}
+
+	pr_err("android_setup: found %d entries\n", num_of_entries);
 
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
 	if (value < 0)

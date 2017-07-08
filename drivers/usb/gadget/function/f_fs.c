@@ -48,7 +48,7 @@ static void *ffs_ipc_log;
 #define ffs_log(fmt, ...) do { \
 	ipc_log_string(ffs_ipc_log, "%s: " fmt,  __func__, \
 			##__VA_ARGS__); \
-	pr_err(fmt, ##__VA_ARGS__); \
+	pr_err("%s: " fmt, __func__, ##__VA_ARGS__); \
 } while (0)
 
 /* Reference counter handling */
@@ -3094,8 +3094,10 @@ static inline struct f_fs_opts *ffs_do_functionfs_bind(struct usb_function *f,
 	func->ffs = ffs_opts->dev->ffs_data;
 	if (!ffs_opts->no_configfs)
 		ffs_dev_unlock();
-	if (ret)
+	if (ret) {
+		pr_err("DESC IS NOT READY\n");
 		return ERR_PTR(ret);
+	}
 
 	func->conf = c;
 	func->gadget = c->cdev->gadget;
@@ -3109,8 +3111,10 @@ static inline struct f_fs_opts *ffs_do_functionfs_bind(struct usb_function *f,
 	 */
 	if (!ffs_opts->refcnt) {
 		ret = functionfs_bind(func->ffs, c->cdev);
-		if (ret)
+		if (ret) {
+			ffs_log("functionfs bind fail: %d\n", ret);
 			return ERR_PTR(ret);
+		}
 	}
 	ffs_opts->refcnt++;
 	func->function.strings = func->ffs->stringtabs;

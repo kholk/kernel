@@ -1034,7 +1034,7 @@ static void dbg_print(u8 addr, const char *name, int status, const char *extra)
 		  get_timestamp(tbuf), addr, name, status, extra);
 
 	dbg_inc(&dbg_data.idx);
-
+pr_err("%s %d %s", name, status, extra);
 	write_unlock_irqrestore(&dbg_data.lck, flags);
 
 	if (dbg_data.tty != 0)
@@ -1935,7 +1935,7 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 //	unsigned i;
 	int ret = 0;
 //	unsigned length = mReq->req.length;
-	struct ci13xxx *udc = _udc;
+//	struct ci13xxx *udc = _udc;
 
 	unsigned rest = mReq->req.length;
 	int pages = TD_PAGE_COUNT;
@@ -1950,7 +1950,8 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 
 	mReq->req.status = -EALREADY;
 
-	ret = usb_gadget_map_request(&udc->gadget, &mReq->req, mEp->dir);
+	//ret = usb_gadget_map_request(&udc->gadget, &mReq->req, mEp->dir);
+	ret = usb_gadget_map_request(&mEp->ci->gadget, &mReq->req, mEp->dir);
 	if (ret)
 		return ret;
 
@@ -2296,7 +2297,7 @@ static int _hardware_dequeue(struct ci13xxx_ep *hwep,
 /* CHECKME: REVISION READ NOT IMPLEMENTED
 			if (ci->rev == CI_REVISION_24)
 */
-			if (0)
+			if (1)
 				if (!hw_cread(CAP_ENDPTSTAT, BIT(n)))
 					reprime_dtd(hwep, node);
 
@@ -2339,7 +2340,8 @@ static int _hardware_dequeue(struct ci13xxx_ep *hwep,
 		list_del_init(&node->td);
 	}
 
-	usb_gadget_unmap_request(&_udc->gadget,
+	//usb_gadget_unmap_request(&_udc->gadget,
+	usb_gadget_unmap_request(&hwep->ci->gadget,
 					&hwreq->req, hwep->dir);
 
 	hwreq->req.actual += actual;
@@ -3218,7 +3220,7 @@ __acquires(hwep->lock)
 			spin_unlock(hwep->lock);
 			if ((hwep->type == USB_ENDPOINT_XFER_CONTROL) &&
 					hwreq->req.length)
-				hweptemp = &_udc->ep0in;
+				hweptemp = &hwep->ci->ep0in; //&_udc->ep0in;
 			usb_gadget_giveback_request(&hweptemp->ep, &hwreq->req);
 			spin_lock(hwep->lock);
 		}
@@ -3393,7 +3395,7 @@ delegate:
 			ci->ep0_dir = TX;
 
 		spin_unlock(ci->lock);
-		pr_err("CI13XXX: Calling driver setup....\n");
+		pr_err("CI13XXX: Calling driver %s setup....\n", ci->driver->driver.name);
 		err = ci->driver->setup(&ci->gadget, &req);
 		spin_lock(ci->lock);
 		break;
@@ -4230,7 +4232,8 @@ static int ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 	/* pop request */
 	list_del_init(&hwreq->queue);
 
-	usb_gadget_unmap_request(&_udc->gadget, req, hwep->dir);
+	//usb_gadget_unmap_request(&_udc->gadget, req, hwep->dir);
+	usb_gadget_unmap_request(&hwep->ci->gadget, req, hwep->dir);
 
 	req->status = -ECONNRESET;
 
@@ -4411,6 +4414,7 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 		gadget_ready = 1;
 	spin_unlock_irqrestore(udc->lock, flags);
 
+#ifdef USE_PER_COMPOSITION_BAM
 	if (!gadget_ready)
 		return 0;
 
@@ -4422,7 +4426,7 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 		/* Enable BAM (if needed) before starting controller */
 		if (udc->softconnect) {
 			dbg_event(0xFF, "BAM EN2", false);
-			msm_usb_bam_enable(CI_CTRL, false);
+			msm_usb_bam_enable(CI_CTRL, true); //false);
 			hw_device_state(udc->ep0out.qh.dma);
 		}
 		usb_gadget_set_state(_gadget, USB_STATE_POWERED);
@@ -4436,7 +4440,30 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 				CI13XXX_CONTROLLER_DISCONNECT_EVENT);
 		usb_gadget_set_state(_gadget, USB_STATE_NOTATTACHED);
 	}
+#else
 
+	if (gadget_ready) {
+		if (is_active) {
+			hw_device_reset(udc);
+			if (udc->udc_driver->notify_event)
+				udc->udc_driver->notify_event(udc,
+					CI13XXX_CONTROLLER_CONNECT_EVENT);
+			if (udc->softconnect) {
+				hw_device_state(udc->ep0out.qh.dma);
+			}
+//			usb_gadget_set_state(_gadget, USB_STATE_POWERED);
+//			usb_udc_vbus_handler(_gadget, true);
+		} else {
+//			usb_udc_vbus_handler(_gadget, false);
+			hw_device_state(0);
+			_gadget_stop_activity(&udc->gadget);
+			if (udc->udc_driver->notify_event)
+				udc->udc_driver->notify_event(udc,
+					CI13XXX_CONTROLLER_DISCONNECT_EVENT);
+//			usb_gadget_set_state(_gadget, USB_STATE_NOTATTACHED);
+		}
+	}
+#endif
 	return 0;
 }
 
@@ -4481,11 +4508,13 @@ static int ci13xxx_pullup(struct usb_gadget *_gadget, int is_active)
 
 	pm_runtime_get_sync(&_gadget->dev);
 
+#ifdef USE_PER_COMPOSITION_BAM
 	/* Enable BAM (if needed) before starting controller */
 	if (is_active) {
-		dbg_event(0xFF, "BAM EN1", false);
-		msm_usb_bam_enable(CI_CTRL, false);
+		dbg_event(0xFF, "BAM EN1", true);
+		msm_usb_bam_enable(CI_CTRL, true);
 	}
+#endif
 
 	spin_lock_irqsave(udc->lock, flags);
 	if (!udc->vbus_active) {
