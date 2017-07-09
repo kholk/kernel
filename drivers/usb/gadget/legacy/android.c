@@ -4104,6 +4104,8 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 	if (do_work)
 		schedule_work(&dev->work);
 
+	pr_err("android_setup returns %d\n", value);
+
 	return value;
 }
 

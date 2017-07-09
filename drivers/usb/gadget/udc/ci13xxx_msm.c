@@ -97,7 +97,7 @@ static void ci13xxx_msm_set_l1(struct ci13xxx *udc)
 {
 	int temp;
 	struct device *dev = udc->gadget.dev.parent;
-
+return;
 	dev_err(dev, "Enable link power management\n");
 
 	/* Enable remote wakeup and L1 for IN EPs */

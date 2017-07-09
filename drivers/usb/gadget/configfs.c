@@ -1589,15 +1589,15 @@ static const struct usb_gadget_driver configfs_driver_template = {
 	.unbind         = configfs_composite_unbind,
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
 	.setup          = android_setup,
-	//.reset          = android_disconnect,
+	.reset          = android_disconnect,
 	.disconnect     = android_disconnect,
 #else
 	.setup          = composite_setup,
 	.reset          = composite_disconnect,
 	.disconnect     = composite_disconnect,
 #endif
-//	.suspend	= composite_suspend,
-//	.resume		= composite_resume,
+	.suspend	= composite_suspend,
+	.resume		= composite_resume,
 
 	.max_speed	= USB_SPEED_SUPER,
 	.driver = {
@@ -1694,11 +1694,6 @@ static struct config_group *gadgets_make(
 		const char *name)
 {
 	struct gadget_info *gi;
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
-	struct device_attribute **attrs;
-	struct device_attribute *attr;
-	int err;
-#endif
 
 pr_err("GADGETS_MAKE\n");
 	gi = kzalloc(sizeof(*gi), GFP_KERNEL);

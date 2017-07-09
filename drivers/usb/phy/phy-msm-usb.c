@@ -1928,13 +1928,13 @@ static void msm_otg_notify_charger(struct msm_otg *motg, unsigned mA)
 	dev_err(motg->phy.dev, "Requested curr from USB = %u, max-type-c:%u\n",
 					mA, motg->typec_current_max);
 
-	if (mA > 0 && mA < 10)
+/*	if (mA > 0 && mA < 10)
 		mA = 500;
 
 	if ((mA > 0 && motg->typec_current_max > 0) &&	
 	     motg->typec_current_max > mA)
 		mA = motg->typec_current_max;
-
+*/
 	/* Save bc1.2 max_curr if type-c charger later moves to diff mode */
 	motg->bc1p2_current_max = mA;
 
