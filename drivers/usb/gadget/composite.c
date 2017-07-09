@@ -27,6 +27,9 @@
 #define SSUSB_GADGET_VBUS_DRAW_UNITS 8
 #define HSUSB_GADGET_VBUS_DRAW_UNITS 2
 
+#include "legacy_function/gadget_chips.h"
+#include <linux/usb/msm_hsusb.h>
+
 /*
  * Based on enumerated USB speed, draw power with set_config and resume
  * HSUSB: 500mA, SSUSB: 900mA
@@ -230,14 +233,14 @@ int usb_add_function(struct usb_configuration *config,
 	function->config = config;
 	function->intf_id = -EINVAL;
 	list_add_tail(&function->list, &config->functions);
-
+/*
 	if (function->bind_deactivated) {
 		value = usb_function_deactivate(function);
 		pr_err("CANNOT DEACTIVATE\n");
 		if (value)
 			goto done;
 	}
-
+*/
 	/* REVISIT *require* function->bind? */
 	if (function->bind) {
 		value = function->bind(config, function);
@@ -312,8 +315,12 @@ int usb_function_deactivate(struct usb_function *function)
 
 	spin_lock_irqsave(&cdev->lock, flags);
 
+/*
 	if (cdev->deactivations == 0)
 		status = usb_gadget_deactivate(cdev->gadget);
+*/
+	if (cdev->deactivations == 0)
+		status = usb_gadget_disconnect(cdev->gadget);
 	if (status == 0)
 		cdev->deactivations++;
 
@@ -345,7 +352,8 @@ int usb_function_activate(struct usb_function *function)
 	else {
 		cdev->deactivations--;
 		if (cdev->deactivations == 0)
-			status = usb_gadget_activate(cdev->gadget);
+			status = usb_gadget_connect(cdev->gadget);
+			//status = usb_gadget_activate(cdev->gadget);
 	}
 
 	spin_unlock_irqrestore(&cdev->lock, flags);
@@ -685,7 +693,7 @@ static int bos_desc(struct usb_composite_dev *cdev)
 	usb_ext->bLength = USB_DT_USB_EXT_CAP_SIZE;
 	usb_ext->bDescriptorType = USB_DT_DEVICE_CAPABILITY;
 	usb_ext->bDevCapabilityType = USB_CAP_TYPE_EXT;
-	usb_ext->bmAttributes = cpu_to_le32(USB_LPM_SUPPORT | USB_BESL_SUPPORT);
+	usb_ext->bmAttributes = cpu_to_le32(USB_LPM_SUPPORT); // | USB_BESL_SUPPORT);
 
 	if (gadget_is_superspeed(cdev->gadget)) {
 		/*
@@ -746,6 +754,11 @@ static void reset_config(struct usb_composite_dev *cdev)
 	struct usb_function		*f;
 
 	DBG(cdev, "reset config\n");
+
+	if (!cdev->config) {
+		pr_err("%s:cdev->config is already NULL\n", __func__);
+		return;
+	}
 
 	list_for_each_entry(f, &cdev->config->functions, list) {
 		if (f->disable)
@@ -1011,7 +1024,7 @@ static void remove_config(struct usb_composite_dev *cdev,
 			/* may free memory for "f" */
 		}
 	}
-	list_del(&config->list);
+	//list_del(&config->list);
 	if (config->unbind) {
 		DBG(cdev, "unbind config '%s'/%pK\n", config->label, config);
 		config->unbind(config);
@@ -1035,8 +1048,22 @@ void usb_remove_config(struct usb_composite_dev *cdev,
 
 	spin_lock_irqsave(&cdev->lock, flags);
 
-	if (cdev->config == config)
+//	if (cdev->config == config)
+	if (WARN_ON(!config->cdev)) {
+		spin_unlock_irqrestore(&cdev->lock, flags);
+		return;
+	}
+
+	if (cdev->config == config) {
+		if (!gadget_is_dwc3(cdev->gadget) && !cdev->suspended) {
+			spin_unlock_irqrestore(&cdev->lock, flags);
+			msm_do_bam_disable_enable(CI_CTRL);
+			spin_lock_irqsave(&cdev->lock, flags);
+		}
 		reset_config(cdev);
+	}
+
+	list_del(&config->list);
 
 	spin_unlock_irqrestore(&cdev->lock, flags);
 
@@ -1302,6 +1329,39 @@ static struct usb_gadget_string_container *copy_gadget_strings(
 	return uc;
 }
 
+static struct usb_gadget_string_container *find_gadget_strings(
+		struct usb_composite_dev *cdev,
+		struct usb_gadget_strings **sp, unsigned n_strings)
+{
+	struct usb_gadget_string_container *uc;
+
+	list_for_each_entry(uc, &cdev->gstrings, list) {
+		struct usb_gadget_strings **org_gs;
+		struct usb_string *org_s, *s;
+
+		org_gs = get_containers_gs(uc);
+
+		/*
+		 * only check the first language since it's not likely that a
+		 * set of strings matches one language but not others
+		 */
+		if (sp[0]->language != org_gs[0]->language)
+			continue;
+
+		org_s = org_gs[0]->strings;
+		s = sp[0]->strings;
+
+		/*
+		 * only check the first string of the function since it's not
+		 * likely that a set of strings matches but not other
+		 */
+		if (s->s == org_s->s)
+			return uc;
+	}
+
+	return NULL;
+}
+
 /**
  * usb_gstrings_attach() - attach gadget strings to a cdev and assign ids
  * @cdev: the device whose string descriptor IDs are being allocated
@@ -1333,6 +1393,13 @@ struct usb_string *usb_gstrings_attach(struct usb_composite_dev *cdev,
 
 	if (!n_gstrings)
 		return ERR_PTR(-EINVAL);
+
+	/* check if same strings added to cdev already, if so just reuse them */
+	uc = find_gadget_strings(cdev, sp, n_strings);
+	if (uc) {
+		n_gs = get_containers_gs(uc);
+		return n_gs[0]->strings;
+	}
 
 	uc = copy_gadget_strings(sp, n_gstrings, n_strings);
 	if (IS_ERR(uc))
@@ -1770,6 +1837,15 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 			break;
 		if (w_value && !f->set_alt)
 			break;
+		/*
+		 * We put interfaces in default settings (alt 0)
+		 * upon set config#1. Call set_alt for non-zero
+		 * alternate setting.
+		 */
+		if (!w_value && cdev->config && !f->get_alt) {
+			value = 0;
+			break;
+		}
 		value = f->set_alt(f, w_index, w_value);
 		if (value == USB_GADGET_DELAYED_STATUS) {
 			DBG(cdev,
@@ -2069,8 +2145,15 @@ void composite_disconnect(struct usb_gadget *gadget)
 	 * disconnect callbacks?
 	 */
 	spin_lock_irqsave(&cdev->lock, flags);
-	if (cdev->config)
+//	if (cdev->config)
+	if (cdev->config) {
+		if (!gadget_is_dwc3(gadget) && !cdev->suspended) {
+			spin_unlock_irqrestore(&cdev->lock, flags);
+			msm_do_bam_disable_enable(CI_CTRL);
+			spin_lock_irqsave(&cdev->lock, flags);
+		}
 		reset_config(cdev);
+	}
 	if (cdev->driver->disconnect)
 		cdev->driver->disconnect(cdev);
 	if (cdev->delayed_status != 0) {
@@ -2107,6 +2190,7 @@ static void __composite_unbind(struct usb_gadget *gadget, bool unbind_driver)
 		struct usb_configuration	*c;
 		c = list_first_entry(&cdev->configs,
 				struct usb_configuration, list);
+		list_del(&c->list);
 		remove_config(cdev, c);
 	}
 	if (cdev->driver->unbind && unbind_driver)
@@ -2173,7 +2257,7 @@ int composite_dev_prepare(struct usb_composite_driver *composite,
 	if (!cdev->req)
 		return -ENOMEM;
 
-	cdev->req->buf = kmalloc(USB_COMP_EP0_BUFSIZ, GFP_KERNEL);
+	cdev->req->buf = kmalloc(USB_COMP_EP0_BUFSIZ + 256, GFP_KERNEL);
 	if (!cdev->req->buf)
 		goto fail;
 
@@ -2420,6 +2504,7 @@ static const struct usb_gadget_driver composite_driver_template = {
 int usb_composite_probe(struct usb_composite_driver *driver)
 {
 	struct usb_gadget_driver *gadget_driver;
+	u8 core_id;
 
 	if (!driver || !driver->dev || !driver->bind)
 		return -EINVAL;
@@ -2427,12 +2512,19 @@ int usb_composite_probe(struct usb_composite_driver *driver)
 	if (!driver->name)
 		driver->name = "composite";
 
+	core_id = driver->gadget_driver.usb_core_id;
 	driver->gadget_driver = composite_driver_template;
 	gadget_driver = &driver->gadget_driver;
 
 	gadget_driver->function =  (char *) driver->name;
 	gadget_driver->driver.name = driver->name;
 	gadget_driver->max_speed = driver->max_speed;
+
+	if (core_id)
+		gadget_driver->usb_core_id = core_id;
+
+	pr_err("%s(): gadget_driver->usb_core_id:%d\n", __func__,
+					gadget_driver->usb_core_id);
 
 	return usb_gadget_probe_driver(gadget_driver);
 }
