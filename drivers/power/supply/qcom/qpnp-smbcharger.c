@@ -4933,7 +4933,7 @@ static void handle_usb_removal(struct smbchg_chip *chip)
 #endif
 	smbchg_change_usb_supply_type(chip, POWER_SUPPLY_TYPE_UNKNOWN);
 
-#ifdef CONFIG_USB_MSM_OTG
+#if 0 //def CONFIG_USB_MSM_OTG
 	if (!chip->skip_usb_notification) {
 		pr_smb(PR_MISC, "setting usb psy present = %d\n",
 				chip->usb_present);
@@ -4947,6 +4947,11 @@ static void handle_usb_removal(struct smbchg_chip *chip)
 	extcon_set_cable_state_(chip->extcon, EXTCON_USB, chip->usb_present);
 	if (chip->dpdm_reg)
 		regulator_disable(chip->dpdm_reg);
+
+#ifdef CONFIG_USB_MSM_OTG
+	set_usb_psy_dp_dm(chip, POWER_SUPPLY_DP_DM_DPR_DMR);
+#endif
+
 	schedule_work(&chip->usb_set_online_work);
 
 	pr_smb(PR_MISC, "setting usb psy health UNKNOWN\n");
@@ -6122,24 +6127,24 @@ static void update_typec_otg_status(struct smbchg_chip *chip, int mode,
 	if (mode == POWER_SUPPLY_TYPE_DFP) {
 		chip->typec_dfp = true;
 		pval.intval = 1;
+		extcon_set_cable_state_(chip->extcon, EXTCON_USB_HOST,
+				chip->typec_dfp);
 #ifdef CONFIG_USB_MSM_OTG
 		power_supply_set_property(chip->usb_psy,
 				POWER_SUPPLY_PROP_USB_OTG, &pval);
 #endif
-		extcon_set_cable_state_(chip->extcon, EXTCON_USB_HOST,
-				chip->typec_dfp);
 		/* update FG */
 		set_property_on_fg(chip, POWER_SUPPLY_PROP_STATUS,
 				get_prop_batt_status(chip));
 	} else if (force || chip->typec_dfp) {
 		chip->typec_dfp = false;
 		pval.intval = 0;
+		extcon_set_cable_state_(chip->extcon, EXTCON_USB_HOST,
+				chip->typec_dfp);
 #ifdef CONFIG_USB_MSM_OTG
 		power_supply_set_property(chip->usb_psy,
 				POWER_SUPPLY_PROP_USB_OTG, &pval);
 #endif
-		extcon_set_cable_state_(chip->extcon, EXTCON_USB_HOST,
-				chip->typec_dfp);
 		/* update FG */
 		set_property_on_fg(chip, POWER_SUPPLY_PROP_STATUS,
 				get_prop_batt_status(chip));
@@ -7338,6 +7343,9 @@ static irqreturn_t usbid_change_handler(int irq, void *_chip)
 	pr_smb(PR_INTERRUPT, "triggered\n");
 
 	otg_present = is_otg_present(chip);
+
+	extcon_set_cable_state_(chip->extcon, EXTCON_USB_HOST, otg_present);
+
 #ifdef CONFIG_USB_MSM_OTG
 	if (chip->usb_psy) {
 		pr_smb(PR_MISC, "setting usb psy OTG = %d\n",
@@ -7350,8 +7358,6 @@ static irqreturn_t usbid_change_handler(int irq, void *_chip)
 	pr_smb(PR_MISC, "setting usb psy OTG = %d\n",
 			otg_present ? 1 : 0);
 #endif
-
-	extcon_set_cable_state_(chip->extcon, EXTCON_USB_HOST, otg_present);
 
 	if (otg_present)
 		pr_smb(PR_STATUS, "OTG detected\n");

@@ -534,7 +534,8 @@ static int hw_ep_enable(int num, int dir, int type)
 		mask |= ENDPTCTRL_RXE;  /* enable  */
 		data |= ENDPTCTRL_RXE;
 	}
-	hw_cwrite(CAP_ENDPTCTRL + num * sizeof(u32), mask, data);
+	//hw_cwrite(CAP_ENDPTCTRL + num * sizeof(u32), mask, data);
+	hw_cwrite(CAP_ENDPTCTRL + num, mask, data);
 
 	/* make sure endpoint is enabled before returning */
 	mb();
@@ -2052,6 +2053,41 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		mEp->qh.ptr->cap |= mul << __ffs(QH_MULT);
 	}
 
+	if (mReq->req.udc_priv & MSM_SPS_MODE) {
+		int i;
+		pr_err("CI13XXX HARDWARE ENQUEUE: WE ARE IN SPS MODE\n");
+		mEp->qh.ptr->td.next   |= MSM_ETD_TYPE;
+		i = hw_cread(CAP_ENDPTPIPEID +
+					 mEp->num * sizeof(u32), ~0);
+		/* Read current value of this EPs pipe id */
+		i = (mEp->dir == TX) ?
+			((i >> MSM_TX_PIPE_ID_OFS) & MSM_PIPE_ID_MASK) :
+				(i & MSM_PIPE_ID_MASK);
+		/* If requested pipe id is different from current,
+		   then write it */
+		if (i != (mReq->req.udc_priv & MSM_PIPE_ID_MASK)) {
+			if (mEp->dir == TX)
+				hw_cwrite(
+					CAP_ENDPTPIPEID +
+						mEp->num * sizeof(u32),
+					MSM_PIPE_ID_MASK <<
+						MSM_TX_PIPE_ID_OFS,
+					(mReq->req.udc_priv &
+					 MSM_PIPE_ID_MASK)
+						<< MSM_TX_PIPE_ID_OFS);
+			else
+				hw_cwrite(
+					CAP_ENDPTPIPEID +
+						mEp->num * sizeof(u32),
+					MSM_PIPE_ID_MASK,
+					mReq->req.udc_priv &
+						MSM_PIPE_ID_MASK);
+		}
+	}
+
+	/* Synchronize to be sure */
+	wmb();
+
 	ret = hw_ep_prime(mEp->num, mEp->dir,
 			   mEp->type == USB_ENDPOINT_XFER_CONTROL);
 done:
@@ -2707,7 +2743,7 @@ static int _ep_set_halt(struct usb_ep *ep, int value, bool check_transfer)
 	is_sps_req = hwreq->req.udc_priv & MSM_SPS_MODE;
 
 	if (value && hwep->dir == TX && check_transfer &&
-		!list_empty(&hwep->qh.queue) &&
+		!list_empty(&hwep->qh.queue) && |is_sps_req &&
 			!usb_endpoint_xfer_control(hwep->ep.desc)) {
 		spin_unlock_irqrestore(hwep->lock, flags);
 		return -EAGAIN;
@@ -3439,6 +3475,9 @@ delegate:
 		spin_unlock(ci->lock);
 		pr_err("CI13XXX: Calling driver %s setup....\n", ci->driver->driver.name);
 		err = ci->driver->setup(&ci->gadget, &req);
+
+		usb_gadget_set_state(&ci->gadget, USB_STATE_CONFIGURED);
+
 		spin_lock(ci->lock);
 		break;
 	}
@@ -4424,8 +4463,8 @@ static void ep_fifo_flush(struct usb_ep *ep)
 	 * pending requests upon flushing an endpoint.  There
 	 * is no harm in doing it.
 	 */
-	//_ep_nuke(mEp);
-	hw_ep_flush(mEp->num, mEp->dir);
+	_ep_nuke(mEp);
+	//hw_ep_flush(mEp->num, mEp->dir);
 
 	spin_unlock_irqrestore(mEp->lock, flags);
 }
@@ -4622,6 +4661,8 @@ pr_info("CI13XXX START\n");
 		return -EINVAL;
 
 pr_err("CI13XXX DRIVER STARTING...\n");
+pr_err("....for gadget driver %s, function %s\n",
+	driver->driver.name, driver->function);
 
 /*
 	spin_lock_irqsave(udc->lock, flags);
@@ -4754,7 +4795,7 @@ static int init_eps(struct ci13xxx *ci)
 			hwep->ci           = ci;
 			hwep->lock         = ci->lock;
 			hwep->td_pool      = ci->td_pool;
-			hwep->device       = &ci->gadget.dev; /*mmh...*/
+			//hwep->device       = &ci->gadget.dev; /*mmh...*/
 
 			hwep->ep.name      = hwep->name;
 			hwep->ep.ops       = &usb_ep_ops;
@@ -4767,10 +4808,13 @@ static int init_eps(struct ci13xxx *ci)
 				hwep->ep.caps.type_int = true;
 			}
 
-			if (j == TX)
+			if (j == TX) {
 				hwep->ep.caps.dir_in = true;
-			else
+				hwep->ep.caps.dir_out = false;
+			} else {
+				hwep->ep.caps.dir_in = false;
 				hwep->ep.caps.dir_out = true;
+			}
 
 			/*
 			 * for ep0: maxP defined in desc, for other

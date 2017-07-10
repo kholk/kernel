@@ -1555,6 +1555,8 @@ pr_err("=======ANDROID_SETUP=======\n");
 	}
 	spin_unlock_irqrestore(&cdev->lock, flags);
 
+	pr_err("android_setup returning %d", value);
+
 	return value;
 }
 

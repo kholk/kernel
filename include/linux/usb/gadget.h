@@ -850,6 +850,7 @@ static inline int gadget_is_otg(struct usb_gadget *g)
 	return g->is_otg;
 #else
 	return 0;
+//	return 1;
 #endif
 }
 
