@@ -95,6 +95,15 @@ config MACH_SONY_MAPLE
 	If you enable this config,
 	please use SONY Mobile device tree.
 
+config MACH_SONY_MAPLE_DCM
+	bool "Sony Mobile Maple Docomo"
+	depends on ARCH_SONY_YOSHINO
+	help
+	Support for the SONY Mobile Maple Docomo device
+	which is based on SONY Yoshino platform.
+	If you enable this config,
+	please use SONY Mobile device tree.
+
 config MACH_SONY_MAPLE_DSDS
 	bool "Sony Mobile Maple Dsds"
 	depends on ARCH_SONY_YOSHINO

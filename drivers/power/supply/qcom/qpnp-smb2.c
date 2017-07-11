@@ -30,7 +30,6 @@
 #include <linux/regulator/machine.h>
 #if defined(CONFIG_SOMC_CHARGER_EXTENSION)
 #include <linux/of_gpio.h>
-#include <linux/clk.h>
 #endif
 #include "smb-reg.h"
 #include "smb-lib.h"
@@ -1877,12 +1876,13 @@ static int smb2_init_hw(struct smb2 *chip)
 		return rc;
 	}
 
-	rc = smblib_masked_write(chg, USBIN_AICL_OPTIONS_CFG_REG,
-				 USBIN_AICL_RERUN_EN_BIT,
-				 USBIN_AICL_RERUN_EN_BIT);
+	/* Enable JEITA Hard Limit under any settings */
+	rc = smblib_masked_write(chg, JEITA_EN_CFG_REG,
+				 JEITA_EN_HARDLIMIT_BIT,
+				 JEITA_EN_HARDLIMIT_BIT);
 	if (rc < 0) {
-		dev_err(chg->dev, "Couldn't set AICL rerun enabled rc=%d\n",
-									rc);
+		dev_err(chg->dev, "Couldn't enable JEITA Hard Limit rc=%d\n",
+								rc);
 		return rc;
 	}
 
@@ -3098,17 +3098,6 @@ static int smb2_probe(struct platform_device *pdev)
 		goto cleanup;
 	}
 
-#if defined(CONFIG_SOMC_CHARGER_EXTENSION)
-	chg->xo_clk = devm_clk_get(chg->dev, "xo");
-	if (IS_ERR(chg->xo_clk)) {
-		rc = PTR_ERR(chg->extcon);
-		dev_err(chg->dev, "failed to get XO buffer handle rc=%d\n",
-				rc);
-		goto cleanup;
-	}
-	clk_set_rate(chg->xo_clk, 19200000);
-
-#endif
 	rc = smb2_init_hw(chip);
 	if (rc < 0) {
 		pr_err("Couldn't initialize hardware rc=%d\n", rc);
@@ -3226,7 +3215,6 @@ static int smb2_remove(struct platform_device *pdev)
 #if defined(CONFIG_SOMC_CHARGER_EXTENSION)
 	somc_usb_unregister(chg);
 	smb2_somc_remove_sysfs_entries(chg->dev);
-	clk_put(chg->xo_clk);
 #endif
 	power_supply_unregister(chg->batt_psy);
 	power_supply_unregister(chg->usb_psy);

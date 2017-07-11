@@ -292,7 +292,6 @@ struct smb_charger {
 	struct mutex		otg_oc_lock;
 #if defined(CONFIG_SOMC_CHARGER_EXTENSION)
 	struct mutex		thermal_lock;
-	struct mutex		xo_lock;
 #endif
 
 	/* power supplies */
@@ -314,12 +313,6 @@ struct smb_charger {
 	struct smb_regulator	*vconn_vreg;
 	struct regulator	*dpdm_reg;
 
-#if defined(CONFIG_SOMC_CHARGER_EXTENSION)
-	/* clocks */
-	struct clk		*xo_clk;
-	bool			xo_holded;
-
-#endif
 	/* votables */
 	struct votable		*dc_suspend_votable;
 	struct votable		*fcc_votable;
@@ -418,6 +411,9 @@ struct smb_charger {
 	int			jeita_aux_thresh_warm;
 	int			jeita_warm_fcc_ua;
 	int			jeita_cool_fcc_ua;
+	bool			jeita_vbus_rising;
+	bool			jeita_rb_warm_hi_vbatt_en;
+	bool			jeita_keep_fake_charging;
 
 	/* low batt shutdown */
 	int			low_batt_shutdown_enabled;
