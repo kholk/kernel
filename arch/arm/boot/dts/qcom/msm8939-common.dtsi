@@ -1374,12 +1374,19 @@
 	ramoops {
 		compatible = "ramoops";
 		status = "ok";
-		memory-region = <&pstore_reserve_mem>;
-		record-size = <0x0 0x20000>;
-		console-size = <0x0 0x40000>;
-		ftrace-size = <0x0 0x20000>;
-		pmsg-size = <0x0 0x20000>;
-		ecc-size = <16>;
+
+		android,ramoops-buffer-start = <0xA0000000>;
+		android,ramoops-buffer-size = <0x100000>;
+		android,ramoops-console-size = <0x40000>;
+		android,ramoops-record-size = <0x20000>;
+		android,ramoops-ftrace-size = <0x20000>;
+		android,ramoops-pmsg-size = <0x20000>;
+		android,ramoops-dump-oops = <0x1>;
+		linux,contiguous-region = <&pstore_reserve_mem>;
+		android,ramoops-hole {
+			compatible = "qcom,msm-contig-mem";
+			qcom,memblock-reserve = <0xA0000000 0x00100000>;
+		};
 	};
 
 	qcom,mpm2-sleep-counter@4a3000 {
