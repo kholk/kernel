@@ -1072,9 +1072,6 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 
 	pr_info("%s: ctrl=%p ndx=%d\n", __func__, ctrl_pdata, ctrl_pdata->ndx);
 
-	if (pdata->panel_info.dsi_master != pdata->panel_info.pdest)
-		goto skip_off_cmds;
-
 	if (ctrl_pdata->off_cmds.cmd_cnt) {
 		mdss_dsi_panel_cmds_send(ctrl_pdata,
 					&ctrl_pdata->off_cmds);
@@ -1086,21 +1083,25 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 		ctrl_pdata->panel_data.panel_info.lcdc.v_front_porch =
 			spec_pdata->new_vfp;
 
+	if (ctrl_pdata->ds_registered && pinfo->is_pluggable) {
+		mdss_dba_utils_video_off(pinfo->dba_data);
+		mdss_dba_utils_hdcp_enable(pinfo->dba_data, false);
+	}
+
+	if (pdata->panel_info.dsi_master != pdata->panel_info.pdest)
+		goto skip_offsequence;
+
 	somc_panel_fpsman_panel_off();
 
 #ifndef CONFIG_SOMC_PANEL_INCELL
 	mdss_dsi_panel_reset(pdata, 0);
 #endif
 
-skip_off_cmds:
-	if (ctrl_pdata->ds_registered && pinfo->is_pluggable) {
-		mdss_dba_utils_video_off(pinfo->dba_data);
-		mdss_dba_utils_hdcp_enable(pinfo->dba_data, false);
-	}
-
 end:
 	spec_pdata->disp_onoff_state = false;
 	pdata->resume_started = true;
+
+skip_offsequence:
 	pr_debug("%s: Done\n", __func__);
 
 	return 0;
@@ -2076,21 +2077,25 @@ static void mdss_dsi_parse_dms_config(struct device_node *np,
 	/* default mode is suspend_resume */
 	pinfo->mipi.dms_mode = DYNAMIC_MODE_SWITCH_SUSPEND_RESUME;
 	data = of_get_property(np, "qcom,dynamic-mode-switch-type", NULL);
-	if (data && !strcmp(data, "dynamic-resolution-switch-immediate")) {
-		if (!list_empty(&ctrl->panel_data.timings_list))
-			pinfo->mipi.dms_mode =
-				DYNAMIC_MODE_RESOLUTION_SWITCH_IMMEDIATE;
-		else
-			pinfo->mipi.dms_mode =
-				DYNAMIC_MODE_SWITCH_DISABLED;
+	if (data) {
+		if (!strcmp(data, "dynamic-resolution-switch-immediate")) {
+			if (!list_empty(&ctrl->panel_data.timings_list))
+				pinfo->mipi.dms_mode =
+				    DYNAMIC_MODE_RESOLUTION_SWITCH_IMMEDIATE;
+			else
+				pinfo->mipi.dms_mode =
+				    DYNAMIC_MODE_SWITCH_DISABLED;
 
-		goto exit;
+			goto exit;
+		} else if (!strcmp(data, "dynamic-resolution-switch-susres")) {
+			pinfo->mipi.dms_mode =
+				DYNAMIC_MODE_SWITCH_SUSPEND_RESUME;
+			goto exit;
+		} else if (!strcmp(data, "dynamic-switch-immediate")) {
+			/* Video<=>CMD dynamic mode switch */
+			pinfo->mipi.dms_mode = DYNAMIC_MODE_SWITCH_IMMEDIATE;
+		}
 	}
-
-	if (data && !strcmp(data, "dynamic-switch-immediate"))
-		pinfo->mipi.dms_mode = DYNAMIC_MODE_SWITCH_IMMEDIATE;
-	else
-		pr_debug("%s: default dms suspend/resume\n", __func__);
 
 	mdss_dsi_parse_dcs_cmds(np, &ctrl->video2cmd,
 		"qcom,video-to-cmd-mode-switch-commands", NULL);
@@ -2644,6 +2649,12 @@ int mdss_dsi_panel_timing_switch(struct mdss_dsi_ctrl_pdata *ctrl,
 	ctrl->panel_data.current_timing = timing;
 	if (!timing->clk_rate)
 		ctrl->refresh_clk_rate = true;
+
+	/* Set color correction parameters again for the new mode */
+	somc_panel_colormgr_reset(ctrl);
+	
+	/* Refresh FPS immediately in case of refresh rate change */
+	somc_panel_fpsman_refresh(ctrl, true);
 
 	mdss_dsi_clk_refresh(&ctrl->panel_data, ctrl->update_phy_timing);
 

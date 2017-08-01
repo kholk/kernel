@@ -28,9 +28,9 @@
 #include <soc/qcom/socinfo.h>
 #include "qdsp6v2/msm-pcm-routing-v2.h"
 #include "msm-audio-pinctrl.h"
-#include "../codecs/msm8x16-wcd.h"
-#include "../codecs/wsa881x-analog.h"
+#include "../codecs/wcd-mbhc-v2.h"
 #include <linux/regulator/consumer.h>
+
 #define DRV_NAME "msm8952-asoc-wcd"
 
 #define BTSCO_RATE_8KHZ 8000
@@ -51,6 +51,9 @@
 #define WCD_MBHC_DEF_RLOADS 5
 #define MAX_WSA_CODEC_NAME_LENGTH 80
 #define MSM_DT_MAX_PROP_SIZE 80
+
+#define MICBIAS_EXT_BYP_CAP 0x00
+#define MICBIAS_NO_EXT_BYP_CAP 0x01
 
 enum btsco_rates {
 	RATE_8KHZ_ID,
@@ -77,8 +80,35 @@ static int msm8952_enable_dig_cdc_clk(struct snd_soc_codec *codec, int enable,
 static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec);
 static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
 			      struct snd_kcontrol *kcontrol, int event);
-static int msm8952_wsa_switch_event(struct snd_soc_dapm_widget *w,
-			      struct snd_kcontrol *kcontrol, int event);
+
+struct on_demand_supply {
+        struct regulator *supply;
+        atomic_t ref;
+};
+
+struct msm_asoc_mach_data {
+        int codec_type;
+        int ext_pa;
+        int us_euro_gpio;
+        int spk_ext_pa_gpio;
+        int mclk_freq;
+        int lb_mode;
+        int afe_clk_ver;
+        u8 micbias1_cap_mode;
+        u8 micbias2_cap_mode;
+        atomic_t mclk_rsc_ref;
+        atomic_t mclk_enabled;
+        atomic_t wsa_mclk_rsc_ref;
+        struct mutex cdc_mclk_mutex;
+        struct mutex wsa_mclk_mutex;
+        struct delayed_work disable_mclk_work;
+        struct afe_digital_clk_cfg digital_cdc_clk;
+        struct afe_clk_set digital_cdc_core_clk;
+        void __iomem *vaddr_gpio_mux_spkr_ctl;
+        void __iomem *vaddr_gpio_mux_mic_ctl;
+        void __iomem *vaddr_gpio_mux_quin_ctl;
+        void __iomem *vaddr_gpio_mux_pcm_ctl;
+};
 
 /*
  * Android L spec
@@ -204,40 +234,10 @@ static const struct snd_soc_dapm_widget msm8952_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Secondary Mic", NULL),
 	SND_SOC_DAPM_MIC("Digital Mic1", NULL),
 	SND_SOC_DAPM_MIC("Digital Mic2", NULL),
-	SND_SOC_DAPM_SUPPLY("VDD_WSA_SWITCH", SND_SOC_NOPM, 0, 0,
-	msm8952_wsa_switch_event,
-	SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 };
 
-static int config_hph_compander_gpio(bool enable)
-{
-	int ret = 0;
-
-	pr_debug("%s: %s HPH Compander\n", __func__,
-		enable ? "Enable" : "Disable");
-
-	if (enable) {
-		ret = msm_gpioset_activate(CLIENT_WCD_INT, "comp_gpio");
-		if (ret) {
-			pr_err("%s: gpio set cannot be activated %s\n",
-				__func__, "comp_gpio");
-			goto done;
-		}
-	} else {
-		ret = msm_gpioset_suspend(CLIENT_WCD_INT, "comp_gpio");
-		if (ret) {
-			pr_err("%s: gpio set cannot be de-activated %s\n",
-				__func__, "comp_gpio");
-			goto done;
-		}
-	}
-
-done:
-	return ret;
-}
-
 int is_ext_spk_gpio_support(struct platform_device *pdev,
-			struct msm8916_asoc_mach_data *pdata)
+			struct msm_asoc_mach_data *pdata)
 {
 	const char *spk_ext_pa = "qcom,msm-spk-ext-pa";
 
@@ -259,44 +259,9 @@ int is_ext_spk_gpio_support(struct platform_device *pdev,
 	return 0;
 }
 
-static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
-{
-	struct snd_soc_card *card = codec->component.card;
-	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
-	int ret;
-
-	if (!gpio_is_valid(pdata->spk_ext_pa_gpio)) {
-		pr_err("%s: Invalid gpio: %d\n", __func__,
-			pdata->spk_ext_pa_gpio);
-		return false;
-	}
-
-	pr_debug("%s: %s external speaker PA\n", __func__,
-		enable ? "Enable" : "Disable");
-
-	if (enable) {
-		ret = msm_gpioset_activate(CLIENT_WCD_INT, "ext_spk_gpio");
-		if (ret) {
-			pr_err("%s: gpio set cannot be de-activated %s\n",
-					__func__, "ext_spk_gpio");
-			return ret;
-		}
-		gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, enable);
-	} else {
-		gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, enable);
-		ret = msm_gpioset_suspend(CLIENT_WCD_INT, "ext_spk_gpio");
-		if (ret) {
-			pr_err("%s: gpio set cannot be de-activated %s\n",
-					__func__, "ext_spk_gpio");
-			return ret;
-		}
-	}
-	return 0;
-}
-
 /* Validate whether US EU switch is present or not */
 int is_us_eu_switch_gpio_support(struct platform_device *pdev,
-		struct msm8916_asoc_mach_data *pdata)
+		struct msm_asoc_mach_data *pdata)
 {
 	int ret;
 
@@ -316,7 +281,7 @@ int is_us_eu_switch_gpio_support(struct platform_device *pdev,
 					pdata->us_euro_gpio);
 			return -EINVAL;
 		}
-		ret = msm_get_gpioset_index(CLIENT_WCD_INT,
+		ret = msm_get_gpioset_index(CLIENT_WCD,
 						"us_eu_gpio");
 		if (ret < 0) {
 			pr_err("%s: gpio set name does not exist: %s",
@@ -374,23 +339,6 @@ static int msm_mi2s_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 			msm_pri_mi2s_rx_ch, mi2s_rx_sample_rate);
 	rate->min = rate->max = mi2s_rx_sample_rate;
 	channels->min = channels->max = msm_pri_mi2s_rx_ch;
-
-	return 0;
-}
-
-static int msm_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
-				struct snd_pcm_hw_params *params)
-{
-	struct snd_interval *rate = hw_param_interval(params,
-					SNDRV_PCM_HW_PARAM_RATE);
-	struct snd_interval *channels = hw_param_interval(params,
-					SNDRV_PCM_HW_PARAM_CHANNELS);
-
-	pr_debug("%s(), channel:%d\n", __func__, msm_ter_mi2s_tx_ch);
-	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
-			SNDRV_PCM_FORMAT_S16_LE);
-	rate->min = rate->max = 48000;
-	channels->min = channels->max = msm_ter_mi2s_tx_ch;
 
 	return 0;
 }
@@ -568,7 +516,7 @@ static int msm_mi2s_sclk_ctl(struct snd_pcm_substream *substream, bool enable)
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *card = rtd->card;
-	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int port_id = 0;
 
 	port_id = msm8952_get_port_id(rtd->dai_link->be_id);
@@ -654,7 +602,7 @@ static int msm8952_enable_dig_cdc_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm)
 {
 	int ret = 0;
-	struct msm8916_asoc_mach_data *pdata = NULL;
+	struct msm_asoc_mach_data *pdata = NULL;
 
 	pdata = snd_soc_card_get_drvdata(codec->component.card);
 	pr_debug("%s: enable %d mclk ref counter %d\n",
@@ -800,7 +748,7 @@ static int loopback_mclk_put(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
 	int ret = -EINVAL;
-	struct msm8916_asoc_mach_data *pdata = NULL;
+	struct msm_asoc_mach_data *pdata = NULL;
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 
 	pdata = snd_soc_card_get_drvdata(codec->component.card);
@@ -809,7 +757,7 @@ static int loopback_mclk_put(struct snd_kcontrol *kcontrol,
 			ucontrol->value.integer.value[0]);
 	switch (ucontrol->value.integer.value[0]) {
 	case 1:
-		ret = msm_gpioset_activate(CLIENT_WCD_INT, "pri_i2s");
+		ret = msm_gpioset_activate(CLIENT_WCD, "pri_i2s");
 		if (ret) {
 			pr_err("%s: failed to enable the pri gpios: %d\n",
 					__func__, ret);
@@ -834,7 +782,7 @@ static int loopback_mclk_put(struct snd_kcontrol *kcontrol,
 				pr_err("%s: failed to enable the MCLK: %d\n",
 						__func__, ret);
 				mutex_unlock(&pdata->cdc_mclk_mutex);
-				ret = msm_gpioset_suspend(CLIENT_WCD_INT,
+				ret = msm_gpioset_suspend(CLIENT_WCD,
 								"pri_i2s");
 				if (ret)
 					pr_err("%s: failed to disable the pri gpios: %d\n",
@@ -845,12 +793,10 @@ static int loopback_mclk_put(struct snd_kcontrol *kcontrol,
 		}
 		mutex_unlock(&pdata->cdc_mclk_mutex);
 		atomic_inc(&pdata->mclk_rsc_ref);
-		msm8x16_wcd_mclk_enable(codec, 1, true);
 		break;
 	case 0:
 		if (atomic_read(&pdata->mclk_rsc_ref) <= 0)
 			break;
-		msm8x16_wcd_mclk_enable(codec, 0, true);
 		mutex_lock(&pdata->cdc_mclk_mutex);
 		if ((!atomic_dec_return(&pdata->mclk_rsc_ref)) &&
 				(atomic_read(&pdata->mclk_enabled))) {
@@ -874,7 +820,7 @@ static int loopback_mclk_put(struct snd_kcontrol *kcontrol,
 			atomic_set(&pdata->mclk_enabled, false);
 		}
 		mutex_unlock(&pdata->cdc_mclk_mutex);
-		ret = msm_gpioset_suspend(CLIENT_WCD_INT, "pri_i2s");
+		ret = msm_gpioset_suspend(CLIENT_WCD, "pri_i2s");
 		if (ret)
 			pr_err("%s: failed to disable the pri gpios: %d\n",
 					__func__, ret);
@@ -1025,16 +971,17 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
 			      struct snd_kcontrol *kcontrol, int event)
 {
-	struct msm8916_asoc_mach_data *pdata = NULL;
+	struct msm_asoc_mach_data *pdata = NULL;
+	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
 	int ret = 0;
 
-	pdata = snd_soc_card_get_drvdata(w->codec->component.card);
+	pdata = snd_soc_card_get_drvdata(codec->component.card);
 	pr_debug("%s: event = %d\n", __func__, event);
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMD:
 		pr_debug("%s: mclk_res_ref = %d\n",
 			__func__, atomic_read(&pdata->mclk_rsc_ref));
-		ret = msm_gpioset_suspend(CLIENT_WCD_INT, "pri_i2s");
+		ret = msm_gpioset_suspend(CLIENT_WCD, "pri_i2s");
 		if (ret < 0) {
 			pr_err("%s: gpio set cannot be de-activated %sd",
 					__func__, "pri_i2s");
@@ -1043,8 +990,7 @@ static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
 		if (atomic_read(&pdata->mclk_rsc_ref) == 0) {
 			pr_debug("%s: disabling MCLK\n", __func__);
 			/* disable the codec mclk config*/
-			msm8x16_wcd_mclk_enable(w->codec, 0, true);
-			msm8952_enable_dig_cdc_clk(w->codec, 0, true);
+			msm8952_enable_dig_cdc_clk(codec, 0, true);
 		}
 		break;
 	default:
@@ -1054,55 +1000,10 @@ static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
-static int msm8952_wsa_switch_event(struct snd_soc_dapm_widget *w,
-			      struct snd_kcontrol *kcontrol, int event)
-{
-	int ret = 0;
-	struct msm8916_asoc_mach_data *pdata = NULL;
-	struct on_demand_supply *supply;
-
-	pdata = snd_soc_card_get_drvdata(w->codec->component.card);
-	supply = &pdata->wsa_switch_supply;
-	if (!supply->supply) {
-		dev_err(w->codec->component.card->dev, "%s: no wsa switch supply",
-			__func__);
-		return ret;
-	}
-
-	switch (event) {
-	case SND_SOC_DAPM_PRE_PMU:
-		if (atomic_inc_return(&supply->ref) == 1)
-			ret = regulator_enable(supply->supply);
-		if (ret)
-			dev_err(w->codec->component.card->dev,
-				"%s: Failed to enable wsa switch supply\n",
-				__func__);
-		break;
-	case SND_SOC_DAPM_POST_PMD:
-		if (atomic_read(&supply->ref) == 0) {
-			dev_dbg(w->codec->component.card->dev,
-				"%s: wsa switch supply has been disabled.\n",
-				__func__);
-			return ret;
-		}
-		if (atomic_dec_return(&supply->ref) == 0)
-			ret = regulator_disable(supply->supply);
-			if (ret)
-				dev_err(w->codec->component.card->dev,
-					"%s: Failed to disable wsa switch supply\n",
-					__func__);
-		break;
-	default:
-		break;
-	}
-
-	return ret;
-}
-
 static int msm8952_enable_wsa_mclk(struct snd_soc_card *card, bool enable)
 {
 	int ret = 0;
-	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 
 	mutex_lock(&pdata->wsa_mclk_mutex);
 	if (enable) {
@@ -1161,7 +1062,7 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_codec *codec = rtd->codec;
-	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int ret = 0, val = 0;
 
 	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
@@ -1204,13 +1105,12 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		return ret;
 	}
 	/* Enable the codec mclk config */
-	ret = msm_gpioset_activate(CLIENT_WCD_INT, "pri_i2s");
+	ret = msm_gpioset_activate(CLIENT_WCD, "pri_i2s");
 	if (ret < 0) {
 		pr_err("%s: gpio set cannot be activated %sd",
 				__func__, "pri_i2s");
 		return ret;
 	}
-	msm8x16_wcd_mclk_enable(codec, 1, true);
 	ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_CBS_CFS);
 	if (ret < 0)
 		pr_err("%s: set fmt cpu dai failed; ret=%d\n", __func__, ret);
@@ -1222,7 +1122,7 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 	int ret;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *card = rtd->card;
-	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 
 	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
 			substream->name, substream->stream);
@@ -1251,7 +1151,7 @@ static int msm_prim_auxpcm_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_card *card = rtd->card;
-	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int ret = 0, val = 0;
 
 	pr_debug("%s(): substream = %s\n",
@@ -1272,7 +1172,7 @@ static int msm_prim_auxpcm_startup(struct snd_pcm_substream *substream)
 	atomic_inc(&auxpcm_mi2s_clk_ref);
 
 	/* enable the gpio's used for the external AUXPCM interface */
-	ret = msm_gpioset_activate(CLIENT_WCD_INT, "quat_i2s");
+	ret = msm_gpioset_activate(CLIENT_WCD, "quat_i2s");
 	if (ret < 0)
 		pr_err("%s(): configure gpios failed = %s\n",
 				__func__, "quat_i2s");
@@ -1285,7 +1185,7 @@ static void msm_prim_auxpcm_shutdown(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_codec *codec = rtd->codec;
-	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 
 	pr_debug("%s(): substream = %s\n",
 			__func__, substream->name);
@@ -1300,7 +1200,7 @@ static void msm_prim_auxpcm_shutdown(struct snd_pcm_substream *substream)
 		(atomic_read(&pdata->mclk_rsc_ref) == 0)) {
 		msm8952_enable_dig_cdc_clk(codec, 0, true);
 	}
-	ret = msm_gpioset_suspend(CLIENT_WCD_INT, "quat_i2s");
+	ret = msm_gpioset_suspend(CLIENT_WCD, "quat_i2s");
 	if (ret < 0)
 		pr_err("%s(): configure gpios failed = %s\n",
 				__func__, "quat_i2s");
@@ -1311,7 +1211,7 @@ static int msm_sec_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct msm8916_asoc_mach_data *pdata =
+	struct msm_asoc_mach_data *pdata =
 			snd_soc_card_get_drvdata(card);
 	int ret = 0, val = 0;
 
@@ -1336,7 +1236,7 @@ static int msm_sec_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		}
 		pr_debug("%s(): SEC I2S gpios turned on  = %s\n", __func__,
 				"sec_i2s");
-		ret = msm_gpioset_activate(CLIENT_WCD_INT, "sec_i2s");
+		ret = msm_gpioset_activate(CLIENT_WCD, "sec_i2s");
 		if (ret < 0) {
 			pr_err("%s: gpio set cannot be activated %sd",
 						__func__, "sec_i2s");
@@ -1348,7 +1248,7 @@ static int msm_sec_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_CBS_CFS);
 	if (ret < 0) {
 		pr_err("%s: set fmt cpu dai failed\n", __func__);
-		ret = msm_gpioset_suspend(CLIENT_WCD_INT, "sec_i2s");
+		ret = msm_gpioset_suspend(CLIENT_WCD, "sec_i2s");
 		if (ret < 0) {
 			pr_err("%s: gpio set cannot be de-activated %sd",
 						__func__, "sec_i2s");
@@ -1368,12 +1268,12 @@ static void msm_sec_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 	int ret;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *card = rtd->card;
-	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 
 	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
 				substream->name, substream->stream);
 	if ((pdata->ext_pa & SEC_MI2S_ID) == SEC_MI2S_ID) {
-		ret = msm_gpioset_suspend(CLIENT_WCD_INT, "sec_i2s");
+		ret = msm_gpioset_suspend(CLIENT_WCD, "sec_i2s");
 		if (ret < 0) {
 			pr_err("%s: gpio set cannot be de-activated: %sd",
 					__func__, "sec_i2s");
@@ -1390,7 +1290,7 @@ static int msm_quat_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct msm8916_asoc_mach_data *pdata =
+	struct msm_asoc_mach_data *pdata =
 			snd_soc_card_get_drvdata(card);
 	int ret = 0, val = 0;
 
@@ -1406,7 +1306,7 @@ static int msm_quat_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		pr_err("failed to enable sclk\n");
 		return ret;
 	}
-	ret = msm_gpioset_activate(CLIENT_WCD_INT, "quat_i2s");
+	ret = msm_gpioset_activate(CLIENT_WCD, "quat_i2s");
 	if (ret < 0) {
 		pr_err("failed to enable codec gpios\n");
 		goto err;
@@ -1435,7 +1335,7 @@ static void msm_quat_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		pr_err("%s:clock disable failed\n", __func__);
 	if (atomic_read(&quat_mi2s_clk_ref) > 0)
 		atomic_dec(&quat_mi2s_clk_ref);
-	ret = msm_gpioset_suspend(CLIENT_WCD_INT, "quat_i2s");
+	ret = msm_gpioset_suspend(CLIENT_WCD, "quat_i2s");
 	if (ret < 0) {
 		pr_err("%s: gpio set cannot be de-activated %sd",
 					__func__, "quat_i2s");
@@ -1448,7 +1348,7 @@ static int msm_quin_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct msm8916_asoc_mach_data *pdata =
+	struct msm_asoc_mach_data *pdata =
 			snd_soc_card_get_drvdata(card);
 	int ret = 0, val = 0;
 
@@ -1466,7 +1366,7 @@ static int msm_quin_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		pr_err("failed to enable sclk\n");
 		return ret;
 	}
-	ret = msm_gpioset_activate(CLIENT_WCD_INT, "quin_i2s");
+	ret = msm_gpioset_activate(CLIENT_WCD, "quin_i2s");
 	if (ret < 0) {
 		pr_err("failed to enable codec gpios\n");
 		goto err;
@@ -1495,110 +1395,12 @@ static void msm_quin_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		pr_err("%s:clock disable failed\n", __func__);
 	if (atomic_read(&quin_mi2s_clk_ref) > 0)
 		atomic_dec(&quin_mi2s_clk_ref);
-	ret = msm_gpioset_suspend(CLIENT_WCD_INT, "quin_i2s");
+	ret = msm_gpioset_suspend(CLIENT_WCD, "quin_i2s");
 	if (ret < 0) {
 		pr_err("%s: gpio set cannot be de-activated %sd",
 					__func__, "quin_i2s");
 		return;
 	}
-}
-
-static void *def_msm8952_wcd_mbhc_cal(void)
-{
-	void *msm8952_wcd_cal;
-	struct wcd_mbhc_btn_detect_cfg *btn_cfg;
-	u16 *btn_low, *btn_high;
-
-	msm8952_wcd_cal = kzalloc(WCD_MBHC_CAL_SIZE(WCD_MBHC_DEF_BUTTONS,
-				WCD_MBHC_DEF_RLOADS), GFP_KERNEL);
-	if (!msm8952_wcd_cal)
-		return NULL;
-
-#define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(msm8952_wcd_cal)->X) = (Y))
-	S(v_hs_max, 1500);
-#undef S
-#define S(X, Y) ((WCD_MBHC_CAL_BTN_DET_PTR(msm8952_wcd_cal)->X) = (Y))
-	S(num_btn, WCD_MBHC_DEF_BUTTONS);
-#undef S
-
-
-	btn_cfg = WCD_MBHC_CAL_BTN_DET_PTR(msm8952_wcd_cal);
-	btn_low = btn_cfg->_v_btn_low;
-	btn_high = ((void *)&btn_cfg->_v_btn_low) +
-		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
-
-	/*
-	 * In SW we are maintaining two sets of threshold register
-	 * one for current source and another for Micbias.
-	 * all btn_low corresponds to threshold for current source
-	 * all bt_high corresponds to threshold for Micbias
-	 * Below thresholds are based on following resistances
-	 * 0-70    == Button 0
-	 * 110-180 == Button 1
-	 * 210-290 == Button 2
-	 * 360-680 == Button 3
-	 */
-	btn_low[0] = 75;
-	btn_high[0] = 75;
-	btn_low[1] = 150;
-	btn_high[1] = 150;
-	btn_low[2] = 225;
-	btn_high[2] = 225;
-	btn_low[3] = 450;
-	btn_high[3] = 450;
-	btn_low[4] = 500;
-	btn_high[4] = 500;
-
-	return msm8952_wcd_cal;
-}
-
-static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
-{
-	struct snd_soc_codec *codec = rtd->codec;
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	int ret = -ENOMEM;
-
-	pr_debug("%s(),dev_name%s\n", __func__, dev_name(cpu_dai->dev));
-
-	snd_soc_add_codec_controls(codec, msm_snd_controls,
-			ARRAY_SIZE(msm_snd_controls));
-
-	snd_soc_dapm_new_controls(dapm, msm8952_dapm_widgets,
-			ARRAY_SIZE(msm8952_dapm_widgets));
-
-	snd_soc_dapm_ignore_suspend(dapm, "Handset Mic");
-	snd_soc_dapm_ignore_suspend(dapm, "Headset Mic");
-	snd_soc_dapm_ignore_suspend(dapm, "Secondary Mic");
-	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic1");
-	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic2");
-
-	snd_soc_dapm_ignore_suspend(dapm, "EAR");
-	snd_soc_dapm_ignore_suspend(dapm, "HEADPHONE");
-	snd_soc_dapm_ignore_suspend(dapm, "SPK_OUT");
-	snd_soc_dapm_ignore_suspend(dapm, "AMIC1");
-	snd_soc_dapm_ignore_suspend(dapm, "AMIC2");
-	snd_soc_dapm_ignore_suspend(dapm, "AMIC3");
-	snd_soc_dapm_ignore_suspend(dapm, "DMIC1");
-	snd_soc_dapm_ignore_suspend(dapm, "DMIC2");
-	snd_soc_dapm_ignore_suspend(dapm, "WSA_SPK OUT");
-	snd_soc_dapm_ignore_suspend(dapm, "LINEOUT");
-
-	snd_soc_dapm_sync(dapm);
-
-	msm8x16_wcd_spk_ext_pa_cb(enable_spk_ext_pa, codec);
-	msm8x16_wcd_hph_comp_cb(config_hph_compander_gpio, codec);
-
-	mbhc_cfg.calibration = def_msm8952_wcd_mbhc_cal();
-	if (mbhc_cfg.calibration) {
-		ret = msm8x16_wcd_hs_detect(codec, &mbhc_cfg);
-		if (ret) {
-			pr_err("%s: msm8x16_wcd_hs_detect failed\n", __func__);
-			kfree(mbhc_cfg.calibration);
-			return ret;
-		}
-	}
-	return 0;
 }
 
 static struct snd_soc_ops msm8952_quat_mi2s_be_ops = {
@@ -1931,7 +1733,7 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.codec_name = "snd-soc-dummy",
 	},
 	{/* hw:x,18 */
-		.name = "MSM8916 HFP",
+		.name = "msm HFP",
 		.stream_name = "MultiMedia6",
 		.cpu_dai_name = "MultiMedia6",
 		.platform_name  = "msm-pcm-loopback",
@@ -2223,7 +2025,7 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.be_id = MSM_FRONTEND_DAI_VOICEMMODE2,
 	},
 	{/* hw:x,36 */
-		.name = "MSM8916 HFP Loopback2",
+		.name = "msm HFP Loopback2",
 		.stream_name = "MultiMedia8",
 		.cpu_dai_name = "MultiMedia8",
 		.platform_name  = "msm-pcm-loopback",
@@ -2258,24 +2060,6 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.ignore_pmdown_time = 1,
 		.be_id = MSM_FRONTEND_DAI_QCHAT,
 	},
-	/* Backend I2S DAI Links */
-	{
-		.name = LPASS_BE_PRI_MI2S_RX,
-		.stream_name = "Primary MI2S Playback",
-		.cpu_dai_name = "msm-dai-q6-mi2s.0",
-		.platform_name = "msm-pcm-routing",
-		.codec_name     = "cajon_codec",
-		.codec_dai_name = "msm8x16_wcd_i2s_rx1",
-		.no_pcm = 1,
-		.dpcm_playback = 1,
-		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE |
-			ASYNC_DPCM_SND_SOC_HW_PARAMS,
-		.be_id = MSM_BACKEND_DAI_PRI_MI2S_RX,
-		.init = &msm_audrx_init,
-		.be_hw_params_fixup = msm_mi2s_rx_be_hw_params_fixup,
-		.ops = &msm8952_mi2s_be_ops,
-		.ignore_suspend = 1,
-	},
 	{
 		.name = LPASS_BE_SEC_MI2S_RX,
 		.stream_name = "Secondary MI2S Playback",
@@ -2288,22 +2072,6 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.be_id = MSM_BACKEND_DAI_SECONDARY_MI2S_RX,
 		.be_hw_params_fixup = msm_mi2s_rx_be_hw_params_fixup,
 		.ops = &msm8952_sec_mi2s_be_ops,
-		.ignore_suspend = 1,
-	},
-	{
-		.name = LPASS_BE_TERT_MI2S_TX,
-		.stream_name = "Tertiary MI2S Capture",
-		.cpu_dai_name = "msm-dai-q6-mi2s.2",
-		.platform_name = "msm-pcm-routing",
-		.codec_name     = "cajon_codec",
-		.codec_dai_name = "msm8x16_wcd_i2s_tx1",
-		.no_pcm = 1,
-		.dpcm_capture = 1,
-		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE |
-			ASYNC_DPCM_SND_SOC_HW_PARAMS,
-		.be_id = MSM_BACKEND_DAI_TERTIARY_MI2S_TX,
-		.be_hw_params_fixup = msm_tx_be_hw_params_fixup,
-		.ops = &msm8952_mi2s_be_ops,
 		.ignore_suspend = 1,
 	},
 	{
@@ -2617,12 +2385,12 @@ static struct snd_soc_card bear_card = {
 
 void msm8952_disable_mclk(struct work_struct *work)
 {
-	struct msm8916_asoc_mach_data *pdata = NULL;
+	struct msm_asoc_mach_data *pdata = NULL;
 	struct delayed_work *dwork;
 	int ret = 0;
 
 	dwork = to_delayed_work(work);
-	pdata = container_of(dwork, struct msm8916_asoc_mach_data,
+	pdata = container_of(dwork, struct msm_asoc_mach_data,
 			disable_mclk_work);
 	mutex_lock(&pdata->cdc_mclk_mutex);
 	pr_debug("%s: mclk_enabled %d mclk_rsc_ref %d\n", __func__,
@@ -2654,7 +2422,7 @@ void msm8952_disable_mclk(struct work_struct *work)
 static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec)
 {
 	struct snd_soc_card *card = codec->component.card;
-	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int value, ret;
 
 	pr_debug("%s: configure gpios for US_EU\n", __func__);
@@ -2664,7 +2432,7 @@ static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec)
 		return false;
 	}
 	value = gpio_get_value_cansleep(pdata->us_euro_gpio);
-	ret = msm_gpioset_activate(CLIENT_WCD_INT, "us_eu_gpio");
+	ret = msm_gpioset_activate(CLIENT_WCD, "us_eu_gpio");
 	if (ret < 0) {
 		pr_err("%s: gpio set cannot be activated %sd",
 				__func__, "us_eu_gpio");
@@ -2673,7 +2441,7 @@ static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec)
 	gpio_set_value_cansleep(pdata->us_euro_gpio, !value);
 	pr_debug("%s: swap select switch %d to %d\n", __func__, value, !value);
 
-	ret = msm_gpioset_suspend(CLIENT_WCD_INT, "us_eu_gpio");
+	ret = msm_gpioset_suspend(CLIENT_WCD, "us_eu_gpio");
 	if (ret < 0) {
 		pr_err("%s: gpio set cannot be de-activated %sd",
 				__func__, "us_eu_gpio");
@@ -2684,7 +2452,7 @@ static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec)
 }
 
 static void msm8952_dt_parse_cap_info(struct platform_device *pdev,
-		struct msm8916_asoc_mach_data *pdata)
+		struct msm_asoc_mach_data *pdata)
 {
 	const char *ext1_cap = "qcom,msm-micbias1-ext-cap";
 	const char *ext2_cap = "qcom,msm-micbias2-ext-cap";
@@ -2784,74 +2552,6 @@ err:
 	return ret;
 }
 
-int msm8952_init_wsa_switch_supply(struct platform_device *pdev,
-		struct msm8916_asoc_mach_data *pdata)
-{
-	const char *switch_supply_str = "msm-vdd-wsa-switch";
-	char prop_name[MSM_DT_MAX_PROP_SIZE];
-	struct device_node *regnode = NULL;
-	struct device *dev = &pdev->dev;
-	u32 prop_val;
-	int ret = 0;
-
-	snprintf(prop_name, MSM_DT_MAX_PROP_SIZE, "%s-supply",
-		switch_supply_str);
-	regnode = of_parse_phandle(dev->of_node, prop_name, 0);
-	if (!regnode) {
-		dev_err(dev, "Looking up %s property in node %s failed\n",
-			prop_name, dev->of_node->full_name);
-		return -ENODEV;
-	}
-
-	pdata->wsa_switch_supply.supply = devm_regulator_get(dev,
-			switch_supply_str);
-	if (IS_ERR(pdata->wsa_switch_supply.supply)) {
-		ret = PTR_ERR(pdata->wsa_switch_supply.supply);
-		dev_err(dev, "Failed to get wsa switch supply: err = %d\n",
-					ret);
-		return ret;
-	}
-
-	snprintf(prop_name, MSM_DT_MAX_PROP_SIZE,
-		"qcom,%s-voltage", switch_supply_str);
-	ret = of_property_read_u32(dev->of_node, prop_name,
-			&prop_val);
-	if (ret) {
-		dev_err(dev, "Looking up %s property in node %s failed",
-			prop_name, dev->of_node->full_name);
-		return -EFAULT;
-	}
-	ret = regulator_set_voltage(pdata->wsa_switch_supply.supply,
-		prop_val, prop_val);
-	if (ret) {
-		dev_err(dev, "Setting voltage failed for regulator %s err = %d\n",
-			switch_supply_str, ret);
-		pdata->wsa_switch_supply.supply = NULL;
-		return ret;
-	}
-
-	snprintf(prop_name, MSM_DT_MAX_PROP_SIZE,
-		"qcom,%s-current", switch_supply_str);
-	ret = of_property_read_u32(dev->of_node, prop_name,
-			&prop_val);
-	if (ret) {
-		dev_err(dev, "Looking up %s property in node %s failed",
-			prop_name, dev->of_node->full_name);
-		return -EFAULT;
-	}
-	ret = regulator_set_optimum_mode(pdata->wsa_switch_supply.supply,
-		prop_val);
-	if (ret < 0) {
-		dev_err(dev, "Setting current failed for regulator %s err = %d\n",
-			switch_supply_str, ret);
-		pdata->wsa_switch_supply.supply = NULL;
-		return ret;
-	}
-
-	atomic_set(&pdata->wsa_switch_supply.ref, 0);
-	return ret;
-}
-
 static struct snd_soc_card *msm8952_populate_sndcard_dailinks(
 						struct device *dev)
 {
@@ -2893,7 +2593,7 @@ static struct snd_soc_card *msm8952_populate_sndcard_dailinks(
 static int msm8952_asoc_machine_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card;
-	struct msm8916_asoc_mach_data *pdata = NULL;
+	struct msm_asoc_mach_data *pdata = NULL;
 	const char *hs_micbias_type = "qcom,msm-hs-micbias-type";
 	const char *ext_pa = "qcom,msm-ext-pa";
 	const char *mclk = "qcom,msm-mclk-freq";
@@ -2909,7 +2609,7 @@ static int msm8952_asoc_machine_probe(struct platform_device *pdev)
 	char *temp_str = NULL;
 
 	pdata = devm_kzalloc(&pdev->dev,
-			sizeof(struct msm8916_asoc_mach_data), GFP_KERNEL);
+			sizeof(struct msm_asoc_mach_data), GFP_KERNEL);
 	if (!pdata)
 		return -ENOMEM;
 
@@ -2985,7 +2685,7 @@ parse_mclk_freq:
 	pdata->mclk_freq = id;
 
 	/*reading the gpio configurations from dtsi file*/
-	ret = msm_gpioset_initialize(CLIENT_WCD_INT, &pdev->dev);
+	ret = msm_gpioset_initialize(CLIENT_WCD, &pdev->dev);
 	if (ret < 0) {
 		dev_err(&pdev->dev,
 			"%s: error reading dtsi files%d\n", __func__, ret);
@@ -2995,68 +2695,53 @@ parse_mclk_freq:
 	num_strings = of_property_count_strings(pdev->dev.of_node,
 			wsa);
 	if (num_strings > 0) {
-		if (wsa881x_get_probing_count() < 2) {
-			ret = -EPROBE_DEFER;
-			goto err;
-		} else if (wsa881x_get_presence_count() == num_strings) {
-			bear_card.aux_dev = msm8952_aux_dev;
-			bear_card.num_aux_devs = num_strings;
-			bear_card.codec_conf = msm8952_codec_conf;
-			bear_card.num_configs = num_strings;
+		bear_card.aux_dev = msm8952_aux_dev;
+		bear_card.num_aux_devs = num_strings;
+		bear_card.codec_conf = msm8952_codec_conf;
+		bear_card.num_configs = num_strings;
 
-			for (i = 0; i < num_strings; i++) {
-				ret = of_property_read_string_index(
-						pdev->dev.of_node, wsa,
-						i, &wsa_str);
-				if (ret) {
-					dev_err(&pdev->dev,
-						"%s:of read string %s i %d error %d\n",
-						__func__, wsa, i, ret);
-					goto err;
-				}
-				temp_str = kstrdup(wsa_str, GFP_KERNEL);
-				if (!temp_str) {
-					ret = -ENOMEM;
-					goto err;
-				}
-				msm8952_aux_dev[i].codec_name = temp_str;
-				temp_str = NULL;
-
-				temp_str = kstrdup(wsa_str, GFP_KERNEL);
-				if (!temp_str) {
-					ret = -ENOMEM;
-					goto err;
-				}
-				msm8952_codec_conf[i].dev_name = temp_str;
-				temp_str = NULL;
-
-				ret = of_property_read_string_index(
-						pdev->dev.of_node, wsa_prefix,
-						i, &wsa_prefix_str);
-				if (ret) {
-					dev_err(&pdev->dev,
-						"%s:of read string %s i %d error %d\n",
-						__func__, wsa_prefix, i, ret);
-					goto err;
-				}
-				temp_str = kstrdup(wsa_prefix_str, GFP_KERNEL);
-				if (!temp_str) {
-					ret = -ENOMEM;
-					goto err;
-				}
-				msm8952_codec_conf[i].name_prefix = temp_str;
-				temp_str = NULL;
-			}
-
-			ret = msm8952_init_wsa_switch_supply(pdev, pdata);
-			if (ret < 0) {
-				pr_err("%s: failed to init wsa_switch vdd supply %d\n",
-						__func__, ret);
+		for (i = 0; i < num_strings; i++) {
+			ret = of_property_read_string_index(
+					pdev->dev.of_node, wsa,
+					i, &wsa_str);
+			if (ret) {
+				dev_err(&pdev->dev,
+					"%s:of read string %s i %d error %d\n",
+					__func__, wsa, i, ret);
 				goto err;
 			}
-			wsa881x_set_mclk_callback(msm8952_enable_wsa_mclk);
-			/* update the internal speaker boost usage */
-			msm8x16_update_int_spk_boost(false);
+			temp_str = kstrdup(wsa_str, GFP_KERNEL);
+			if (!temp_str) {
+				ret = -ENOMEM;
+				goto err;
+			}
+			msm8952_aux_dev[i].codec_name = temp_str;
+			temp_str = NULL;
+
+			temp_str = kstrdup(wsa_str, GFP_KERNEL);
+			if (!temp_str) {
+				ret = -ENOMEM;
+				goto err;
+			}
+			msm8952_codec_conf[i].dev_name = temp_str;
+			temp_str = NULL;
+
+			ret = of_property_read_string_index(
+					pdev->dev.of_node, wsa_prefix,
+					i, &wsa_prefix_str);
+			if (ret) {
+				dev_err(&pdev->dev,
+					"%s:of read string %s i %d error %d\n",
+					__func__, wsa_prefix, i, ret);
+				goto err;
+			}
+			temp_str = kstrdup(wsa_prefix_str, GFP_KERNEL);
+			if (!temp_str) {
+				ret = -ENOMEM;
+				goto err;
+			}
+			msm8952_codec_conf[i].name_prefix = temp_str;
+			temp_str = NULL;
 		}
 	}
 
@@ -3209,7 +2894,7 @@ err1:
 static int msm8952_asoc_machine_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
-	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int i;
 
 	if (pdata->vaddr_gpio_mux_spkr_ctl)

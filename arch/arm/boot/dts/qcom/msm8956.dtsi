@@ -154,18 +154,18 @@
 	};
 };
 
-#include "msm8976-pinctrl.dtsi"
-#include "msm8976-ion.dtsi"
-#include "msm8976-iommu.dtsi"
-#include "msm8976-smp2p.dtsi"
-#include "msm8976-bus.dtsi"
-#include "msm8976-jtag.dtsi"
-#include "msm8976-coresight.dtsi"
-#include "msm8976-pm.dtsi"
-#include "msm8976-gpu.dtsi"
-#include "msm8976-cpu.dtsi"
-#include "msm8976-mdss.dtsi"
-#include "msm8976-mdss-pll.dtsi"
+#include "msm8956-pinctrl.dtsi"
+#include "msm8956-ion.dtsi"
+#include "msm8956-iommu.dtsi"
+#include "msm8956-smp2p.dtsi"
+#include "msm8956-bus.dtsi"
+#include "msm8956-jtag.dtsi"
+#include "msm8956-coresight.dtsi"
+#include "msm8956-pm.dtsi"
+#include "msm8956-gpu.dtsi"
+#include "msm8956-cpu.dtsi"
+#include "msm8956-mdss.dtsi"
+#include "msm8956-mdss-pll.dtsi"
 #include "msm-rdbg.dtsi"
 
 &soc {
@@ -1460,7 +1460,7 @@
 		qcom,pm-qos-latency = <2 1001 12701>;
 	};
 
-	slim_msm: slim@c140000{
+	slim_msm: slim@c140000 {
 		cell-index = <1>;
 		compatible = "qcom,slim-ngd";
 		reg = <0xc140000 0x2c000>,
@@ -1470,6 +1470,63 @@
 		interrupt-names = "slimbus_irq", "slimbus_bam_irq";
 		qcom,apps-ch-pipes = <0x600000>;
 		qcom,ea-pc = <0x170>;
+
+		msm_dai_slim {
+			compatible = "qcom,msm-dai-slim";
+			elemental-addr = [ff ff ff fe 17 02];
+		};
+
+		tasha_codec {
+			compatible = "qcom,tasha-slim-pgd";
+			elemental-addr = [00 01 A0 01 17 02];
+
+			interrupt-parent = <&wcd9xxx_intc>;
+			interrupts = <0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+				      17 18 19 20 21 22 23 24 25 26 27 28 29
+				      30>;
+
+			qcom,wcd-rst-gpio-node = <&wcd_rst_gpio>;
+
+			clock-names = "wcd_clk";
+			clocks = <&clock_audio clk_audio_pmi_clk>;
+
+			cdc-vdd-buck-supply = <&eldo2_8976>;
+			qcom,cdc-vdd-buck-voltage = <1800000 1800000>;
+			qcom,cdc-vdd-buck-current = <650000>;
+
+			cdc-buck-sido-supply = <&eldo2_8976>;
+			qcom,cdc-buck-sido-voltage = <1800000 1800000>;
+			qcom,cdc-buck-sido-current = <250000>;
+
+			cdc-vdd-tx-h-supply = <&pm8950_l5>;
+			qcom,cdc-vdd-tx-h-voltage = <1800000 1800000>;
+			qcom,cdc-vdd-tx-h-current = <25000>;
+
+			cdc-vdd-rx-h-supply = <&pm8950_l5>;
+			qcom,cdc-vdd-rx-h-voltage = <1800000 1800000>;
+			qcom,cdc-vdd-rx-h-current = <25000>;
+
+			cdc-vdd-px-supply = <&pm8950_l5>;
+			qcom,cdc-vdd-px-voltage = <1800000 1800000>;
+			qcom,cdc-vdd-px-current = <10000>;
+
+			qcom,cdc-static-supplies = "cdc-vdd-buck",
+						   "cdc-buck-sido",
+						   "cdc-vdd-tx-h",
+						   "cdc-vdd-rx-h",
+						   "cdc-vdd-px";
+
+			qcom,cdc-micbias1-mv = <1800>;
+			qcom,cdc-micbias2-mv = <1800>;
+			qcom,cdc-micbias3-mv = <1800>;
+			qcom,cdc-micbias4-mv = <1800>;
+
+			qcom,cdc-mclk-clk-rate = <9600000>;
+			qcom,cdc-slim-ifd = "tasha-slim-ifd";
+			qcom,cdc-slim-ifd-elemental-addr = [00 00 A0 01 17 02];
+			qcom,cdc-dmic-sample-rate = <4800000>;
+			qcom,cdc-mad-dmic-rate = <600000>;
+		};
 	};
 
         ipa_hw: qcom,ipa@07900000 {
@@ -2817,9 +2874,9 @@
 #include "msm-pm8950.dtsi"
 #include "msm-pmi8950.dtsi"
 #include "msm-pm8004.dtsi"
-#include "msm8976-regulator.dtsi"
+#include "msm8956-regulator.dtsi"
 #include "msm-gdsc-8916.dtsi"
-#include "msm8976-camera.dtsi"
+#include "msm8956-camera.dtsi"
 
 &gdsc_venus {
 	clock-names = "bus_clk", "core_clk";
@@ -2898,65 +2955,6 @@
 	status = "okay";
 };
 
-&slim_msm {
-	msm_dai_slim {
-		compatible = "qcom,msm-dai-slim";
-		elemental-addr = [ff ff ff fe 17 02];
-	};
-
-	tasha_codec {
-		compatible = "qcom,tasha-slim-pgd";
-		elemental-addr = [00 01 A0 01 17 02];
-
-		interrupt-parent = <&wcd9xxx_intc>;
-		interrupts = <0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
-			17 18 19 20 21 22 23 24 25 26 27 28 29
-			30>;
-
-		cdc-vdd-buck-supply = <&eldo2_8976>;
-		qcom,cdc-vdd-buck-voltage = <1800000 1800000>;
-		qcom,cdc-vdd-buck-current = <650000>;
-
-		cdc-buck-sido-supply = <&eldo2_8976>;
-		qcom,cdc-buck-sido-voltage = <1800000 1800000>;
-		qcom,cdc-buck-sido-current = <250000>;
-		cdc-vdd-tx-h-supply = <&pm8950_l5>;
-		qcom,cdc-vdd-tx-h-voltage = <1800000 1800000>;
-		qcom,cdc-vdd-tx-h-current = <25000>;
-
-		cdc-vdd-rx-h-supply = <&pm8950_l5>;
-		qcom,cdc-vdd-rx-h-voltage = <1800000 1800000>;
-		qcom,cdc-vdd-rx-h-current = <25000>;
-
-		cdc-vdd-px-supply = <&pm8950_l5>;
-		qcom,cdc-vdd-px-voltage = <1800000 1800000>;
-		qcom,cdc-vdd-px-current = <10000>;
-
-		qcom,cdc-static-supplies =
-			"cdc-vdd-buck",
-			"cdc-buck-sido",
-			"cdc-vdd-tx-h",
-			"cdc-vdd-rx-h",
-			"cdc-vdd-px";
-
-		qcom,cdc-micbias1-mv = <1800>;
-		qcom,cdc-micbias2-mv = <1800>;
-		qcom,cdc-micbias3-mv = <1800>;
-		qcom,cdc-micbias4-mv = <1800>;
-
-		qcom,cdc-mclk-clk-rate = <9600000>;
-		qcom,cdc-slim-ifd = "tasha-slim-ifd";
-		qcom,cdc-slim-ifd-elemental-addr = [00 00 A0 01 17 02];
-		qcom,cdc-dmic-sample-rate = <4800000>;
-		qcom,cdc-mad-dmic-rate = <600000>;
-
-		qcom,wcd-rst-gpio-node = <&wcd_rst_gpio>;
-
-		clock-names = "wcd_clk";
-		clocks = <&clock_audio clk_audio_pmi_clk>;
-	};
-};
-
 &pm8950_gpios {
 	gpio@c000 {
 		status = "ok";
@@ -2974,83 +2972,5 @@
 		qcom,vin-sel = <0>;
 		qcom,src-sel = <0>;
 		qcom,master-en = <1>;
-	};
-};
-
-&pm8950_1 {
-	pm8950_cajon_dig: 8952_wcd_codec@f000 {
-		compatible = "qcom,msm8x16_wcd_codec";
-		reg = <0xf000 0x100>;
-		interrupt-parent = <&spmi_bus>;
-		interrupts = <0x1 0xf0 0x0>,
-			     <0x1 0xf0 0x1>,
-			     <0x1 0xf0 0x2>,
-			     <0x1 0xf0 0x3>,
-			     <0x1 0xf0 0x4>,
-			     <0x1 0xf0 0x5>,
-			     <0x1 0xf0 0x6>,
-			     <0x1 0xf0 0x7>;
-		interrupt-names = "spk_cnp_int",
-				  "spk_clip_int",
-				  "spk_ocp_int",
-				  "ins_rem_det1",
-				  "but_rel_det",
-				  "but_press_det",
-				  "ins_rem_det",
-				  "mbhc_int";
-
-		cdc-vdda-cp-supply = <&pm8950_s4>;
-		qcom,cdc-vdda-cp-voltage = <2050000 2050000>;
-		qcom,cdc-vdda-cp-current = <500000>;
-
-		cdc-vdda-rx-h-supply = <&pm8950_l5>;
-		qcom,cdc-vdda-rx-h-voltage = <1800000 1800000>;
-		qcom,cdc-vdda-rx-h-current = <5000>;
-
-		cdc-vdda-tx-h-supply = <&pm8950_l5>;
-		qcom,cdc-vdda-tx-h-voltage = <1800000 1800000>;
-		qcom,cdc-vdda-tx-h-current = <5000>;
-
-		cdc-vdd-px-supply = <&pm8950_l5>;
-		qcom,cdc-vdd-px-voltage = <1800000 1800000>;
-		qcom,cdc-vdd-px-current = <5000>;
-
-		cdc-vdd-pa-supply = <&pm8950_s4>;
-		qcom,cdc-vdd-pa-voltage = <2050000 2050000>;
-		qcom,cdc-vdd-pa-current = <260000>;
-
-		cdc-vdd-mic-bias-supply = <&pm8950_l13>;
-		qcom,cdc-vdd-mic-bias-voltage = <3075000 3075000>;
-		qcom,cdc-vdd-mic-bias-current = <5000>;
-
-		qcom,cdc-mclk-clk-rate = <9600000>;
-
-		qcom,cdc-static-supplies = "cdc-vdda-rx-h",
-					   "cdc-vdda-tx-h",
-					   "cdc-vdd-px",
-					   "cdc-vdd-pa",
-					   "cdc-vdda-cp";
-
-		qcom,cdc-on-demand-supplies = "cdc-vdd-mic-bias";
-		qcom,dig-cdc-base-addr = <0xc0f0000>;
-	};
-
-	pm8950_cajon_analog: 8952_wcd_codec@f100 {
-		compatible = "qcom,msm8x16_wcd_codec";
-		reg = <0xf100 0x100>;
-		interrupt-parent = <&spmi_bus>;
-		interrupts = <0x1 0xf1 0x0>,
-			     <0x1 0xf1 0x1>,
-			     <0x1 0xf1 0x2>,
-			     <0x1 0xf1 0x3>,
-			     <0x1 0xf1 0x4>,
-			     <0x1 0xf1 0x5>;
-		interrupt-names = "ear_ocp_int",
-				  "hphr_ocp_int",
-				  "hphl_ocp_det",
-				  "ear_cnp_int",
-				  "hphr_cnp_int",
-				  "hphl_cnp_int";
-		qcom,dig-cdc-base-addr = <0xc0f0000>;
 	};
 };

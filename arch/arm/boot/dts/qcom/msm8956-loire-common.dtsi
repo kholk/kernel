@@ -31,7 +31,7 @@
 		pstore_reserve_mem: pstore_reserve_mem_region@57f00000 {
 			compatible = "removed-dma-pool";
 			no-map;
-			reg = <0 0x57F00000 0 0x100000>;
+			reg = <0 0x57f00000 0 0x00100000>;
 		};
 
 		fb_mem: fb_region {
@@ -283,7 +283,7 @@
 			somc,pattern_fade_out = <0>;
 			somc,rgb_blue {
 				label = "rgb";
-				linux,name = "as3668:blue";
+				linux,name = "led:rgb_blue";
 				somc,max_single_current_uA = <12000>;
 				somc,max_mix_current_uA = <5000>;
 				somc,pattern_frame_mask = <0>;
@@ -292,7 +292,7 @@
 			};
 			somc,rgb_red {
 				label = "rgb";
-				linux,name = "as3668:red";
+				linux,name = "led:rgb_red";
 				somc,max_single_current_uA = <4000>;
 				somc,max_mix_current_uA = <4000>;
 				somc,pattern_frame_mask = <0>;
@@ -301,7 +301,7 @@
 			};
 			somc,rgb_green {
 				label = "rgb";
-				linux,name = "as3668:green";
+				linux,name = "led:rgb_green";
 				somc,max_single_current_uA = <8000>;
 				somc,max_mix_current_uA = <8000>;
 				somc,pattern_frame_mask = <0>;
@@ -619,19 +619,12 @@
 	ramoops {
 		compatible = "ramoops";
 		status = "ok";
-
-		android,ramoops-buffer-start = <0x57F00000>;
-		android,ramoops-buffer-size = <0x100000>;
-		android,ramoops-console-size = <0x40000>;
-		android,ramoops-record-size = <0x20000>;
-		android,ramoops-ftrace-size = <0x20000>;
-		android,ramoops-pmsg-size = <0x20000>;
-		android,ramoops-dump-oops = <0x1>;
 		memory-region = <&pstore_reserve_mem>;
-		android,ramoops-hole {
-			compatible = "qcom,msm-contig-mem";
-			qcom,memblock-reserve = <0x57F00000 0x00100000>;
-		};
+		record-size = <0x0 0x20000>;
+		console-size = <0x0 0x40000>;
+		ftrace-size = <0x0 0x20000>;
+		pmsg-size = <0x0 0x20000>;
+		ecc-size = <16>;
 	};
 
 	pcm3: qcom,msm-pcm-bit {
@@ -738,6 +731,11 @@
 		reg = <0x4a3000 0x1000>;
 		clock-frequency = <32768>;
 	};
+
+	/delete-node/ qcom,iris-fm;
+	/delete-node/ qcom,pronto@a21b000;
+	/delete-node/ qcom,wcnss-wlan@0a000000;
+
 };
 
 &pm8950_gpios {
@@ -1200,7 +1198,19 @@
 };
 
 &spmi_bus {
+	qcom,pm8004@4 {
+		qcom,leds@a100 {
+			status = "disabled";
+		};
+		qcom,leds@a300 {
+			status = "disabled";
+		};
+	};
+
 	qcom,pm8950@0 {
+		qcom,leds@a300 {
+			status = "disabled";
+		};
 		qcom,power-on@800 {
 			qcom,s3-debounce = <16>;
 			qcom,s3-src = "resin";
@@ -1211,11 +1221,22 @@
 	};
 
 	qcom,pmi8950@2 {
+		qcom,leds@a100 {
+			status = "disabled";
+		};
 		qcom,power-on@800 {
 			qcom,s3-debounce = <128>;
 			qcom,s3-src = "kpdpwr-and-resin";
 		};
 	};
+
+	qcom,pmi8950@3 {
+		qcom,leds@d300 {
+			/delete-node/ qcom,flash_1;
+			/delete-node/ qcom,torch_1;
+		};
+	};
+
 };
 
 &sdhc_2 {
@@ -1263,5 +1284,3 @@
 &qseecom_mem {
 	size = <0 0x1400000>;
 };
-
-

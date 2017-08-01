@@ -127,7 +127,6 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.key_code[7] = 0,
 	.linein_th = 5000,
 #ifdef CONFIG_ARCH_SONY_LOIRE
-	.moist_cfg = { V_45_MV, I_3P0_UA },
 	.anc_micbias = MIC_BIAS_3,
 	.enable_anc_mic_detect = true,
 #else
@@ -351,7 +350,7 @@ int msm895x_wsa881x_init(struct snd_soc_component *component)
 	unsigned int ch_mask[WSA881X_MAX_SWR_PORTS] = {0x1, 0xF, 0x3, 0x3};
 	struct snd_soc_codec *codec = snd_soc_component_to_codec(component);
 	struct msm8952_asoc_mach_data *pdata;
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 
 	if (!codec) {
 		pr_err("%s codec is NULL\n", __func__);
@@ -407,9 +406,8 @@ static void param_set_mask(struct snd_pcm_hw_params *p, int n, unsigned bit)
 
 static void msm8952_ext_control(struct snd_soc_codec *codec)
 {
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 
-	mutex_lock(&codec->mutex);
 	pr_debug("%s: msm8952_spk_control = %d", __func__, msm8952_spk_control);
 	if (msm8952_spk_control == MSM8952_SPK_ON) {
 		snd_soc_dapm_enable_pin(dapm, "Lineout_1 amp");
@@ -418,7 +416,6 @@ static void msm8952_ext_control(struct snd_soc_codec *codec)
 		snd_soc_dapm_disable_pin(dapm, "Lineout_1 amp");
 		snd_soc_dapm_disable_pin(dapm, "Lineout_3 amp");
 	}
-	mutex_unlock(&codec->mutex);
 	snd_soc_dapm_sync(dapm);
 }
 
@@ -1993,7 +1990,7 @@ void msm_quat_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		pr_err("%s:clock disable failed\n", __func__);
 	if (atomic_read(&pdata->clk_ref.quat_mi2s_clk_ref) > 0)
 		atomic_dec(&pdata->clk_ref.quat_mi2s_clk_ref);
-	ret = msm_gpioset_suspend(CLIENT_WCD_EXT, "quat_i2s");
+	ret = msm_gpioset_suspend(CLIENT_WCD, "quat_i2s");
 	if (ret < 0) {
 		pr_err("%s: failed to disable quat gpio's state\n",
 				__func__);
@@ -2025,7 +2022,7 @@ int msm_prim_auxpcm_startup(struct snd_pcm_substream *substream)
 	atomic_inc(&pdata->clk_ref.auxpcm_mi2s_clk_ref);
 
 	/* enable the gpio's used for the external AUXPCM interface */
-	ret = msm_gpioset_activate(CLIENT_WCD_EXT, "quat_i2s");
+	ret = msm_gpioset_activate(CLIENT_WCD, "quat_i2s");
 	if (ret < 0)
 		pr_err("%s(): configure gpios failed = %s\n",
 				__func__, "quat_i2s");
@@ -2043,7 +2040,7 @@ void msm_prim_auxpcm_shutdown(struct snd_pcm_substream *substream)
 			__func__, substream->name);
 	if (atomic_read(&pdata->clk_ref.auxpcm_mi2s_clk_ref) > 0)
 		atomic_dec(&pdata->clk_ref.auxpcm_mi2s_clk_ref);
-	ret = msm_gpioset_suspend(CLIENT_WCD_EXT, "quat_i2s");
+	ret = msm_gpioset_suspend(CLIENT_WCD, "quat_i2s");
 	if (ret < 0)
 		pr_err("%s(): configure gpios failed = %s\n",
 				__func__, "quat_i2s");
@@ -2072,7 +2069,7 @@ int msm_sec_auxpcm_startup(struct snd_pcm_substream *substream)
 	atomic_inc(&pdata->clk_ref.sec_auxpcm_mi2s_clk_ref);
 
 	/* enable the gpio's used for the external AUXPCM interface */
-	ret = msm_gpioset_activate(CLIENT_WCD_EXT, "quin_i2s");
+	ret = msm_gpioset_activate(CLIENT_WCD, "quin_i2s");
 	if (ret < 0)
 		pr_err("%s(): configure gpios failed = %s\n",
 				__func__, "quin_i2s");
@@ -2090,7 +2087,7 @@ void msm_sec_auxpcm_shutdown(struct snd_pcm_substream *substream)
 			__func__, substream->name);
 	if (atomic_read(&pdata->clk_ref.sec_auxpcm_mi2s_clk_ref) > 0)
 		atomic_dec(&pdata->clk_ref.sec_auxpcm_mi2s_clk_ref);
-	ret = msm_gpioset_suspend(CLIENT_WCD_EXT, "quin_i2s");
+	ret = msm_gpioset_suspend(CLIENT_WCD, "quin_i2s");
 	if (ret < 0)
 		pr_err("%s(): configure gpios failed = %s\n",
 				__func__, "quin_i2s");
@@ -2119,7 +2116,7 @@ int msm_quat_mi2s_snd_startup(struct snd_pcm_substream *substream)
 				__func__);
 		return ret;
 	}
-	ret = msm_gpioset_activate(CLIENT_WCD_EXT, "quat_i2s");
+	ret = msm_gpioset_activate(CLIENT_WCD, "quat_i2s");
 	if (ret < 0) {
 		pr_err("%s: failed to actiavte the quat gpio's state\n",
 				__func__);
@@ -2163,7 +2160,7 @@ int msm_quin_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		pr_err("failed to enable sclk\n");
 		return ret;
 	}
-	ret = msm_gpioset_activate(CLIENT_WCD_EXT, "quin_i2s");
+	ret = msm_gpioset_activate(CLIENT_WCD, "quin_i2s");
 	if (ret < 0) {
 		pr_err("failed to enable codec gpios\n");
 		goto err;
@@ -2195,7 +2192,7 @@ void msm_quin_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		pr_err("%s:clock disable failed\n", __func__);
 	if (atomic_read(&pdata->clk_ref.quin_mi2s_clk_ref) > 0)
 		atomic_dec(&pdata->clk_ref.quin_mi2s_clk_ref);
-	ret = msm_gpioset_suspend(CLIENT_WCD_EXT, "quin_i2s");
+	ret = msm_gpioset_suspend(CLIENT_WCD, "quin_i2s");
 	if (ret < 0) {
 		pr_err("%s: gpio set cannot be de-activated %sd",
 					__func__, "quin_i2s");
@@ -2247,13 +2244,15 @@ static int msm8952_wcd93xx_codec_up(struct snd_soc_codec *codec)
 static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
 		struct snd_kcontrol *kcontrol, int event)
 {
+	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
+
 	pr_debug("%s: event = %d\n", __func__, event);
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		return msm8952_enable_codec_mclk(w->codec, 1, true);
+		return msm8952_enable_codec_mclk(codec, 1, true);
 	case SND_SOC_DAPM_POST_PMD:
-		return msm8952_enable_codec_mclk(w->codec, 0, true);
+		return msm8952_enable_codec_mclk(codec, 0, true);
 	}
 	return 0;
 }
@@ -2367,7 +2366,7 @@ int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int err;
 	struct snd_soc_codec *codec = rtd->codec;
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_card *card;
@@ -2626,7 +2625,7 @@ static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec)
 		return false;
 	}
 	value = gpio_get_value_cansleep(pdata->us_euro_gpio);
-	ret = msm_gpioset_activate(CLIENT_WCD_EXT, "us_eu_gpio");
+	ret = msm_gpioset_activate(CLIENT_WCD, "us_eu_gpio");
 	if (ret < 0) {
 		pr_err("%s: gpio set cannot be activated %sd",
 				__func__, "us_eu_gpio");
@@ -2634,7 +2633,7 @@ static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec)
 	}
 	gpio_set_value_cansleep(pdata->us_euro_gpio, !value);
 	pr_debug("%s: swap select switch %d to %d\n", __func__, value, !value);
-	ret = msm_gpioset_suspend(CLIENT_WCD_EXT, "us_eu_gpio");
+	ret = msm_gpioset_suspend(CLIENT_WCD, "us_eu_gpio");
 	if (ret < 0) {
 		pr_err("%s: gpio set cannot be de-activated %sd",
 				__func__, "us_eu_gpio");
@@ -2664,7 +2663,7 @@ static int is_us_eu_switch_gpio_support(struct platform_device *pdev,
 					pdata->us_euro_gpio);
 			return -EINVAL;
 		}
-		ret = msm_get_gpioset_index(CLIENT_WCD_EXT,
+		ret = msm_get_gpioset_index(CLIENT_WCD,
 				"us_eu_gpio");
 		if (ret < 0) {
 			pr_err("%s: gpio set name does not exist: %s",
@@ -2921,7 +2920,7 @@ static int msm8952_asoc_machine_probe(struct platform_device *pdev)
 	}
 
 	/* Reading the gpio configurations from dtsi file*/
-	ret = msm_gpioset_initialize(CLIENT_WCD_EXT, &pdev->dev);
+	ret = msm_gpioset_initialize(CLIENT_WCD, &pdev->dev);
 	if (ret < 0) {
 		pr_err("Error reading dtsi file for gpios\n");
 		goto err;
