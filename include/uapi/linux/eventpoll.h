@@ -56,19 +56,25 @@
 #define EPOLL_PACKED
 #endif
 
-struct epoll_event {
+#ifdef __KERNEL__
+ #define EPOLL_EVENT epoll_event
+#else
+ #define EPOLL_EVENT __kernel_uapi_epoll_event
+#endif
+
+struct EPOLL_EVENT {
 	__u32 events;
 	__u64 data;
 } EPOLL_PACKED;
 
 #ifdef CONFIG_PM_SLEEP
-static inline void ep_take_care_of_epollwakeup(struct epoll_event *epev)
+static inline void ep_take_care_of_epollwakeup(struct EPOLL_EVENT *epev)
 {
 	if ((epev->events & EPOLLWAKEUP) && !capable(CAP_BLOCK_SUSPEND))
 		epev->events &= ~EPOLLWAKEUP;
 }
 #else
-static inline void ep_take_care_of_epollwakeup(struct epoll_event *epev)
+static inline void ep_take_care_of_epollwakeup(struct EPOLL_EVENT *epev)
 {
 	epev->events &= ~EPOLLWAKEUP;
 }
