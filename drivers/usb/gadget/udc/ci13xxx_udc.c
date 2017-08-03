@@ -2743,7 +2743,7 @@ static int _ep_set_halt(struct usb_ep *ep, int value, bool check_transfer)
 	is_sps_req = hwreq->req.udc_priv & MSM_SPS_MODE;
 
 	if (value && hwep->dir == TX && check_transfer &&
-		!list_empty(&hwep->qh.queue) && |is_sps_req &&
+		!list_empty(&hwep->qh.queue) && !is_sps_req &&
 			!usb_endpoint_xfer_control(hwep->ep.desc)) {
 		spin_unlock_irqrestore(hwep->lock, flags);
 		return -EAGAIN;

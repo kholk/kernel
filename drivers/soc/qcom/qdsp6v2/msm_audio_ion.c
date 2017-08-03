@@ -699,7 +699,7 @@ static int msm_audio_smmu_init_legacy(struct device *dev)
 		dev_err(dev, "%s Could not find label\n", __func__);
 		return -EINVAL;
 	}
-	pr_debug("label found : %s\n", cb->name);
+	pr_err("label found : %s\n", cb->name);
 	ret = of_property_read_u32_array(ctx_node,
 				"qcom,virtual-addr-pool",
 				read_val, 2);
@@ -711,7 +711,7 @@ static int msm_audio_smmu_init_legacy(struct device *dev)
 	msm_audio_ion_data.cb_dev = msm_iommu_get_ctx(cb->name);
 	cb->addr_range.start = (dma_addr_t) read_val[0];
 	cb->addr_range.size = (size_t) read_val[1];
-	dev_dbg(dev, "%s Legacy iommu usage\n", __func__);
+	dev_err(dev, "%s Legacy iommu usage\n", __func__);
 	mapping = arm_iommu_create_mapping(
 				msm_iommu_get_bus(msm_audio_ion_data.cb_dev),
 					   cb->addr_range.start,

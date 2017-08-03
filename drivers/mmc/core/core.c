@@ -3019,7 +3019,11 @@ void mmc_power_up(struct mmc_host *host, u32 ocr)
 
 	mmc_pwrseq_pre_power_on(host);
 
-	host->ios.vdd = fls(ocr) - 1;
+	if (ocr)
+		host->ios.vdd = ffs(ocr) - 1;
+	else
+		host->ios.vdd = fls(host->ocr_avail) - 1;
+
 	host->ios.power_mode = MMC_POWER_UP;
 	/* Set initial state and call mmc_set_ios */
 	mmc_set_initial_state(host);
