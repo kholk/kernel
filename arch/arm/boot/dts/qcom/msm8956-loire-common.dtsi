@@ -1274,7 +1274,7 @@
 
 	somc,use-for-wifi;
 
-	status = "disable"; //"ok";
+	status = "ok";
 };
 
 &other_ext_mem {

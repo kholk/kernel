@@ -1480,7 +1480,7 @@ static void sdhci_set_power(struct sdhci_host *host, unsigned char mode,
 			pwr = SDHCI_POWER_330;
 			break;
 		default:
-#ifdef CONFIG_SOMC_LOW_VOLTAGE
+#if 0 //def CONFIG_SOMC_LOW_VOLTAGE
 			if (mmc_card_sdio(host->mmc->card)) {
 				pwr = SDHCI_POWER_180;
 			} else
