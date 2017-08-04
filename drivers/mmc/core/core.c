@@ -918,14 +918,14 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 		led_trigger_event(host->led, LED_OFF);
 
 		if (mrq->sbc) {
-			pr_debug("%s: req done <CMD%u>: %d: %08x %08x %08x %08x\n",
+			pr_err("%s: req done <CMD%u>: %d: %08x %08x %08x %08x\n",
 				mmc_hostname(host), mrq->sbc->opcode,
 				mrq->sbc->error,
 				mrq->sbc->resp[0], mrq->sbc->resp[1],
 				mrq->sbc->resp[2], mrq->sbc->resp[3]);
 		}
 
-		pr_debug("%s: req done (CMD%u): %d: %08x %08x %08x %08x\n",
+		pr_err("%s: req done (CMD%u): %d: %08x %08x %08x %08x\n",
 			mmc_hostname(host), cmd->opcode, err,
 			cmd->resp[0], cmd->resp[1],
 			cmd->resp[2], cmd->resp[3]);
@@ -3020,7 +3020,7 @@ void mmc_power_up(struct mmc_host *host, u32 ocr)
 	mmc_pwrseq_pre_power_on(host);
 
 	if (ocr)
-		host->ios.vdd = ffs(ocr) - 1;
+		host->ios.vdd = fls(ocr) - 1;
 	else
 		host->ios.vdd = fls(host->ocr_avail) - 1;
 

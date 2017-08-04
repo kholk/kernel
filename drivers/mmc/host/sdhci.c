@@ -1480,8 +1480,15 @@ static void sdhci_set_power(struct sdhci_host *host, unsigned char mode,
 			pwr = SDHCI_POWER_330;
 			break;
 		default:
-			WARN(1, "%s: Invalid vdd %#x\n",
-			     mmc_hostname(host->mmc), vdd);
+#ifdef CONFIG_SOMC_LOW_VOLTAGE
+			if (mmc_card_sdio(host->mmc->card)) {
+				pwr = SDHCI_POWER_180;
+			} else
+#endif
+			{
+				WARN(1, "%s: Invalid vdd %#x\n",
+				     mmc_hostname(host->mmc), vdd);
+			}
 			break;
 		}
 	}

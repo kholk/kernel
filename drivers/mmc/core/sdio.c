@@ -1089,16 +1089,20 @@ static int mmc_sdio_resume(struct mmc_host *host)
 #ifdef CONFIG_MMC_SOMC_LOW_VOLTAGE
 static u32 mmc_select_low_voltage(struct mmc_host *host, u32 ocr)
 {
+	int bit;
+
 	pr_info("%s \n",__func__);
 
 	if ((host->ocr_avail == MMC_VDD_165_195) && mmc_host_uhs(host) &&
 		((ocr & host->ocr_avail) == 0)) {
 		/* lowest voltage can be selected in mmc_power_cycle */
-		mmc_power_cycle(host, host->ocr_avail);
-		host->card->ocr = 0;
+		bit = ffs(ocr) - 1;
+		ocr &= 2 << bit;
+		mmc_power_cycle(host, ocr);
+		//host->card->ocr = 0;
 	}
 
-	return host->card->ocr;
+	return ocr; //host->ocr_avail; //host->card->ocr;
 }
 #endif
 
