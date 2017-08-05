@@ -1,14 +1,14 @@
 /*
  * Linux cfg80211 Vendor Extension Code
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
- * 
+ * Copyright (C) 1999-2014, Broadcom Corporation
+ *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- * 
+ *
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -16,17 +16,18 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- * 
+ *
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- *
- * <<Broadcom-WL-IPTag/Open:>>
- *
- * $Id: wl_cfgvendor.h 455257 2014-02-20 08:10:24Z $
+ * $Id: wl_cfgvendor.h 473890 2014-04-30 01:55:06Z $
  */
 
+/*
+ * New vendor interface additon to nl80211/cfg80211 to allow vendors
+ * to implement proprietary features over the cfg80211 stack.
+ */
 
 #ifndef _wl_cfgvendor_h_
 #define _wl_cfgvendor_h_
@@ -39,39 +40,22 @@
 #define VENDOR_SUBCMD_OVERHEAD             ATTRIBUTE_U32_LEN
 #define VENDOR_DATA_OVERHEAD               (NLA_HDRLEN)
 
-enum brcm_vendor_attr {
-	BRCM_ATTR_DRIVER_CMD,
-	BRCM_ATTR_DRIVER_MAX
-};
-
 #define SCAN_RESULTS_COMPLETE_FLAG_LEN       ATTRIBUTE_U32_LEN
 #define SCAN_INDEX_HDR_LEN                   (NLA_HDRLEN)
 #define SCAN_ID_HDR_LEN                      ATTRIBUTE_U32_LEN
 #define SCAN_FLAGS_HDR_LEN                   ATTRIBUTE_U32_LEN
 #define GSCAN_NUM_RESULTS_HDR_LEN            ATTRIBUTE_U32_LEN
+#define GSCAN_CH_BUCKET_MASK_HDR_LEN         ATTRIBUTE_U32_LEN
 #define GSCAN_RESULTS_HDR_LEN                (NLA_HDRLEN)
 #define GSCAN_BATCH_RESULT_HDR_LEN  (SCAN_INDEX_HDR_LEN + SCAN_ID_HDR_LEN + \
 									SCAN_FLAGS_HDR_LEN + \
 							        GSCAN_NUM_RESULTS_HDR_LEN + \
+							        GSCAN_CH_BUCKET_MASK_HDR_LEN + \
 									GSCAN_RESULTS_HDR_LEN)
 
 #define VENDOR_REPLY_OVERHEAD       (VENDOR_ID_OVERHEAD + \
 									VENDOR_SUBCMD_OVERHEAD + \
 									VENDOR_DATA_OVERHEAD)
-
-#define GSCAN_ATTR_SET1				10
-#define GSCAN_ATTR_SET2				20
-#define GSCAN_ATTR_SET3				30
-#define GSCAN_ATTR_SET4				40
-#define GSCAN_ATTR_SET5				50
-#define GSCAN_ATTR_SET6				60
-#define GSCAN_ATTR_SET7				70
-#define GSCAN_ATTR_SET8				80
-#define GSCAN_ATTR_SET9				90
-#define GSCAN_ATTR_SET10			100
-#define GSCAN_ATTR_SET11			110
-#define GSCAN_ATTR_SET12			120
-
 typedef enum {
 	/* don't use 0 as a valid subcommand */
 	VENDOR_NL80211_SUBCMD_UNSPECIFIED,
@@ -106,11 +90,21 @@ typedef enum {
 	ANDROID_NL80211_SUBCMD_WIFI_OFFLOAD_RANGE_START = 0x1600,
 	ANDROID_NL80211_SUBCMD_WIFI_OFFLOAD_RANGE_END   = 0x16FF,
 
+	/* define all NAN related commands between 0x1700 and 0x17FF */
+	ANDROID_NL80211_SUBCMD_NAN_RANGE_START = 0x1700,
+	ANDROID_NL80211_SUBCMD_NAN_RANGE_END   = 0x17FF,
+
+	/* define all packet filter related commands between 0x1800 and 0x18FF */
+	ANDROID_NL80211_SUBCMD_PKT_FILTER_RANGE_START = 0x1800,
+	ANDROID_NL80211_SUBCMD_PKT_FILTER_RANGE_END   = 0x18FF,
+
 	/* This is reserved for future usage */
 
 } ANDROID_VENDOR_SUB_COMMAND;
 
-enum andr_vendor_subcmd {
+enum wl_vendor_subcmd {
+	BRCM_VENDOR_SCMD_UNSPEC,
+	BRCM_VENDOR_SCMD_PRIV_STR,
 	GSCAN_SUBCMD_GET_CAPABILITIES = ANDROID_NL80211_SUBCMD_GSCAN_RANGE_START,
 	GSCAN_SUBCMD_SET_CONFIG,
 	GSCAN_SUBCMD_SET_SCAN_CONFIG,
@@ -121,7 +115,6 @@ enum andr_vendor_subcmd {
 	GSCAN_SUBCMD_SET_SIGNIFICANT_CHANGE_CONFIG,
 	GSCAN_SUBCMD_ENABLE_FULL_SCAN_RESULTS,
 	GSCAN_SUBCMD_GET_CHANNEL_LIST,
-	/* ANDR_WIFI_XXX although not related to gscan are defined here */
 	ANDR_WIFI_SUBCMD_GET_FEATURE_SET,
 	ANDR_WIFI_SUBCMD_GET_FEATURE_SET_MATRIX,
 	ANDR_WIFI_RANDOM_MAC_OUI,
@@ -135,12 +128,11 @@ enum andr_vendor_subcmd {
 	WIFI_SUBCMD_SET_BSSID_BLACKLIST,
 	GSCAN_SUBCMD_ANQPO_CONFIG,
 	WIFI_SUBCMD_SET_RSSI_MONITOR,
+	WIFI_SUBCMD_CONFIG_ND_OFFLOAD,
 	RTT_SUBCMD_SET_CONFIG = ANDROID_NL80211_SUBCMD_RTT_RANGE_START,
 	RTT_SUBCMD_CANCEL_CONFIG,
 	RTT_SUBCMD_GETCAPABILITY,
-
 	LSTATS_SUBCMD_GET_INFO = ANDROID_NL80211_SUBCMD_LSTATS_RANGE_START,
-
 	DEBUG_START_LOGGING = ANDROID_NL80211_SUBCMD_DEBUG_RANGE_START,
 	DEBUG_TRIGGER_MEM_DUMP,
 	DEBUG_GET_MEM_DUMP,
@@ -149,15 +141,22 @@ enum andr_vendor_subcmd {
 	DEBUG_GET_RING_DATA,
 	DEBUG_GET_FEATURE,
 	DEBUG_RESET_LOGGING,
-
+	DEBUG_TRIGGER_DRIVER_MEM_DUMP,
+	DEBUG_GET_DRIVER_MEM_DUMP,
+	DEBUG_START_PKT_FATE_MONITORING,
+	DEBUG_GET_TX_PKT_FATES,
+	DEBUG_GET_RX_PKT_FATES,
+	DEBUG_GET_WAKE_REASON_STATS,
 	WIFI_OFFLOAD_SUBCMD_START_MKEEP_ALIVE = ANDROID_NL80211_SUBCMD_WIFI_OFFLOAD_RANGE_START,
 	WIFI_OFFLOAD_SUBCMD_STOP_MKEEP_ALIVE,
-    /* Add more sub commands here */
-	VENDOR_SUBCMD_MAX
+	APF_SUBCMD_GET_CAPABILITIES = ANDROID_NL80211_SUBCMD_PKT_FILTER_RANGE_START,
+	APF_SUBCMD_SET_FILTER,
+	/* Add more sub commands here */
+    VENDOR_SUBCMD_MAX
 };
 
 enum gscan_attributes {
-    GSCAN_ATTRIBUTE_NUM_BUCKETS = GSCAN_ATTR_SET1,
+    GSCAN_ATTRIBUTE_NUM_BUCKETS = 10,
     GSCAN_ATTRIBUTE_BASE_PERIOD,
     GSCAN_ATTRIBUTE_BUCKETS_BAND,
     GSCAN_ATTRIBUTE_BUCKET_ID,
@@ -169,13 +168,13 @@ enum gscan_attributes {
     GSCAN_ATTRIBUTE_NUM_SCANS_TO_CACHE,
     GSCAN_ATTRIBUTE_BAND = GSCAN_ATTRIBUTE_BUCKETS_BAND,
 
-    GSCAN_ATTRIBUTE_ENABLE_FEATURE = GSCAN_ATTR_SET2,
+    GSCAN_ATTRIBUTE_ENABLE_FEATURE = 20,
     GSCAN_ATTRIBUTE_SCAN_RESULTS_COMPLETE,
     GSCAN_ATTRIBUTE_FLUSH_FEATURE,
     GSCAN_ATTRIBUTE_ENABLE_FULL_SCAN_RESULTS,
     GSCAN_ATTRIBUTE_REPORT_EVENTS,
     /* remaining reserved for additional attributes */
-    GSCAN_ATTRIBUTE_NUM_OF_RESULTS = GSCAN_ATTR_SET3,
+    GSCAN_ATTRIBUTE_NUM_OF_RESULTS = 30,
     GSCAN_ATTRIBUTE_FLUSH_RESULTS,
     GSCAN_ATTRIBUTE_SCAN_RESULTS,                       /* flat array of wifi_scan_result */
     GSCAN_ATTRIBUTE_SCAN_ID,                            /* indicates scan number */
@@ -183,10 +182,10 @@ enum gscan_attributes {
     GSCAN_ATTRIBUTE_AP_FLAGS,                           /* flags on significant change event */
     GSCAN_ATTRIBUTE_NUM_CHANNELS,
     GSCAN_ATTRIBUTE_CHANNEL_LIST,
-
+    GSCAN_ATTRIBUTE_CH_BUCKET_BITMASK,
 	/* remaining reserved for additional attributes */
 
-    GSCAN_ATTRIBUTE_SSID = GSCAN_ATTR_SET4,
+    GSCAN_ATTRIBUTE_SSID = 40,
     GSCAN_ATTRIBUTE_BSSID,
     GSCAN_ATTRIBUTE_CHANNEL,
     GSCAN_ATTRIBUTE_RSSI,
@@ -196,31 +195,32 @@ enum gscan_attributes {
 
     /* remaining reserved for additional attributes */
 
-    GSCAN_ATTRIBUTE_HOTLIST_BSSIDS = GSCAN_ATTR_SET5,
+    GSCAN_ATTRIBUTE_HOTLIST_BSSIDS = 50,
     GSCAN_ATTRIBUTE_RSSI_LOW,
     GSCAN_ATTRIBUTE_RSSI_HIGH,
     GSCAN_ATTRIBUTE_HOSTLIST_BSSID_ELEM,
     GSCAN_ATTRIBUTE_HOTLIST_FLUSH,
+    GSCAN_ATTRIBUTE_HOTLIST_BSSID_COUNT,
 
     /* remaining reserved for additional attributes */
-    GSCAN_ATTRIBUTE_RSSI_SAMPLE_SIZE = GSCAN_ATTR_SET6,
+    GSCAN_ATTRIBUTE_RSSI_SAMPLE_SIZE = 60,
     GSCAN_ATTRIBUTE_LOST_AP_SAMPLE_SIZE,
     GSCAN_ATTRIBUTE_MIN_BREACHING,
     GSCAN_ATTRIBUTE_SIGNIFICANT_CHANGE_BSSIDS,
     GSCAN_ATTRIBUTE_SIGNIFICANT_CHANGE_FLUSH,
 
     /* EPNO */
-    GSCAN_ATTRIBUTE_EPNO_SSID_LIST = GSCAN_ATTR_SET7,
+    GSCAN_ATTRIBUTE_EPNO_SSID_LIST = 70,
     GSCAN_ATTRIBUTE_EPNO_SSID,
     GSCAN_ATTRIBUTE_EPNO_SSID_LEN,
-    GSCAN_ATTRIBUTE_EPNO_RSSI,
+    GSCAN_ATTRIBUTE_EPNO_UNUSED, /* Deprecated */
     GSCAN_ATTRIBUTE_EPNO_FLAGS,
     GSCAN_ATTRIBUTE_EPNO_AUTH,
     GSCAN_ATTRIBUTE_EPNO_SSID_NUM,
     GSCAN_ATTRIBUTE_EPNO_FLUSH,
 
     /* Roam SSID Whitelist and BSSID pref */
-    GSCAN_ATTRIBUTE_WHITELIST_SSID = GSCAN_ATTR_SET8,
+    GSCAN_ATTRIBUTE_WHITELIST_SSID = 80,
     GSCAN_ATTRIBUTE_NUM_WL_SSID,
     GSCAN_ATTRIBUTE_WL_SSID_LEN,
     GSCAN_ATTRIBUTE_WL_SSID_FLUSH,
@@ -233,7 +233,7 @@ enum gscan_attributes {
 
 
     /* Roam cfg */
-    GSCAN_ATTRIBUTE_A_BAND_BOOST_THRESHOLD = GSCAN_ATTR_SET9,
+    GSCAN_ATTRIBUTE_A_BAND_BOOST_THRESHOLD = 90,
     GSCAN_ATTRIBUTE_A_BAND_PENALTY_THRESHOLD,
     GSCAN_ATTRIBUTE_A_BAND_BOOST_FACTOR,
     GSCAN_ATTRIBUTE_A_BAND_PENALTY_FACTOR,
@@ -243,10 +243,10 @@ enum gscan_attributes {
     GSCAN_ATTRIBUTE_LAZY_ROAM_ENABLE,
 
     /* BSSID blacklist */
-    GSCAN_ATTRIBUTE_BSSID_BLACKLIST_FLUSH = GSCAN_ATTR_SET10,
+    GSCAN_ATTRIBUTE_BSSID_BLACKLIST_FLUSH = 100,
     GSCAN_ATTRIBUTE_BLACKLIST_BSSID,
 
-    GSCAN_ATTRIBUTE_ANQPO_HS_LIST = GSCAN_ATTR_SET11,
+    GSCAN_ATTRIBUTE_ANQPO_HS_LIST = 110,
     GSCAN_ATTRIBUTE_ANQPO_HS_LIST_SIZE,
     GSCAN_ATTRIBUTE_ANQPO_HS_NETWORK_ID,
     GSCAN_ATTRIBUTE_ANQPO_HS_NAI_REALM,
@@ -254,8 +254,17 @@ enum gscan_attributes {
     GSCAN_ATTRIBUTE_ANQPO_HS_PLMN,
 
     /* Adaptive scan attributes */
-    GSCAN_ATTRIBUTE_BUCKET_STEP_COUNT = GSCAN_ATTR_SET12,
+    GSCAN_ATTRIBUTE_BUCKET_STEP_COUNT = 120,
     GSCAN_ATTRIBUTE_BUCKET_MAX_PERIOD,
+
+    /* ePNO cfg */
+    GSCAN_ATTRIBUTE_EPNO_5G_RSSI_THR = 130,
+    GSCAN_ATTRIBUTE_EPNO_2G_RSSI_THR,
+    GSCAN_ATTRIBUTE_EPNO_INIT_SCORE_MAX,
+    GSCAN_ATTRIBUTE_EPNO_CUR_CONN_BONUS,
+    GSCAN_ATTRIBUTE_EPNO_SAME_NETWORK_BONUS,
+    GSCAN_ATTRIBUTE_EPNO_SECURE_BONUS,
+    GSCAN_ATTRIBUTE_EPNO_5G_BONUS,
 
     GSCAN_ATTRIBUTE_MAX
 };
@@ -303,12 +312,6 @@ enum rtt_attributes {
 	RTT_ATTRIBUTE_RESULT
 };
 
-enum wifi_rssi_monitor_attr {
-	RSSI_MONITOR_ATTRIBUTE_MAX_RSSI,
-	RSSI_MONITOR_ATTRIBUTE_MIN_RSSI,
-	RSSI_MONITOR_ATTRIBUTE_START
-};
-
 enum debug_attributes {
 	DEBUG_ATTRIBUTE_GET_DRIVER,
 	DEBUG_ATTRIBUTE_GET_FW,
@@ -322,7 +325,11 @@ enum debug_attributes {
 	DEBUG_ATTRIBUTE_FW_DUMP_DATA,
 	DEBUG_ATTRIBUTE_RING_DATA,
 	DEBUG_ATTRIBUTE_RING_STATUS,
-	DEBUG_ATTRIBUTE_RING_NUM
+	DEBUG_ATTRIBUTE_RING_NUM,
+	DEBUG_ATTRIBUTE_DRIVER_DUMP_LEN,
+	DEBUG_ATTRIBUTE_DRIVER_DUMP_DATA,
+	DEBUG_ATTRIBUTE_PKT_FATE_NUM,
+	DEBUG_ATTRIBUTE_PKT_FATE_DATA,
 };
 
 enum mkeep_alive_attributes {
@@ -332,6 +339,19 @@ enum mkeep_alive_attributes {
 	MKEEP_ALIVE_ATTRIBUTE_SRC_MAC_ADDR,
 	MKEEP_ALIVE_ATTRIBUTE_DST_MAC_ADDR,
 	MKEEP_ALIVE_ATTRIBUTE_PERIOD_MSEC
+};
+
+enum wifi_rssi_monitor_attr {
+	RSSI_MONITOR_ATTRIBUTE_MAX_RSSI,
+	RSSI_MONITOR_ATTRIBUTE_MIN_RSSI,
+	RSSI_MONITOR_ATTRIBUTE_START,
+};
+
+enum apf_attributes {
+	APF_ATTRIBUTE_VERSION,
+	APF_ATTRIBUTE_MAX_LEN,
+	APF_ATTRIBUTE_PROGRAM,
+	APF_ATTRIBUTE_PROGRAM_LEN
 };
 
 typedef enum wl_vendor_event {
@@ -349,18 +369,7 @@ typedef enum wl_vendor_event {
 	GOOGLE_FW_DUMP_EVENT,
 	GOOGLE_PNO_HOTSPOT_FOUND_EVENT,
 	GOOGLE_RSSI_MONITOR_EVENT,
-	GOOGLE_MKEEP_ALIVE_EVENT,
-	NAN_EVENT_ENABLED,
-	NAN_EVENT_DISABLED,
-	NAN_EVENT_PUBLISH_REPLIED,
-	NAN_EVENT_PUBLISH_TERMINATED,
-	NAN_EVENT_SUBSCRIBE_MATCH,
-	NAN_EVENT_SUBSCRIBE_UNMATCH,
-	NAN_EVENT_SUBSCRIBE_TERMINATED,
-	NAN_EVENT_DE_EVENT,
-	NAN_EVENT_FOLLOWUP,
-	NAN_EVENT_TCA,
-	NAN_EVENT_UNKNOWN
+	GOOGLE_MKEEP_ALIVE_EVENT
 } wl_vendor_event_t;
 
 enum andr_wifi_attr {
@@ -368,7 +377,8 @@ enum andr_wifi_attr {
 	ANDR_WIFI_ATTRIBUTE_FEATURE_SET,
 	ANDR_WIFI_ATTRIBUTE_RANDOM_MAC_OUI,
 	ANDR_WIFI_ATTRIBUTE_NODFS_SET,
-	ANDR_WIFI_ATTRIBUTE_COUNTRY
+	ANDR_WIFI_ATTRIBUTE_COUNTRY,
+	ANDR_WIFI_ATTRIBUTE_ND_OFFLOAD_VALUE
 };
 
 typedef enum wl_vendor_gscan_attribute {
@@ -380,7 +390,7 @@ typedef enum wl_vendor_gscan_attribute {
 	ATTR_SET_SCAN_CFG_ID, /* set common scan config params here */
 	ATTR_GET_GSCAN_CAPABILITIES_ID,
     /* Add more sub commands here */
-	ATTR_GSCAN_MAX
+    ATTR_GSCAN_MAX
 } wl_vendor_gscan_attribute_t;
 
 typedef enum gscan_batch_attribute {
@@ -395,25 +405,21 @@ typedef enum gscan_geofence_attribute {
 } gscan_geofence_attribute_t;
 
 typedef enum gscan_complete_event {
-	WIFI_SCAN_BUFFER_FULL,
-	WIFI_SCAN_COMPLETE
+	WIFI_SCAN_COMPLETE,
+	WIFI_SCAN_THRESHOLD_NUM_SCANS,
+	WIFI_SCAN_BUFFER_THR_BREACHED
 } gscan_complete_event_t;
 
 /* Capture the BRCM_VENDOR_SUBCMD_PRIV_STRINGS* here */
 #define BRCM_VENDOR_SCMD_CAPA	"cap"
 
-#if defined(WL_VENDOR_EXT_SUPPORT) || defined(CONFIG_BCMDHD_VENDOR_EXT)
-extern int wl_cfgvendor_attach(struct wiphy *wiphy, struct dhd_pub *dhd);
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)) || defined(WL_VENDOR_EXT_SUPPORT)
+extern int wl_cfgvendor_attach(struct wiphy *wiphy, dhd_pub_t *dhd);
 extern int wl_cfgvendor_detach(struct wiphy *wiphy);
 extern int wl_cfgvendor_send_async_event(struct wiphy *wiphy,
                   struct net_device *dev, int event_id, const void  *data, int len);
 extern int wl_cfgvendor_send_hotlist_event(struct wiphy *wiphy,
                 struct net_device *dev, void  *data, int len, wl_vendor_event_t event);
-#else
-static INLINE int cfgvendor_attach(struct wiphy *wiphy, dhd_pub_t *dhd) { return 0; }
-static INLINE int cfgvendor_detach(struct wiphy *wiphy) { return 0; }
-static INLINE int wl_cfgvendor_send_async_event(struct wiphy *wiphy,
-	struct net_device *dev, int event_id, const void  *data, int len) { return 0; }
-#endif /* defined(WL_VENDOR_EXT_SUPPORT) ||  defined(CONFIG_BCMDHD_VENDOR_EXT) */
+#endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)) || defined(WL_VENDOR_EXT_SUPPORT) */
 
 #endif /* _wl_cfgvendor_h_ */

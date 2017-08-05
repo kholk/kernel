@@ -1,14 +1,14 @@
 /*
  * bcmevent read-only data shared by kernel or app layers
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
- * 
+ * Copyright (C) 1999-2014, Broadcom Corporation
+ *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- * 
+ *
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -16,15 +16,11 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- * 
+ *
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
- *
- *
- * <<Broadcom-WL-IPTag/Open:>>
- *
- * $Id: bcmevent.c 644723 2016-06-21 12:05:02Z $
+ * $Id: bcmevent.c 470794 2014-04-16 12:01:41Z $
  */
 
 #include <typedefs.h>
@@ -33,7 +29,9 @@
 #include <proto/ethernet.h>
 #include <proto/bcmeth.h>
 #include <proto/bcmevent.h>
+#include <proto/dnglevent.h>
 #include <proto/802.11.h>
+
 
 /* Table of event name strings for UIs and debugging dumps */
 typedef struct {
@@ -79,8 +77,10 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 	BCMEVENT_NAME(WLC_E_BCNLOST_MSG),
 	BCMEVENT_NAME(WLC_E_ROAM_PREP),
 	BCMEVENT_NAME(WLC_E_PFN_NET_FOUND),
-	BCMEVENT_NAME(WLC_E_PFN_SCAN_ALLGONE),
 	BCMEVENT_NAME(WLC_E_PFN_NET_LOST),
+	BCMEVENT_NAME(WLC_E_JOIN_START),
+	BCMEVENT_NAME(WLC_E_ROAM_START),
+	BCMEVENT_NAME(WLC_E_ASSOC_START),
 #if defined(IBSS_PEER_DISCOVERY_EVENT)
 	BCMEVENT_NAME(WLC_E_IBSS_ASSOC),
 #endif /* defined(IBSS_PEER_DISCOVERY_EVENT) */
@@ -100,14 +100,13 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 	BCMEVENT_NAME(WLC_E_P2P_DISC_LISTEN_COMPLETE),
 #endif
 	BCMEVENT_NAME(WLC_E_RSSI),
+	BCMEVENT_NAME(WLC_E_PFN_SCAN_COMPLETE),
 	BCMEVENT_NAME(WLC_E_EXTLOG_MSG),
+#ifdef WIFI_ACT_FRAME
 	BCMEVENT_NAME(WLC_E_ACTION_FRAME),
 	BCMEVENT_NAME(WLC_E_ACTION_FRAME_RX),
 	BCMEVENT_NAME(WLC_E_ACTION_FRAME_COMPLETE),
-#ifdef BCMWAPI_WAI
-	BCMEVENT_NAME(WLC_E_WAI_STA_EVENT),
-	BCMEVENT_NAME(WLC_E_WAI_MSG),
-#endif /* BCMWAPI_WAI */
+#endif
 	BCMEVENT_NAME(WLC_E_ESCAN_RESULT),
 	BCMEVENT_NAME(WLC_E_ACTION_FRAME_OFF_CHAN_COMPLETE),
 #ifdef WLP2P
@@ -120,6 +119,9 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 	BCMEVENT_NAME(WLC_E_WAKE_EVENT),
 	BCMEVENT_NAME(WLC_E_DCS_REQUEST),
 	BCMEVENT_NAME(WLC_E_RM_COMPLETE),
+#ifdef WLMEDIA_HTSF
+	BCMEVENT_NAME(WLC_E_HTSFSYNC),
+#endif
 	BCMEVENT_NAME(WLC_E_OVERLAY_REQ),
 	BCMEVENT_NAME(WLC_E_CSA_COMPLETE_IND),
 	BCMEVENT_NAME(WLC_E_EXCESS_PM_WAKE_EVENT),
@@ -146,19 +148,13 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 #ifdef WLWNM
 	BCMEVENT_NAME(WLC_E_WNM_STA_SLEEP),
 #endif /* WLWNM */
-#if defined(WL_PROXDETECT)
 	BCMEVENT_NAME(WLC_E_PROXD),
-#endif
 	BCMEVENT_NAME(WLC_E_CCA_CHAN_QUAL),
 	BCMEVENT_NAME(WLC_E_BSSID),
 #ifdef PROP_TXSTATUS
 	BCMEVENT_NAME(WLC_E_BCMC_CREDIT_SUPPORT),
 #endif
-	BCMEVENT_NAME(WLC_E_PSTA_PRIMARY_INTF_IND),
 	BCMEVENT_NAME(WLC_E_TXFAIL_THRESH),
-#ifdef WLAIBSS
-	BCMEVENT_NAME(WLC_E_AIBSS_TXFAIL),
-#endif /* WLAIBSS */
 #ifdef GSCAN_SUPPORT
 	BCMEVENT_NAME(WLC_E_PFN_GSCAN_FULL_RESULT),
 	BCMEVENT_NAME(WLC_E_PFN_SWC),
@@ -169,18 +165,12 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 #if defined(BT_WIFI_HANDOVER) || defined(WL_TBOW)
 	BCMEVENT_NAME(WLC_E_BT_WIFI_HANDOVER_REQ),
 #endif
-#ifdef WLFBT
-	BCMEVENT_NAME(WLC_E_FBT_AUTH_REQ_IND),
-#endif /* WLFBT */
-	BCMEVENT_NAME(WLC_E_AUTHORIZED),
-	BCMEVENT_NAME(WLC_E_PROBREQ_MSG_RX),
-	BCMEVENT_NAME(WLC_E_CSA_START_IND),
-	BCMEVENT_NAME(WLC_E_CSA_DONE_IND),
-	BCMEVENT_NAME(WLC_E_CSA_FAILURE_IND),
-	BCMEVENT_NAME(WLC_E_RMC_EVENT),
-	BCMEVENT_NAME(WLC_E_DPSTA_INTF_IND),
-	BCMEVENT_NAME(WLC_E_ULP),
+#ifdef GSCAN_SUPPORT
+	BCMEVENT_NAME(WLC_E_PFN_SSID_EXT),
+	BCMEVENT_NAME(WLC_E_ROAM_EXP_EVENT)
+#endif /* GSCAN_SUPPORT */
 };
+
 
 const char *bcmevent_get_name(uint event_type)
 {
@@ -206,36 +196,6 @@ const char *bcmevent_get_name(uint event_type)
 	return ((event_name) ? event_name : "Unknown Event");
 }
 
-void
-wl_event_to_host_order(wl_event_msg_t * evt)
-{
-	/* Event struct members passed from dongle to host are stored in network
-	* byte order. Convert all members to host-order.
-	*/
-	evt->event_type = ntoh32(evt->event_type);
-	evt->flags = ntoh16(evt->flags);
-	evt->status = ntoh32(evt->status);
-	evt->reason = ntoh32(evt->reason);
-	evt->auth_type = ntoh32(evt->auth_type);
-	evt->datalen = ntoh32(evt->datalen);
-	evt->version = ntoh16(evt->version);
-}
-
-void
-wl_event_to_network_order(wl_event_msg_t * evt)
-{
-	/* Event struct members passed from dongle to host are stored in network
-	* byte order. Convert all members to host-order.
-	*/
-	evt->event_type = hton32(evt->event_type);
-	evt->flags = hton16(evt->flags);
-	evt->status = hton32(evt->status);
-	evt->reason = hton32(evt->reason);
-	evt->auth_type = hton32(evt->auth_type);
-	evt->datalen = hton32(evt->datalen);
-	evt->version = hton16(evt->version);
-}
-
 /*
  * Validate if the event is proper and if valid copy event header to event.
  * If proper event pointer is passed, to just validate, pass NULL to event.
@@ -246,7 +206,7 @@ wl_event_to_network_order(wl_event_msg_t * evt)
  *	BCME_BADLEN - Bad length, should not process, just drop
  */
 int
-is_wlc_event_frame_tmp(void *pktdata, uint pktlen, uint16 exp_usr_subtype,
+is_wlc_event_frame(void *pktdata, uint pktlen, uint16 exp_usr_subtype,
 	bcm_event_msg_u_t *out_event)
 {
 	uint16 len;
@@ -319,7 +279,6 @@ is_wlc_event_frame_tmp(void *pktdata, uint pktlen, uint16 exp_usr_subtype,
 		}
 
 		break;
-#ifdef HEALTH_CHECK
 	case BCMILCP_BCM_SUBTYPE_DNGLEVENT:
 		if (pktlen < sizeof(bcm_dngl_event_t)) {
 			err = BCME_BADLEN;
@@ -345,7 +304,6 @@ is_wlc_event_frame_tmp(void *pktdata, uint pktlen, uint16 exp_usr_subtype,
 		}
 
 		break;
-#endif /* HEALTH_CHECK */
 	default:
 		err = BCME_NOTFOUND;
 		goto done;

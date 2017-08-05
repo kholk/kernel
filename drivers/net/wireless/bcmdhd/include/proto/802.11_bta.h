@@ -1,7 +1,7 @@
 /*
  * BT-AMP (BlueTooth Alternate Mac and Phy) 802.11 PAL (Protocol Adaptation Layer)
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,10 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- *
- * <<Broadcom-WL-IPTag/Open:>>
- *
- * $Id: 802.11_bta.h 518342 2014-12-01 23:21:41Z $
+ * $Id: 802.11_bta.h 382882 2013-02-04 23:24:31Z $
 */
 
 #ifndef _802_11_BTA_H_

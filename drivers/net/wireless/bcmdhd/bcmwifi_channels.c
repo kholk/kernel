@@ -3,14 +3,14 @@
  * Contents are wifi-specific, used by any kernel or app-level
  * software that might want wifi things as it grows.
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
- * 
+ * Copyright (C) 1999-2014, Broadcom Corporation
+ *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- * 
+ *
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -18,14 +18,10 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- * 
+ *
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
- *
- *
- * <<Broadcom-WL-IPTag/Open:>>
- *
  * $Id: bcmwifi_channels.c 309193 2012-01-19 00:03:57Z $
  */
 
@@ -129,11 +125,7 @@ static const char *wf_chspec_bw_str[] =
 	"80",
 	"160",
 	"80+80",
-#ifdef WL11ULB
-	"2.5"
-#else /* WL11ULB */
 	"na"
-#endif /* WL11ULB */
 };
 
 static const uint8 wf_chspec_bw_mhz[] =
@@ -357,10 +349,11 @@ wf_chspec_aton(const char *a)
 	/* parse channel num or band */
 	if (!read_uint(&a, &num))
 		return 0;
+
 	/* if we are looking at a 'g', then the first number was a band */
 	c = tolower((int)a[0]);
 	if (c == 'g') {
-		a++; /* consume the char */
+		a ++; /* consume the char */
 
 		/* band must be "2" or "5" */
 		if (num == 2)
@@ -407,13 +400,7 @@ wf_chspec_aton(const char *a)
 		return 0;
 
 	/* convert to chspec value */
-	if (bw == 2) {
-		chspec_bw = WL_CHANSPEC_BW_2P5;
-	} else if (bw == 5) {
-		chspec_bw = WL_CHANSPEC_BW_5;
-	} else if (bw == 10) {
-		chspec_bw = WL_CHANSPEC_BW_10;
-	} else if (bw == 20) {
+	if (bw == 20) {
 		chspec_bw = WL_CHANSPEC_BW_20;
 	} else if (bw == 40) {
 		chspec_bw = WL_CHANSPEC_BW_40;
@@ -427,8 +414,7 @@ wf_chspec_aton(const char *a)
 
 	/* So far we have <band>g<chan>/<bw>
 	 * Can now be followed by u/l if bw = 40,
-	 * or '+80' if bw = 80, to make '80+80' bw,
-	 * or '.5' if bw = 2.5 to make '2.5' bw .
+	 * or '+80' if bw = 80, to make '80+80' bw.
 	 */
 
 	c = tolower((int)a[0]);
@@ -445,7 +431,7 @@ wf_chspec_aton(const char *a)
 	/* check for 80+80 */
 	if (c == '+') {
 		/* 80+80 */
-		const char plus80[] = "80/";
+		static const char *plus80 = "80/";
 
 		/* must be looking at '+80/'
 		 * check and consume this string.
@@ -456,7 +442,7 @@ wf_chspec_aton(const char *a)
 
 		/* consume the '80/' string */
 		for (i = 0; i < 3; i++) {
-			if (*a++ != plus80[i]) {
+			if (*a++ != *plus80++) {
 				return 0;
 			}
 		}
@@ -473,19 +459,6 @@ wf_chspec_aton(const char *a)
 		/* read secondary 80MHz channel */
 		if (!read_uint(&a, &ch2))
 			return 0;
-	} else if (c == '.') {
-		/* 2.5 */
-		/* must be looking at '.5'
-		 * check and consume this string.
-		 */
-		chspec_bw = WL_CHANSPEC_BW_2P5;
-
-		a ++; /* consume the char '.' */
-
-		/* consume the '5' string */
-		if (*a++ != '5') {
-			return 0;
-		}
 	}
 
 done_read:
@@ -518,7 +491,7 @@ done_read:
 		}
 	}
 	/* if the bw is 20, center and sideband are trivial */
-	else if (BW_LE20(chspec_bw)) {
+	else if (chspec_bw == WL_CHANSPEC_BW_20) {
 		chspec_ch = ctl_ch;
 		chspec_sb = WL_CHANSPEC_CTL_SB_NONE;
 	}
@@ -610,7 +583,8 @@ wf_chspec_malformed(chanspec_t chanspec)
 	/* must be 2G or 5G band */
 	if (CHSPEC_IS2G(chanspec)) {
 		/* must be valid bandwidth */
-		if (!BW_LE40(chspec_bw)) {
+		if (chspec_bw != WL_CHANSPEC_BW_20 &&
+		    chspec_bw != WL_CHANSPEC_BW_40) {
 			return TRUE;
 		}
 	} else if (CHSPEC_IS5G(chanspec)) {
@@ -623,7 +597,9 @@ wf_chspec_malformed(chanspec_t chanspec)
 			if (ch1_id >= WF_NUM_5G_80M_CHANS || ch2_id >= WF_NUM_5G_80M_CHANS)
 				return TRUE;
 
-		} else if (BW_LE160(chspec_bw)) {
+		} else if (chspec_bw == WL_CHANSPEC_BW_20 || chspec_bw == WL_CHANSPEC_BW_40 ||
+		           chspec_bw == WL_CHANSPEC_BW_80 || chspec_bw == WL_CHANSPEC_BW_160) {
+
 			if (chspec_ch > MAXCHANNEL) {
 				return TRUE;
 			}
@@ -637,7 +613,7 @@ wf_chspec_malformed(chanspec_t chanspec)
 	}
 
 	/* side band needs to be consistent with bandwidth */
-	if (BW_LE20(chspec_bw)) {
+	if (chspec_bw == WL_CHANSPEC_BW_20) {
 		if (CHSPEC_CTL_SB(chanspec) != WL_CHANSPEC_CTL_SB_LLL)
 			return TRUE;
 	} else if (chspec_bw == WL_CHANSPEC_BW_40) {
@@ -649,7 +625,7 @@ wf_chspec_malformed(chanspec_t chanspec)
 			return TRUE;
 	}
 	else if (chspec_bw == WL_CHANSPEC_BW_160) {
-		ASSERT(CHSPEC_CTL_SB(chanspec) <= WL_CHANSPEC_CTL_SB_UUU);
+		DHD_WARN(CHSPEC_CTL_SB(chanspec) <= WL_CHANSPEC_CTL_SB_UUU,);
 	}
 	return FALSE;
 }
@@ -669,7 +645,7 @@ wf_chspec_valid(chanspec_t chanspec)
 
 	if (CHSPEC_IS2G(chanspec)) {
 		/* must be valid bandwidth and channel range */
-		if (BW_LE20(chspec_bw)) {
+		if (chspec_bw == WL_CHANSPEC_BW_20) {
 			if (chspec_ch >= 1 && chspec_ch <= 14)
 				return TRUE;
 		} else if (chspec_bw == WL_CHANSPEC_BW_40) {
@@ -691,7 +667,7 @@ wf_chspec_valid(chanspec_t chanspec)
 			const uint8 *center_ch;
 			uint num_ch, i;
 
-			if (BW_LE40(chspec_bw)) {
+			if (chspec_bw == WL_CHANSPEC_BW_20 || chspec_bw == WL_CHANSPEC_BW_40) {
 				center_ch = wf_5g_40m_chans;
 				num_ch = WF_NUM_5G_40M_CHANS;
 			} else if (chspec_bw == WL_CHANSPEC_BW_80) {
@@ -706,7 +682,7 @@ wf_chspec_valid(chanspec_t chanspec)
 			}
 
 			/* check for a valid center channel */
-			if (BW_LE20(chspec_bw)) {
+			if (chspec_bw == WL_CHANSPEC_BW_20) {
 				/* We don't have an array of legal 20MHz 5G channels, but they are
 				 * each side of the legal 40MHz channels.  Check the chanspec
 				 * channel against either side of the 40MHz channels.
@@ -759,10 +735,8 @@ wf_chspec_ctlchan(chanspec_t chspec)
 	uint bw_mhz;
 	uint sb;
 
-	ASSERT(!wf_chspec_malformed(chspec));
-
 	/* Is there a sideband ? */
-	if (CHSPEC_BW_LE20(chspec)) {
+	if (CHSPEC_IS20(chspec)) {
 		return CHSPEC_CHANNEL(chspec);
 	} else {
 		sb = CHSPEC_CTL_SB(chspec) >> WL_CHANSPEC_CTL_SB_SHIFT;
@@ -780,6 +754,8 @@ wf_chspec_ctlchan(chanspec_t chspec)
 		}
 		else {
 			bw_mhz = bw_chspec_to_mhz(chspec);
+			if (!bw_mhz)
+				return 0;
 			center_chan = CHSPEC_CHANNEL(chspec) >> WL_CHANSPEC_CHAN_SHIFT;
 		}
 
@@ -791,7 +767,7 @@ wf_chspec_ctlchan(chanspec_t chspec)
 char *
 wf_chspec_to_bw_str(chanspec_t chspec)
 {
-		return (char *)wf_chspec_bw_str[(CHSPEC_BW(chspec) >> WL_CHANSPEC_BW_SHIFT)];
+	return (char *)wf_chspec_bw_str[(CHSPEC_BW(chspec) >> WL_CHANSPEC_BW_SHIFT)];
 }
 
 /*
@@ -803,10 +779,8 @@ wf_chspec_ctlchspec(chanspec_t chspec)
 	chanspec_t ctl_chspec = chspec;
 	uint8 ctl_chan;
 
-	ASSERT(!wf_chspec_malformed(chspec));
-
 	/* Is there a sideband ? */
-	if (!CHSPEC_BW_LE20(chspec)) {
+	if (!CHSPEC_IS20(chspec)) {
 		ctl_chan = wf_chspec_ctlchan(chspec);
 		ctl_chspec = ctl_chan | WL_CHANSPEC_BW_20;
 		ctl_chspec |= CHSPEC_BAND(chspec);
@@ -842,7 +816,7 @@ wf_channel2chspec(uint ctl_ch, uint bw)
 		center_ch = wf_5g_160m_chans;
 		num_ch = WF_NUM_5G_160M_CHANS;
 		bw = 160;
-	} else if (BW_LE20(bw)) {
+	} else if (bw == WL_CHANSPEC_BW_20) {
 		chspec |= ctl_ch;
 		return chspec;
 	} else {
@@ -876,8 +850,6 @@ extern chanspec_t wf_chspec_primary40_chspec(chanspec_t chspec)
 	chanspec_t chspec40 = chspec;
 	uint center_chan;
 	uint sb;
-
-	ASSERT(!wf_chspec_malformed(chspec));
 
 	/* if the chanspec is > 80MHz, use the helper routine to find the primary 80 MHz channel */
 	if (CHSPEC_IS8080(chspec) || CHSPEC_IS160(chspec)) {
@@ -1202,7 +1174,6 @@ wf_chspec_primary80_chspec(chanspec_t chspec)
 	uint center_chan;
 	uint sb;
 
-	ASSERT(!wf_chspec_malformed(chspec));
 	if (CHSPEC_IS80(chspec)) {
 		chspec80 = chspec;
 	}

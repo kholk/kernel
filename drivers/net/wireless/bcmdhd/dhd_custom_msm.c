@@ -217,4 +217,4 @@ late_initcall(dhd_wlan_init);
 #endif /* CONFIG_DEFERRED_INITCALLS */
 #else
 device_initcall(dhd_wlan_init);
-#endif /* CONFIG_ARCH_MSM8996 */
+#endif /* CONFIG_ARCH_QCOM8996 */

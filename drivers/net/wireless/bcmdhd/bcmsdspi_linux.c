@@ -1,7 +1,7 @@
 /*
  * Broadcom SPI Host Controller Driver - Linux Per-port
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,10 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- *
- * <<Broadcom-WL-IPTag/Open:>>
- *
- * $Id: bcmsdspi_linux.c 514727 2014-11-12 03:02:48Z $
+ * $Id: bcmsdspi_linux.c 406045 2013-06-05 22:09:52Z $
  */
 
 #include <typedefs.h>
@@ -142,7 +139,7 @@ void
 spi_osfree(sdioh_info_t *sd)
 {
 	struct sdos_info *sdos;
-	ASSERT(sd && sd->sdos_info);
+	DHD_BUG(!sd || !sd->sdos_info);
 
 	sdos = (struct sdos_info *)sd->sdos_info;
 	MFREE(sd->osh, sdos, sizeof(struct sdos_info));
@@ -158,7 +155,7 @@ sdioh_interrupt_set(sdioh_info_t *sd, bool enable)
 	sd_trace(("%s: %s\n", __FUNCTION__, enable ? "Enabling" : "Disabling"));
 
 	sdos = (struct sdos_info *)sd->sdos_info;
-	ASSERT(sdos);
+	DHD_BUG(!sdos);
 
 	if (!(sd->host_init_done && sd->card_init_done)) {
 		sd_err(("%s: Card & Host are not initted - bailing\n", __FUNCTION__));
@@ -192,14 +189,14 @@ spi_lock(sdioh_info_t *sd)
 	struct sdos_info *sdos;
 
 	sdos = (struct sdos_info *)sd->sdos_info;
-	ASSERT(sdos);
+	DHD_BUG(!sdos);
 
 	sd_trace(("%s: %d\n", __FUNCTION__, sd->lockcount));
 
 	spin_lock_irqsave(&sdos->lock, flags);
 	if (sd->lockcount) {
 		sd_err(("%s: Already locked!\n", __FUNCTION__));
-		ASSERT(sd->lockcount == 0);
+		DHD_WARN(sd->lockcount == 0,);
 	}
 	spi_devintr_off(sd);
 	sd->lockcount++;
@@ -214,10 +211,10 @@ spi_unlock(sdioh_info_t *sd)
 	struct sdos_info *sdos;
 
 	sd_trace(("%s: %d, %d\n", __FUNCTION__, sd->lockcount, sd->client_intr_enabled));
-	ASSERT(sd->lockcount > 0);
+	DHD_BUG(sd->lockcount <= 0);
 
 	sdos = (struct sdos_info *)sd->sdos_info;
-	ASSERT(sdos);
+	DHD_BUG(!sdos);
 
 	spin_lock_irqsave(&sdos->lock, flags);
 	if (--sd->lockcount == 0 && sd->client_intr_enabled) {
@@ -229,7 +226,7 @@ spi_unlock(sdioh_info_t *sd)
 void spi_waitbits(sdioh_info_t *sd, bool yield)
 {
 #ifndef BCMSDYIELD
-	ASSERT(!yield);
+	DHD_BUG(yield);
 #endif
 	sd_trace(("%s: yield %d canblock %d\n",
 	          __FUNCTION__, yield, BLOCKABLE()));
