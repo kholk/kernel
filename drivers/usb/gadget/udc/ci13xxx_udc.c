@@ -111,20 +111,7 @@ static struct ci13xxx *_udc;
 
 /* Interrupt statistics */
 #define ISR_MASK   0x1F
-static struct {
-	u32 test;
-	u32 ui;
-	u32 uei;
-	u32 pci;
-	u32 uri;
-	u32 sli;
-	u32 none;
-	struct {
-		u32 cnt;
-		u32 buf[ISR_MASK+1];
-		u32 idx;
-	} hndl;
-} isr_statistics;
+
 
 /**
  * ffs_nr: find first (least significant) bit set
@@ -382,9 +369,9 @@ static int hw_device_reset(struct ci13xxx *udc)
  *
  * This function returns an error code
  */
-static int hw_device_state(u32 dma)
+static int hw_device_state(struct ci13xxx *udc, u32 dma)
 {
-	struct ci13xxx *udc = _udc;
+	//struct ci13xxx *udc = _udc;
 
 	if (dma) {
 		if (!(udc->udc_driver->flags & CI13XXX_DISABLE_STREAMING)) {
@@ -453,11 +440,11 @@ static void debug_ept_flush_info(int ep_num, int dir)
  *
  * This function returns an error code
  */
-static int hw_ep_flush(int num, int dir)
+static int hw_ep_flush(struct ci13xxx *udc, int num, int dir)
 {
 	ktime_t start, diff;
 	int n = hw_ep_bit(num, dir);
-	struct ci13xxx_ep *mEp = &_udc->ci13xxx_ep[n];
+	struct ci13xxx_ep *mEp = &udc->ci13xxx_ep[n];
 
 	/* Flush ep0 even when queue is empty */
 	if (_udc->skip_flush || (num && list_empty(&mEp->qh.queue)))
@@ -496,8 +483,9 @@ static int hw_ep_flush(int num, int dir)
  *
  * This function returns an error code
  */
-static int hw_ep_disable(int num, int dir)
+static int hw_ep_disable(struct ci13xxx *udc, int num, int dir)
 {
+	hw_ep_flush(udc, num, dir);
 	hw_cwrite(CAP_ENDPTCTRL + num * sizeof(u32),
 		  dir ? ENDPTCTRL_TXE : ENDPTCTRL_RXE, 0);
 	return 0;
@@ -843,7 +831,7 @@ static int hw_usb_reset(void)
 	hw_cwrite(CAP_ENDPTFLUSH,    ~0, ~0);   /* flush all EPs */
 
 	/* clear setup token semaphores */
-	//hw_cwrite(CAP_ENDPTSETUPSTAT, ~0, ~0);
+	hw_cwrite(CAP_ENDPTSETUPSTAT, ~0, ~0);
 
 	/* clear complete status */
 	hw_cwrite(CAP_ENDPTCOMPLETE,  0,  0);   /* writes its content */
@@ -1226,8 +1214,7 @@ static ssize_t show_inters(struct device *dev, struct device_attribute *attr,
 {
 	struct ci13xxx *udc = container_of(dev, struct ci13xxx, gadget.dev);
 	unsigned long flags;
-	u32 intr;
-	unsigned i, j, n = 0;
+	unsigned n = 0;
 
 	dbg_trace("[%s] %pK\n", __func__, buf);
 	if (attr == NULL || buf == NULL) {
@@ -1241,48 +1228,6 @@ static ssize_t show_inters(struct device *dev, struct device_attribute *attr,
 		       "status = %08x\n", hw_read_intr_status());
 	n += scnprintf(buf + n, PAGE_SIZE - n,
 		       "enable = %08x\n", hw_read_intr_enable());
-
-	n += scnprintf(buf + n, PAGE_SIZE - n, "*test = %d\n",
-		       isr_statistics.test);
-	n += scnprintf(buf + n, PAGE_SIZE - n, "? ui  = %d\n",
-		       isr_statistics.ui);
-	n += scnprintf(buf + n, PAGE_SIZE - n, "? uei = %d\n",
-		       isr_statistics.uei);
-	n += scnprintf(buf + n, PAGE_SIZE - n, "? pci = %d\n",
-		       isr_statistics.pci);
-	n += scnprintf(buf + n, PAGE_SIZE - n, "? uri = %d\n",
-		       isr_statistics.uri);
-	n += scnprintf(buf + n, PAGE_SIZE - n, "? sli = %d\n",
-		       isr_statistics.sli);
-	n += scnprintf(buf + n, PAGE_SIZE - n, "*none = %d\n",
-		       isr_statistics.none);
-	n += scnprintf(buf + n, PAGE_SIZE - n, "*hndl = %d\n",
-		       isr_statistics.hndl.cnt);
-
-	for (i = isr_statistics.hndl.idx, j = 0; j <= ISR_MASK; j++, i++) {
-		i   &= ISR_MASK;
-		intr = isr_statistics.hndl.buf[i];
-
-		if (USBi_UI  & intr)
-			n += scnprintf(buf + n, PAGE_SIZE - n, "ui  ");
-		intr &= ~USBi_UI;
-		if (USBi_UEI & intr)
-			n += scnprintf(buf + n, PAGE_SIZE - n, "uei ");
-		intr &= ~USBi_UEI;
-		if (USBi_PCI & intr)
-			n += scnprintf(buf + n, PAGE_SIZE - n, "pci ");
-		intr &= ~USBi_PCI;
-		if (USBi_URI & intr)
-			n += scnprintf(buf + n, PAGE_SIZE - n, "uri ");
-		intr &= ~USBi_URI;
-		if (USBi_SLI & intr)
-			n += scnprintf(buf + n, PAGE_SIZE - n, "sli ");
-		intr &= ~USBi_SLI;
-		if (intr)
-			n += scnprintf(buf + n, PAGE_SIZE - n, "??? ");
-		if (isr_statistics.hndl.buf[i])
-			n += scnprintf(buf + n, PAGE_SIZE - n, "\n");
-	}
 
 	spin_unlock_irqrestore(udc->lock, flags);
 
@@ -1317,8 +1262,6 @@ static ssize_t store_inters(struct device *dev, struct device_attribute *attr,
 	if (en) {
 		if (hw_intr_force(bit))
 			dev_err(dev, "invalid bit number\n");
-		else
-			isr_statistics.test++;
 	} else {
 		if (hw_intr_clear(bit))
 			dev_err(dev, "invalid bit number\n");
@@ -2673,7 +2616,7 @@ __acquires(hwep->lock)
 	if (hwep == NULL)
 		return -EINVAL;
 
-	hw_ep_flush(hwep->num, hwep->dir);
+	hw_ep_flush(hwep->ci, hwep->num, hwep->dir);
 
 	while (!list_empty(&hwep->qh.queue)) {
 
@@ -3933,7 +3876,7 @@ static int ep_disable(struct usb_ep *ep)
 	direction = hwep->dir;
 	do {
 		retval |= _ep_nuke(hwep);
-		retval |= hw_ep_disable(hwep->num, hwep->dir);
+		retval |= hw_ep_disable(hwep->ci, hwep->num, hwep->dir);
 
 		if (hwep->type == USB_ENDPOINT_XFER_CONTROL)
 			hwep->dir = (hwep->dir == TX) ? RX : TX;
@@ -4310,7 +4253,7 @@ static int ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 
 	spin_lock_irqsave(hwep->lock, flags);
 
-	hw_ep_flush(hwep->num, hwep->dir);
+	hw_ep_flush(udc, hwep->num, hwep->dir);
 
 	list_for_each_entry_safe(node, tmpnode, &hwreq->tds, td) {
 		dma_pool_free(hwep->td_pool, node->ptr, node->dma);
@@ -4513,7 +4456,7 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 		if (udc->udc_driver->notify_event)
 			udc->udc_driver->notify_event(udc,
 				CI13XXX_CONTROLLER_CONNECT_EVENT);
-		hw_device_state(udc->ep0out.qh.dma);
+		hw_device_state(udc, udc->ep0out.qh.dma);
 		/* Enable BAM (if needed) before starting controller */
 		//if (udc->softconnect) {
 			dbg_event(0xFF, "BAM EN2", _gadget->bam2bam_func_enabled);
@@ -4526,7 +4469,7 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 		usb_udc_vbus_handler(_gadget, false);
 		if (udc->driver)
 			udc->driver->disconnect(&udc->gadget);
-		hw_device_state(0);
+		hw_device_state(udc, 0);
 		if (udc->udc_driver->notify_event)
 			udc->udc_driver->notify_event(udc,
 				CI13XXX_CONTROLLER_DISCONNECT_EVENT);
@@ -4543,13 +4486,13 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 				udc->udc_driver->notify_event(udc,
 					CI13XXX_CONTROLLER_CONNECT_EVENT);
 			if (udc->softconnect) {
-				hw_device_state(udc->ep0out.qh.dma);
+				hw_device_state(udc, udc->ep0out.qh.dma);
 			}
 			usb_gadget_set_state(_gadget, USB_STATE_POWERED);
 			usb_udc_vbus_handler(_gadget, true);
 		} else {
 			usb_udc_vbus_handler(_gadget, false);
-			hw_device_state(0);
+			hw_device_state(udc, 0);
 			_gadget_stop_activity(&udc->gadget);
 			if (udc->udc_driver->notify_event)
 				udc->udc_driver->notify_event(udc,
@@ -4625,10 +4568,10 @@ static int ci13xxx_pullup(struct usb_gadget *_gadget, int is_active)
 			udc->udc_driver->notify_event(udc,
 				CI13XXX_CONTROLLER_CONNECT_EVENT);
 		spin_lock(udc->lock);
-		hw_device_state(udc->ep0out.qh.dma);
+		hw_device_state(udc, udc->ep0out.qh.dma);
 		hw_cwrite(CAP_USBCMD, USBCMD_RS, USBCMD_RS);
 	} else {
-		hw_device_state(0);
+		hw_device_state(udc, 0);
 		hw_cwrite(CAP_USBCMD, USBCMD_RS, 0);
 	}
 	spin_unlock_irqrestore(udc->lock, flags);
@@ -4701,7 +4644,7 @@ pr_err("....for gadget driver %s, function %s\n",
 //	if (!udc->softconnect)
 //		goto done;
 
-	retval = hw_device_state(udc->ep0out.qh.dma);
+	retval = hw_device_state(udc, udc->ep0out.qh.dma);
 
 	if (unlock)
 		spin_unlock_irqrestore(udc->lock, flags);
@@ -4734,7 +4677,7 @@ static int ci13xxx_stop(struct usb_gadget *gadget)
 
 	if (!(udc->udc_driver->flags & CI13XXX_PULLUP_ON_VBUS) ||
 			udc->vbus_active) {
-		hw_device_state(0);
+		hw_device_state(udc, 0);
 		spin_unlock_irqrestore(udc->lock, flags);
 		_gadget_stop_activity(&udc->gadget);
 		spin_lock_irqsave(udc->lock, flags);
@@ -4898,20 +4841,14 @@ static irqreturn_t udc_irq(void)
 	}
 	intr = hw_test_and_clear_intr_active();
 	if (intr) {
-		isr_statistics.hndl.buf[isr_statistics.hndl.idx++] = intr;
-		isr_statistics.hndl.idx &= ISR_MASK;
-		isr_statistics.hndl.cnt++;
-
 		/* order defines priority - do NOT change it */
 		if (USBi_URI & intr) {
-			isr_statistics.uri++;
 			if (!hw_cread(CAP_PORTSC, PORTSC_PR))
 				pr_info("%s: USB reset interrupt is delayed\n",
 								__func__);
 			isr_reset_handler(udc);
 		}
 		if (USBi_PCI & intr) {
-			isr_statistics.pci++;
 			udc->gadget.speed = hw_port_is_high_speed() ?
 				USB_SPEED_HIGH : USB_SPEED_FULL;
 			if (udc->suspended) {
@@ -4929,15 +4866,11 @@ static irqreturn_t udc_irq(void)
 //					purge_rw_queue(udc);
 			}
 		}
-		if (USBi_UEI & intr)
-			isr_statistics.uei++;
 		if (USBi_UI  & intr) {
-			isr_statistics.ui++;
 			isr_tr_complete_handler(udc);
 		}
 		if (USBi_SLI & intr) {
 			//isr_suspend_handler(udc);
-			isr_statistics.sli++;
 
 			if (udc->gadget.speed != USB_SPEED_UNKNOWN &&
 					udc->driver->suspend) { //->vbus_active) {
@@ -4972,7 +4905,6 @@ static irqreturn_t udc_irq(void)
 		}
 		retval = IRQ_HANDLED;
 	} else {
-		isr_statistics.none++;
 		retval = IRQ_NONE;
 	}
 	spin_unlock(udc->lock);
