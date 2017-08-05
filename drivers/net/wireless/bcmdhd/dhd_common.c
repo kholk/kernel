@@ -82,13 +82,18 @@
 #include <dhd_wet.h>
 #endif /* DHD_WET */
 
-
+#if 0
 #ifdef CUSTOMER_HW5
 int dhd_msg_level = DHD_ERROR_VAL | DHD_MSGTRACE_VAL;
 #else
 int dhd_msg_level = DHD_ERROR_VAL | DHD_MSGTRACE_VAL | DHD_EVENT_VAL;
 #endif /* CUSTOMER_HW5 */
+#endif
 
+int dhd_msg_level = DHD_ERROR_VAL | DHD_MSGTRACE_VAL | DHD_EVENT_VAL |
+		    DHD_TRACE_VAL | DHD_INFO_VAL | DHD_DATA_VAL |
+		    DHD_CTL_VAL | DHD_WL_VAL | DHD_WL_VAL2 |
+		    DHD_FWLOG_VAL | DHD_DBGIF_VAL;
 
 
 #include <wl_iw.h>
