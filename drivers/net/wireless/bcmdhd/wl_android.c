@@ -3206,7 +3206,7 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 int wl_android_init(void)
 {
 	int ret = 0;
-
+pr_err("-----wl_android_init------\n");
 #ifdef ENABLE_INSMOD_NO_FW_LOAD
 	dhd_download_fw_on_driverload = FALSE;
 #endif /* ENABLE_INSMOD_NO_FW_LOAD */

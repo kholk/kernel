@@ -5820,6 +5820,8 @@ dhd_open(struct net_device *net)
 				ret = -1;
 				goto exit;
 			}
+		} else {
+			DHD_ERROR(("Not putting the interface on because we didn't load firmware yet.\n"));
 		}
 #endif 
 
@@ -5929,7 +5931,7 @@ exit:
 int dhd_do_driver_init(struct net_device *net)
 {
 	dhd_info_t *dhd = NULL;
-
+	DHD_TRACE(("Do driver init!\n"));
 	if (!net) {
 		DHD_ERROR(("Primary Interface not initialized \n"));
 		return -EINVAL;
@@ -7135,14 +7137,14 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 	 */
 
 	/* set default firmware and nvram path for built-in type driver */
-	if (!dhd_download_fw_on_driverload) {
+//	if (!dhd_download_fw_on_driverload) {
 #ifdef CONFIG_BCMDHD_FW_PATH
 		fw = CONFIG_BCMDHD_FW_PATH;
 #endif /* CONFIG_BCMDHD_FW_PATH */
 #ifdef CONFIG_BCMDHD_NVRAM_PATH
 		nv = CONFIG_BCMDHD_NVRAM_PATH;
 #endif /* CONFIG_BCMDHD_NVRAM_PATH */
-	}
+//	}
 
 	/* check if we need to initialize the path */
 	if (dhdinfo->fw_path[0] == '\0') {
@@ -9576,7 +9578,8 @@ dhd_reboot_callback(struct notifier_block *this, unsigned long code, void *unuse
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
 #if defined(CONFIG_DEFERRED_INITCALLS)
-#if defined(CONFIG_MACH_UNIVERSAL7420) || defined(CONFIG_ARCH_MSM8996)
+#if defined(CONFIG_MACH_UNIVERSAL7420) || defined(CONFIG_ARCH_MSM8996) || \
+    defined(CONFIG_ARCH_MSM8916)
 deferred_module_init_sync(dhd_module_init);
 #else
 deferred_module_init(dhd_module_init);

@@ -1080,8 +1080,8 @@ static int mmc_sdio_resume(struct mmc_host *host)
 
 	mmc_release_host(host);
 
-	host->pm_flags &= ~MMC_PM_KEEP_POWER;
-	host->pm_flags &= ~MMC_PM_WAKE_SDIO_IRQ;
+	//host->pm_flags &= ~MMC_PM_KEEP_POWER;
+	//host->pm_flags &= ~MMC_PM_WAKE_SDIO_IRQ;
 	MMC_TRACE(host, "%s: Exit err: %d\n", __func__, err);
 	return err;
 }
