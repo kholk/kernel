@@ -1,14 +1,14 @@
 /*
  * Driver O/S-independent utility routines
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
- *
+ * Copyright (C) 1999-2016, Broadcom Corporation
+ * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- *
+ * 
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -16,11 +16,15 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- *
+ * 
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
- * $Id: bcmutils.c 473326 2014-04-29 00:37:35Z $
+ *
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmutils.c 585315 2015-09-10 06:02:11Z $
  */
 
 #include <bcm_cfg.h>
@@ -31,10 +35,6 @@
 
 #include <osl.h>
 #include <bcmutils.h>
-#if defined(BCMNVRAM)
-#include <siutils.h>
-#include <bcmnvram.h>
-#endif
 
 #else /* !BCMDRIVER */
 
@@ -741,7 +741,7 @@ prpkt(const char *msg, osl_t *osh, void *p0)
 	for (p = p0; p; p = PKTNEXT(osh, p))
 		prhex(NULL, PKTDATA(osh, p), PKTLEN(osh, p));
 }
-#endif
+#endif	
 
 /* Takes an Ethernet frame and sets out-of-bound PKTPRIO.
  * Also updates the inplace vlan tag if requested.
@@ -757,7 +757,7 @@ pktsetprio(void *pkt, bool update_vtag)
 	int rc = 0;
 
 	pktdata = (uint8 *)PKTDATA(OSH_NULL, pkt);
-	DHD_BUG(!ISALIGNED((uintptr)pktdata, sizeof(uint16)));
+	ASSERT(ISALIGNED((uintptr)pktdata, sizeof(uint16)));
 
 	eh = (struct ether_header *) pktdata;
 
@@ -798,12 +798,11 @@ pktsetprio(void *pkt, bool update_vtag)
 			evh->vlan_tag = hton16(vlan_tag);
 			rc |= PKTPRIO_UPD;
 		}
-
-#ifdef EAPOL_PKT_PRIO
+#ifdef DHD_LOSSLESS_ROAMING
 	} else if (eh->ether_type == hton16(ETHER_TYPE_802_1X)) {
 		priority = PRIO_8021D_NC;
 		rc = PKTPRIO_DSCP;
-#endif /* EAPOL_PKT_PRIO */
+#endif /* DHD_LOSSLESS_ROAMING */
 	} else if ((eh->ether_type == hton16(ETHER_TYPE_IP)) ||
 		(eh->ether_type == hton16(ETHER_TYPE_IPV6))) {
 		uint8 *ip_body = pktdata + sizeof(struct ether_header);
@@ -834,8 +833,54 @@ pktsetprio(void *pkt, bool update_vtag)
 		rc |= PKTPRIO_DSCP;
 	}
 
+	ASSERT(priority >= 0 && priority <= MAXPRIO);
 	PKTSETPRIO(pkt, priority);
 	return (rc | priority);
+}
+
+/* lookup user priority for specified DSCP */
+static uint8
+dscp2up(uint8 *up_table, uint8 dscp)
+{
+	uint8 user_priority = 255;
+
+	/* lookup up from table if parameters valid */
+	if (up_table != NULL && dscp < UP_TABLE_MAX) {
+		user_priority = up_table[dscp];
+	}
+
+	/* 255 is unused value so return up from dscp */
+	if (user_priority == 255) {
+		user_priority = dscp >> (IPV4_TOS_PREC_SHIFT - IPV4_TOS_DSCP_SHIFT);
+	}
+
+	return user_priority;
+}
+
+/* set user priority by QoS Map Set table (UP table), table size is UP_TABLE_MAX */
+uint BCMFASTPATH
+pktsetprio_qms(void *pkt, uint8* up_table, bool update_vtag)
+{
+	if (up_table) {
+		uint8 *pktdata;
+		uint pktlen;
+		uint8 dscp;
+		uint user_priority = 0;
+		uint rc = 0;
+
+		pktdata = (uint8 *)PKTDATA(OSH_NULL, pkt);
+		pktlen = PKTLEN(OSH_NULL, pkt);
+
+		if (pktgetdscp(pktdata, pktlen, &dscp)) {
+			rc = PKTPRIO_DSCP;
+			user_priority = dscp2up(up_table, dscp);
+			PKTSETPRIO(pkt, user_priority);
+		}
+
+		return (rc | user_priority);
+	} else {
+		return pktsetprio(pkt, update_vtag);
+	}
 }
 
 /* Returns TRUE and DSCP if IP header found, FALSE otherwise.
@@ -874,6 +919,73 @@ pktgetdscp(uint8 *pktdata, uint pktlen, uint8 *dscp)
 	return rc;
 }
 
+/* usr_prio range from low to high with usr_prio value */
+static bool
+up_table_set(uint8 *up_table, uint8 usr_prio, uint8 low, uint8 high)
+{
+	int i;
+
+	if (usr_prio > 7 || low > high || low >= UP_TABLE_MAX || high >= UP_TABLE_MAX) {
+		return FALSE;
+	}
+
+	for (i = low; i <= high; i++) {
+		up_table[i] = usr_prio;
+	}
+
+	return TRUE;
+}
+
+/* set user priority table */
+int BCMFASTPATH
+wl_set_up_table(uint8 *up_table, bcm_tlv_t *qos_map_ie)
+{
+	uint8 len;
+
+	if (up_table == NULL || qos_map_ie == NULL) {
+		return BCME_ERROR;
+	}
+
+	/* clear table to check table was set or not */
+	memset(up_table, 0xff, UP_TABLE_MAX);
+
+	/* length of QoS Map IE must be 16+n*2, n is number of exceptions */
+	if (qos_map_ie != NULL && qos_map_ie->id == DOT11_MNG_QOS_MAP_ID &&
+			(len = qos_map_ie->len) >= QOS_MAP_FIXED_LENGTH &&
+			(len % 2) == 0) {
+		uint8 *except_ptr = (uint8 *)qos_map_ie->data;
+		uint8 except_len = len - QOS_MAP_FIXED_LENGTH;
+		uint8 *range_ptr = except_ptr + except_len;
+		int i;
+
+		/* fill in ranges */
+		for (i = 0; i < QOS_MAP_FIXED_LENGTH; i += 2) {
+			uint8 low = range_ptr[i];
+			uint8 high = range_ptr[i + 1];
+			if (low == 255 && high == 255) {
+				continue;
+			}
+
+			if (!up_table_set(up_table, i / 2, low, high)) {
+				/* clear the table on failure */
+				memset(up_table, 0xff, UP_TABLE_MAX);
+				return BCME_ERROR;
+			}
+		}
+
+		/* update exceptions */
+		for (i = 0; i < except_len; i += 2) {
+			uint8 dscp = except_ptr[i];
+			uint8 usr_prio = except_ptr[i+1];
+
+			/* exceptions with invalid dscp/usr_prio are ignored */
+			up_table_set(up_table, usr_prio, dscp, dscp);
+		}
+	}
+
+	return BCME_OK;
+}
+
 /* The 0.5KB string table is not removed by compiler even though it's unused */
 
 static char bcm_undeferrstr[32];
@@ -884,14 +996,14 @@ const char *
 bcmerrorstr(int bcmerror)
 {
 	/* check if someone added a bcmerror code but forgot to add errorstring */
-	DHD_WARN((ABS(BCME_LAST) == (ARRAYSIZE(bcmerrorstrtable) - 1)), return NULL;);
+	ASSERT(ABS(BCME_LAST) == (ARRAYSIZE(bcmerrorstrtable) - 1));
 
 	if (bcmerror > 0 || bcmerror < BCME_LAST) {
 		snprintf(bcm_undeferrstr, sizeof(bcm_undeferrstr), "Undefined error %d", bcmerror);
 		return bcm_undeferrstr;
 	}
 
-	DHD_WARN((strlen(bcmerrorstrtable[-bcmerror]) < BCME_STRLEN), return NULL;);
+	ASSERT(strlen(bcmerrorstrtable[-bcmerror]) < BCME_STRLEN);
 
 	return bcmerrorstrtable[-bcmerror];
 }
@@ -913,7 +1025,7 @@ bcm_iovar_lookup(const bcm_iovar_t *table, const char *name)
 	else
 		lookup_name = name;
 
-	DHD_WARN(table != NULL, return NULL;);
+	ASSERT(table != NULL);
 
 	for (vi = table; vi->name; vi++) {
 		if (!strcmp(vi->name, lookup_name))
@@ -963,7 +1075,7 @@ bcm_iovar_lencheck(const bcm_iovar_t *vi, void *arg, int len, bool set)
 
 	default:
 		/* unknown type for length check in iovar info */
-		DHD_BUG(1);
+		ASSERT(0);
 		bcmerror = BCME_UNSUPPORTED;
 	}
 
@@ -972,6 +1084,415 @@ bcm_iovar_lencheck(const bcm_iovar_t *vi, void *arg, int len, bool set)
 
 #endif	/* BCMDRIVER */
 
+#ifdef BCM_OBJECT_TRACE
+
+#define BCM_OBJECT_MERGE_SAME_OBJ	0
+
+/* some place may add / remove the object to trace list for Linux: */
+/* add:    osl_alloc_skb dev_alloc_skb skb_realloc_headroom dhd_start_xmit */
+/* remove: osl_pktfree dev_kfree_skb netif_rx */
+
+#define BCM_OBJDBG_COUNT          (1024 * 100)
+static spinlock_t dbgobj_lock;
+#define	BCM_OBJDBG_LOCK_INIT()    spin_lock_init(&dbgobj_lock)
+#define	BCM_OBJDBG_LOCK_DESTROY()
+#define	BCM_OBJDBG_LOCK           spin_lock_irqsave
+#define	BCM_OBJDBG_UNLOCK         spin_unlock_irqrestore
+
+#define BCM_OBJDBG_ADDTOHEAD      0
+#define BCM_OBJDBG_ADDTOTAIL      1
+
+#define BCM_OBJDBG_CALLER_LEN     32
+struct bcm_dbgobj {
+	struct bcm_dbgobj *prior;
+	struct bcm_dbgobj *next;
+	uint32 flag;
+	void   *obj;
+	uint32 obj_sn;
+	uint32 obj_state;
+	uint32 line;
+	char   caller[BCM_OBJDBG_CALLER_LEN];
+};
+
+static struct bcm_dbgobj *dbgobj_freehead = NULL;
+static struct bcm_dbgobj *dbgobj_freetail = NULL;
+static struct bcm_dbgobj *dbgobj_objhead = NULL;
+static struct bcm_dbgobj *dbgobj_objtail = NULL;
+
+static uint32 dbgobj_sn = 0;
+static int dbgobj_count = 0;
+static struct bcm_dbgobj bcm_dbg_objs[BCM_OBJDBG_COUNT];
+
+void
+bcm_object_trace_init(void)
+{
+	int i = 0;
+	BCM_OBJDBG_LOCK_INIT();
+	memset(&bcm_dbg_objs, 0x00, sizeof(struct bcm_dbgobj) * BCM_OBJDBG_COUNT);
+	dbgobj_freehead = &bcm_dbg_objs[0];
+	dbgobj_freetail = &bcm_dbg_objs[BCM_OBJDBG_COUNT - 1];
+
+	for (i = 0; i < BCM_OBJDBG_COUNT; ++i) {
+		bcm_dbg_objs[i].next = (i == (BCM_OBJDBG_COUNT - 1)) ?
+			dbgobj_freehead : &bcm_dbg_objs[i + 1];
+		bcm_dbg_objs[i].prior = (i == 0) ?
+			dbgobj_freetail : &bcm_dbg_objs[i - 1];
+	}
+}
+
+void
+bcm_object_trace_deinit(void)
+{
+	if (dbgobj_objhead || dbgobj_objtail) {
+		printf("%s: not all objects are released\n", __FUNCTION__);
+		ASSERT(0);
+	}
+	BCM_OBJDBG_LOCK_DESTROY();
+}
+
+static void
+bcm_object_rm_list(struct bcm_dbgobj **head, struct bcm_dbgobj **tail,
+	struct bcm_dbgobj *dbgobj)
+{
+	if ((dbgobj == *head) && (dbgobj == *tail)) {
+		*head = NULL;
+		*tail = NULL;
+	} else if (dbgobj == *head) {
+		*head = (*head)->next;
+	} else if (dbgobj == *tail) {
+		*tail = (*tail)->prior;
+	}
+	dbgobj->next->prior = dbgobj->prior;
+	dbgobj->prior->next = dbgobj->next;
+}
+
+static void
+bcm_object_add_list(struct bcm_dbgobj **head, struct bcm_dbgobj **tail,
+	struct bcm_dbgobj *dbgobj, int addtotail)
+{
+	if (!(*head) && !(*tail)) {
+		*head = dbgobj;
+		*tail = dbgobj;
+		dbgobj->next = dbgobj;
+		dbgobj->prior = dbgobj;
+	} else if ((*head) && (*tail)) {
+		(*tail)->next = dbgobj;
+		(*head)->prior = dbgobj;
+		dbgobj->next = *head;
+		dbgobj->prior = *tail;
+		if (addtotail == BCM_OBJDBG_ADDTOTAIL)
+			*tail = dbgobj;
+		else
+			*head = dbgobj;
+	} else {
+		ASSERT(0); /* can't be this case */
+	}
+}
+
+static INLINE void
+bcm_object_movetoend(struct bcm_dbgobj **head, struct bcm_dbgobj **tail,
+	struct bcm_dbgobj *dbgobj, int movetotail)
+{
+	if ((*head) && (*tail)) {
+		if (movetotail == BCM_OBJDBG_ADDTOTAIL) {
+			if (dbgobj != (*tail)) {
+				bcm_object_rm_list(head, tail, dbgobj);
+				bcm_object_add_list(head, tail, dbgobj, movetotail);
+			}
+		} else {
+			if (dbgobj != (*head)) {
+				bcm_object_rm_list(head, tail, dbgobj);
+				bcm_object_add_list(head, tail, dbgobj, movetotail);
+			}
+		}
+	} else {
+		ASSERT(0); /* can't be this case */
+	}
+}
+
+void
+bcm_object_trace_opr(void *obj, uint32 opt, const char *caller, int line)
+{
+	struct bcm_dbgobj *dbgobj;
+	unsigned long flags;
+
+	BCM_REFERENCE(flags);
+	BCM_OBJDBG_LOCK(&dbgobj_lock, flags);
+
+	if (opt == BCM_OBJDBG_ADD_PKT ||
+		opt == BCM_OBJDBG_ADD) {
+		dbgobj = dbgobj_objtail;
+		while (dbgobj) {
+			if (dbgobj->obj == obj) {
+				printf("%s: obj %p allocated from %s(%d),"
+					" allocate again from %s(%d)\n",
+					__FUNCTION__, dbgobj->obj,
+					dbgobj->caller, dbgobj->line,
+					caller, line);
+				ASSERT(0);
+				goto EXIT;
+			}
+			dbgobj = dbgobj->prior;
+			if (dbgobj == dbgobj_objtail)
+				break;
+		}
+
+#if BCM_OBJECT_MERGE_SAME_OBJ
+		dbgobj = dbgobj_freetail;
+		while (dbgobj) {
+			if (dbgobj->obj == obj) {
+				goto FREED_ENTRY_FOUND;
+			}
+			dbgobj = dbgobj->prior;
+			if (dbgobj == dbgobj_freetail)
+				break;
+		}
+#endif /* BCM_OBJECT_MERGE_SAME_OBJ */
+
+		dbgobj = dbgobj_freehead;
+#if BCM_OBJECT_MERGE_SAME_OBJ
+FREED_ENTRY_FOUND:
+#endif /* BCM_OBJECT_MERGE_SAME_OBJ */
+		if (!dbgobj) {
+			printf("%s: already got %d objects ?????????????????????\n",
+				__FUNCTION__, BCM_OBJDBG_COUNT);
+			ASSERT(0);
+			goto EXIT;
+		}
+
+		bcm_object_rm_list(&dbgobj_freehead, &dbgobj_freetail, dbgobj);
+		dbgobj->obj = obj;
+		strncpy(dbgobj->caller, caller, BCM_OBJDBG_CALLER_LEN);
+		dbgobj->caller[BCM_OBJDBG_CALLER_LEN-1] = '\0';
+		dbgobj->line = line;
+		dbgobj->flag = 0;
+		if (opt == BCM_OBJDBG_ADD_PKT) {
+			dbgobj->obj_sn = dbgobj_sn++;
+			dbgobj->obj_state = 0;
+			/* first 4 bytes is pkt sn */
+			if (((unsigned long)PKTTAG(obj)) & 0x3)
+				printf("pkt tag address not aligned by 4: %p\n", PKTTAG(obj));
+			*(uint32*)PKTTAG(obj) = dbgobj->obj_sn;
+		}
+		bcm_object_add_list(&dbgobj_objhead, &dbgobj_objtail, dbgobj,
+			BCM_OBJDBG_ADDTOTAIL);
+
+		dbgobj_count++;
+
+	} else if (opt == BCM_OBJDBG_REMOVE) {
+		dbgobj = dbgobj_objtail;
+		while (dbgobj) {
+			if (dbgobj->obj == obj) {
+				if (dbgobj->flag) {
+					printf("%s: rm flagged obj %p flag 0x%08x from %s(%d)\n",
+						__FUNCTION__, obj, dbgobj->flag, caller, line);
+				}
+				bcm_object_rm_list(&dbgobj_objhead, &dbgobj_objtail, dbgobj);
+				memset(dbgobj->caller, 0x00, BCM_OBJDBG_CALLER_LEN);
+				strncpy(dbgobj->caller, caller, BCM_OBJDBG_CALLER_LEN);
+				dbgobj->caller[BCM_OBJDBG_CALLER_LEN-1] = '\0';
+				dbgobj->line = line;
+				bcm_object_add_list(&dbgobj_freehead, &dbgobj_freetail, dbgobj,
+					BCM_OBJDBG_ADDTOTAIL);
+				dbgobj_count--;
+				goto EXIT;
+			}
+			dbgobj = dbgobj->prior;
+			if (dbgobj == dbgobj_objtail)
+				break;
+		}
+
+		dbgobj = dbgobj_freetail;
+		while (dbgobj && dbgobj->obj) {
+			if (dbgobj->obj == obj) {
+				printf("%s: obj %p already freed from from %s(%d),"
+					" try free again from %s(%d)\n",
+					__FUNCTION__, obj,
+					dbgobj->caller, dbgobj->line,
+					caller, line);
+				//ASSERT(0); /* release same obj more than one time? */
+				goto EXIT;
+			}
+			dbgobj = dbgobj->prior;
+			if (dbgobj == dbgobj_freetail)
+				break;
+		}
+
+		printf("%s: ################### release none-existing obj %p from %s(%d)\n",
+			__FUNCTION__, obj, caller, line);
+		//ASSERT(0); /* release same obj more than one time? */
+
+	}
+
+EXIT:
+	BCM_OBJDBG_UNLOCK(&dbgobj_lock, flags);
+	return;
+}
+
+void
+bcm_object_trace_upd(void *obj, void *obj_new)
+{
+	struct bcm_dbgobj *dbgobj;
+	unsigned long flags;
+
+	BCM_REFERENCE(flags);
+	BCM_OBJDBG_LOCK(&dbgobj_lock, flags);
+
+	dbgobj = dbgobj_objtail;
+	while (dbgobj) {
+		if (dbgobj->obj == obj) {
+			dbgobj->obj = obj_new;
+			if (dbgobj != dbgobj_objtail) {
+				bcm_object_movetoend(&dbgobj_objhead, &dbgobj_objtail,
+					dbgobj, BCM_OBJDBG_ADDTOTAIL);
+			}
+			goto EXIT;
+		}
+		dbgobj = dbgobj->prior;
+		if (dbgobj == dbgobj_objtail)
+			break;
+	}
+
+EXIT:
+	BCM_OBJDBG_UNLOCK(&dbgobj_lock, flags);
+	return;
+}
+
+void
+bcm_object_trace_chk(void *obj, uint32 chksn, uint32 sn,
+	const char *caller, int line)
+{
+	struct bcm_dbgobj *dbgobj;
+	unsigned long flags;
+
+	BCM_REFERENCE(flags);
+	BCM_OBJDBG_LOCK(&dbgobj_lock, flags);
+
+	dbgobj = dbgobj_objtail;
+	while (dbgobj) {
+		if ((dbgobj->obj == obj) &&
+			((!chksn) || (dbgobj->obj_sn == sn))) {
+			if (dbgobj != dbgobj_objtail) {
+				bcm_object_movetoend(&dbgobj_objhead, &dbgobj_objtail,
+					dbgobj, BCM_OBJDBG_ADDTOTAIL);
+			}
+			goto EXIT;
+		}
+		dbgobj = dbgobj->prior;
+		if (dbgobj == dbgobj_objtail)
+			break;
+	}
+
+	dbgobj = dbgobj_freetail;
+	while (dbgobj) {
+		if ((dbgobj->obj == obj) &&
+			((!chksn) || (dbgobj->obj_sn == sn))) {
+			printf("%s: (%s:%d) obj %p (sn %d state %d) was freed from %s(%d)\n",
+				__FUNCTION__, caller, line,
+				dbgobj->obj, dbgobj->obj_sn, dbgobj->obj_state,
+				dbgobj->caller, dbgobj->line);
+			goto EXIT;
+		}
+		else if (dbgobj->obj == NULL) {
+			break;
+		}
+		dbgobj = dbgobj->prior;
+		if (dbgobj == dbgobj_freetail)
+			break;
+	}
+
+	printf("%s: obj %p not found, check from %s(%d), chksn %s, sn %d\n",
+		__FUNCTION__, obj, caller, line, chksn ? "yes" : "no", sn);
+	dbgobj = dbgobj_objtail;
+	while (dbgobj) {
+		printf("%s: (%s:%d) obj %p sn %d was allocated from %s(%d)\n",
+				__FUNCTION__, caller, line,
+				dbgobj->obj, dbgobj->obj_sn, dbgobj->caller, dbgobj->line);
+		dbgobj = dbgobj->prior;
+		if (dbgobj == dbgobj_objtail)
+			break;
+	}
+
+EXIT:
+	BCM_OBJDBG_UNLOCK(&dbgobj_lock, flags);
+	return;
+}
+
+void
+bcm_object_feature_set(void *obj, uint32 type, uint32 value)
+{
+	struct bcm_dbgobj *dbgobj;
+	unsigned long flags;
+
+	BCM_REFERENCE(flags);
+	BCM_OBJDBG_LOCK(&dbgobj_lock, flags);
+
+	dbgobj = dbgobj_objtail;
+	while (dbgobj) {
+		if (dbgobj->obj == obj) {
+			if (type == BCM_OBJECT_FEATURE_FLAG) {
+				if (value & BCM_OBJECT_FEATURE_CLEAR)
+					dbgobj->flag &= ~(value);
+				else
+					dbgobj->flag |= (value);
+			} else if (type == BCM_OBJECT_FEATURE_PKT_STATE) {
+				dbgobj->obj_state = value;
+			}
+			if (dbgobj != dbgobj_objtail) {
+				bcm_object_movetoend(&dbgobj_objhead, &dbgobj_objtail,
+					dbgobj, BCM_OBJDBG_ADDTOTAIL);
+			}
+			goto EXIT;
+		}
+		dbgobj = dbgobj->prior;
+		if (dbgobj == dbgobj_objtail)
+			break;
+	}
+
+	printf("%s: obj %p not found in active list\n", __FUNCTION__, obj);
+	ASSERT(0);
+
+EXIT:
+	BCM_OBJDBG_UNLOCK(&dbgobj_lock, flags);
+	return;
+}
+
+int
+bcm_object_feature_get(void *obj, uint32 type, uint32 value)
+{
+	int rtn = 0;
+	struct bcm_dbgobj *dbgobj;
+	unsigned long flags;
+
+	BCM_REFERENCE(flags);
+	BCM_OBJDBG_LOCK(&dbgobj_lock, flags);
+
+	dbgobj = dbgobj_objtail;
+	while (dbgobj) {
+		if (dbgobj->obj == obj) {
+			if (type == BCM_OBJECT_FEATURE_FLAG) {
+				rtn = (dbgobj->flag & value) & (~BCM_OBJECT_FEATURE_CLEAR);
+			}
+			if (dbgobj != dbgobj_objtail) {
+				bcm_object_movetoend(&dbgobj_objhead, &dbgobj_objtail,
+					dbgobj, BCM_OBJDBG_ADDTOTAIL);
+			}
+			goto EXIT;
+		}
+		dbgobj = dbgobj->prior;
+		if (dbgobj == dbgobj_objtail)
+			break;
+	}
+
+	printf("%s: obj %p not found in active list\n", __FUNCTION__, obj);
+	ASSERT(0);
+
+EXIT:
+	BCM_OBJDBG_UNLOCK(&dbgobj_lock, flags);
+	return rtn;
+}
+
+#endif /* BCM_OBJECT_TRACE */
 
 uint8 *
 bcm_write_tlv(int type, const void *data, int datalen, uint8 *dst)
@@ -980,15 +1501,15 @@ bcm_write_tlv(int type, const void *data, int datalen, uint8 *dst)
 	bcm_tlv_t *dst_tlv = (bcm_tlv_t *)dst;
 
 	/* dst buffer should always be valid */
-	DHD_WARN(dst, return NULL;);
+	ASSERT(dst);
 
 	/* data len must be within valid range */
-	DHD_WARN(((datalen >= 0) && (datalen <= BCM_TLV_MAX_DATA_SIZE)), return NULL;);
+	ASSERT((datalen >= 0) && (datalen <= BCM_TLV_MAX_DATA_SIZE));
 
 	/* source data buffer pointer should be valid, unless datalen is 0
 	 * meaning no data with this TLV
 	 */
-	DHD_WARN(((data != NULL) || (datalen == 0)), return NULL;);
+	ASSERT((data != NULL) || (datalen == 0));
 
 	/* only do work if the inputs are valid
 	 * - must have a dst to write to AND
@@ -1047,7 +1568,7 @@ bcm_copy_tlv(const void *src, uint8 *dst)
 	const bcm_tlv_t *src_tlv = (const bcm_tlv_t *)src;
 	uint totlen;
 
-	DHD_WARN(dst && src, return NULL;);
+	ASSERT(dst && src);
 	if (dst && src) {
 
 		totlen = BCM_TLV_HDR_SIZE + src_tlv->len;
@@ -1064,7 +1585,7 @@ uint8 *bcm_copy_tlv_safe(const void *src, uint8 *dst, int dst_maxlen)
 	uint8 *new_dst = dst;
 	const bcm_tlv_t *src_tlv = (const bcm_tlv_t *)src;
 
-	DHD_WARN(src, return new_dst;);
+	ASSERT(src);
 	if (src) {
 		if (bcm_valid_tlv(src_tlv, dst_maxlen)) {
 			new_dst = bcm_copy_tlv(src, dst);
@@ -1318,8 +1839,7 @@ testcrc32(void)
 	uint32 crc32tv[CNBUFS] =
 		{0xd2cb1faa, 0xd385c8fa, 0xf5b4f3f3, 0x55789e20, 0x00343110};
 
-	buf = MALLOC(CBUFSIZ*CNBUFS);
-	DHD_BUG(!buf);
+	ASSERT((buf = MALLOC(CBUFSIZ*CNBUFS)) != NULL);
 
 	/* step through all possible alignments */
 	for (l = 0; l <= 4; l++) {
@@ -1331,7 +1851,7 @@ testcrc32(void)
 
 		for (j = 0; j < CNBUFS; j++) {
 			crcr = crc32(buf + j*CBUFSIZ + l, len[j], CRC32_INIT_VALUE);
-			DHD_BUG(crcr != crc32tv[j]);
+			ASSERT(crcr == crc32tv[j]);
 		}
 	}
 
@@ -1382,7 +1902,9 @@ bcm_parse_tlvs(void *buf, int buflen, uint key)
 	bcm_tlv_t *elt;
 	int totlen;
 
-	elt = (bcm_tlv_t*)buf;
+	if ((elt = (bcm_tlv_t*)buf) == NULL) {
+		return NULL;
+	}
 	totlen = buflen;
 
 	/* find tagged parameter */
@@ -1526,13 +2048,12 @@ bcm_format_flags(const bcm_bit_desc_t *bd, uint32 flags, char* buf, int len)
 
 	/* indicate the str was too short */
 	if (flags != 0) {
-		if (len < 2)
-			p -= 2 - len;	/* overwrite last char */
 		p += snprintf(p, 2, ">");
 	}
 
 	return (int)(p - buf);
 }
+#endif 
 
 /* print bytes formatted as hex to a string. return the resulting string length */
 int
@@ -1548,7 +2069,6 @@ bcm_format_hex(char *str, const void *bytes, int len)
 	}
 	return (int)(p - str);
 }
-#endif
 
 /* pretty hex print a contiguous buffer */
 void
@@ -1565,7 +2085,7 @@ prhex(const char *msg, uchar *buf, uint nbytes)
 	p = line;
 	for (i = 0; i < nbytes; i++) {
 		if (i % 16 == 0) {
-			nchar = snprintf(p, len, "  %04d: ", i);	/* line prefix */
+			nchar = snprintf(p, len, "  %04x: ", i);	/* line prefix */
 			p += nchar;
 			len -= nchar;
 		}
@@ -1595,10 +2115,17 @@ static const char *crypto_algo_names[] = {
 	"AES_CCM",
 	"AES_OCB_MSDU",
 	"AES_OCB_MPDU",
+#ifdef BCMCCX
+	"CKIP",
+	"CKIP_MMH",
+	"WEP_MMH",
+	"NALG",
+#else
 	"NALG",
 	"UNDEF",
 	"UNDEF",
 	"UNDEF",
+#endif /* BCMCCX */
 	"WAPI",
 	"PMK",
 	"BIP",
@@ -1696,7 +2223,7 @@ bcmdumpfields(bcmutl_rdreg_rtn read_rtn, void *arg0, uint arg1, struct fielddesc
 }
 
 uint
-bcm_mkiovar(char *name, char *data, uint datalen, char *buf, uint buflen)
+bcm_mkiovar(const char *name, char *data, uint datalen, char *buf, uint buflen)
 {
 	uint len;
 
@@ -1815,7 +2342,10 @@ bcm_bitcount(uint8 *bitmap, uint length)
 	return bitcount;
 }
 
-#ifdef BCMDRIVER
+#if defined(BCMDRIVER) || defined(WL_UNITTEST)
+
+/* triggers bcm_bprintf to print to kernel log */
+bool bcm_bprintf_bypass = FALSE;
 
 /* Initialization of bcmstrbuf structure */
 void
@@ -1835,6 +2365,10 @@ bcm_bprintf(struct bcmstrbuf *b, const char *fmt, ...)
 	va_start(ap, fmt);
 
 	r = vsnprintf(b->buf, b->size, fmt, ap);
+	if (bcm_bprintf_bypass == TRUE) {
+		printf(b->buf);
+		goto exit;
+	}
 
 	/* Non Ansi C99 compliant returns -1,
 	 * Ansi compliant return r >= b->size,
@@ -1850,13 +2384,14 @@ bcm_bprintf(struct bcmstrbuf *b, const char *fmt, ...)
 		b->buf += r;
 	}
 
+exit:
 	va_end(ap);
 
 	return r;
 }
 
 void
-bcm_bprhex(struct bcmstrbuf *b, const char *msg, bool newline, uint8 *buf, int len)
+bcm_bprhex(struct bcmstrbuf *b, const char *msg, bool newline, const uint8 *buf, int len)
 {
 	int i;
 
@@ -1942,7 +2477,39 @@ bcm_find_vendor_ie(void *tlvs, int tlvs_len, const char *voui, uint8 *type, int 
 
 	return NULL;
 }
-#endif /* BCMDRIVER */
+
+#if defined(WLTINYDUMP) || defined(WLMSG_INFORM) || defined(WLMSG_ASSOC) || \
+	defined(WLMSG_PRPKT) || defined(WLMSG_WSEC)
+#define SSID_FMT_BUF_LEN	((4 * DOT11_MAX_SSID_LEN) + 1)
+
+int
+bcm_format_ssid(char* buf, const uchar ssid[], uint ssid_len)
+{
+	uint i, c;
+	char *p = buf;
+	char *endp = buf + SSID_FMT_BUF_LEN;
+
+	if (ssid_len > DOT11_MAX_SSID_LEN) ssid_len = DOT11_MAX_SSID_LEN;
+
+	for (i = 0; i < ssid_len; i++) {
+		c = (uint)ssid[i];
+		if (c == '\\') {
+			*p++ = '\\';
+			*p++ = '\\';
+		} else if (bcm_isprint((uchar)c)) {
+			*p++ = (char)c;
+		} else {
+			p += snprintf(p, (endp - p), "\\x%02X", c);
+		}
+	}
+	*p = '\0';
+	ASSERT(p < endp);
+
+	return (int)(p - buf);
+}
+#endif 
+
+#endif /* BCMDRIVER || WL_UNITTEST */
 
 /*
  * ProcessVars:Takes a buffer of "<var>=<value>\n" lines read from a file and ending in a NUL.
@@ -2119,11 +2686,11 @@ set_bitrange(void *array, uint start, uint end, uint maxbit)
 }
 
 void
-bcm_bitprint32(const uint32 u32)
+bcm_bitprint32(const uint32 u32arg)
 {
 	int i;
 	for (i = NBITS(uint32) - 1; i >= 0; i--) {
-		isbitset(u32, i) ? printf("1") : printf("0");
+		printf(isbitset(u32arg, i) ? "1" : "0");
 		if ((i % NBBY) == 0) printf(" ");
 	}
 	printf("\n");
@@ -2149,8 +2716,7 @@ bcm_ip_cksum(uint8 *buf, uint32 len, uint32 sum)
 
 	return ((uint16)~sum);
 }
-
-#ifdef BCMDRIVER
+#if defined(BCMDRIVER) && !defined(_CFEZ_)
 /*
  * Hierarchical Multiword bitmap based small id allocator.
  *
@@ -2182,7 +2748,7 @@ bcm_ip_cksum(uint8 *buf, uint32 len, uint32 sum)
  * with savings in not having to use an indirect access, had it been dynamically
  * allocated.
  */
-#define BCM_MWBMAP_ITEMS_MAX    (4 * 1024)  /* May increase to 16K */
+#define BCM_MWBMAP_ITEMS_MAX    (64 * 1024)  /* May increase to 64K */
 
 #define BCM_MWBMAP_BITS_WORD    (NBITS(uint32))
 #define BCM_MWBMAP_WORDS_MAX    (BCM_MWBMAP_ITEMS_MAX / BCM_MWBMAP_BITS_WORD)
@@ -2215,7 +2781,7 @@ bcm_ip_cksum(uint8 *buf, uint32 len, uint32 sum)
 typedef struct bcm_mwbmap {     /* Hierarchical multiword bitmap allocator    */
 	uint16 wmaps;               /* Total number of words in free wd bitmap    */
 	uint16 imaps;               /* Total number of words in free id bitmap    */
-	int16  ifree;               /* Count of free indices. Used only in audits */
+	int32  ifree;               /* Count of free indices. Used only in audits */
 	uint16 total;               /* Total indices managed by multiword bitmap  */
 
 	void * magic;               /* Audit handle parameter from user           */
@@ -2236,12 +2802,12 @@ bcm_mwbmap_init(osl_t *osh, uint32 items_max)
 	uint32 wordix, size, words, extra;
 
 	/* Implementation Constraint: Uses 32bit word bitmap */
-	DHD_WARN(BCM_MWBMAP_BITS_WORD == 32U, goto error1;);
-	DHD_WARN(BCM_MWBMAP_SHIFT_OP == 5U, goto error1;);
-	DHD_WARN(ISPOWEROF2(BCM_MWBMAP_ITEMS_MAX), goto error1;);
-	DHD_WARN((BCM_MWBMAP_ITEMS_MAX % BCM_MWBMAP_BITS_WORD) == 0U, goto error1;);
+	MWBMAP_ASSERT(BCM_MWBMAP_BITS_WORD == 32U);
+	MWBMAP_ASSERT(BCM_MWBMAP_SHIFT_OP == 5U);
+	MWBMAP_ASSERT(ISPOWEROF2(BCM_MWBMAP_ITEMS_MAX));
+	MWBMAP_ASSERT((BCM_MWBMAP_ITEMS_MAX % BCM_MWBMAP_BITS_WORD) == 0U);
 
-	DHD_WARN(items_max <= BCM_MWBMAP_ITEMS_MAX,  goto error1;);
+	ASSERT(items_max <= BCM_MWBMAP_ITEMS_MAX);
 
 	/* Determine the number of words needed in the multiword bitmap */
 	extra = BCM_MWBMAP_MODOP(items_max);
@@ -2252,13 +2818,14 @@ bcm_mwbmap_init(osl_t *osh, uint32 items_max)
 	size = sizeof(bcm_mwbmap_t) + (sizeof(uint32) * words);
 	mwbmap_p = (bcm_mwbmap_t *)MALLOC(osh, size);
 	if (mwbmap_p == (bcm_mwbmap_t *)NULL) {
-		DHD_WARN(0, goto error1;);
+		ASSERT(0);
+		goto error1;
 	}
 	memset(mwbmap_p, 0, size);
 
 	/* Initialize runtime multiword bitmap state */
 	mwbmap_p->imaps = (uint16)words;
-	mwbmap_p->ifree = (int16)items_max;
+	mwbmap_p->ifree = (int32)items_max;
 	mwbmap_p->total = (uint16)items_max;
 
 	/* Setup magic, for use in audit of handle */
@@ -2338,8 +2905,8 @@ bcm_mwbmap_alloc(struct bcm_mwbmap * mwbmap_hdl)
 
 			/* clear all except trailing 1 */
 			bitmap   = (uint32)(((int)(bitmap)) & (-((int)(bitmap))));
-			DHD_WARN(C_bcm_count_leading_zeros(bitmap) ==
-			              bcm_count_leading_zeros(bitmap), return BCM_MWBMAP_INVALID_IDX;);
+			MWBMAP_ASSERT(C_bcm_count_leading_zeros(bitmap) ==
+			              bcm_count_leading_zeros(bitmap));
 			bitix    = (BCM_MWBMAP_BITS_WORD - 1)
 			         - bcm_count_leading_zeros(bitmap); /* use asm clz */
 			wordix   = BCM_MWBMAP_MULOP(wordix) + bitix;
@@ -2350,10 +2917,10 @@ bcm_mwbmap_alloc(struct bcm_mwbmap * mwbmap_hdl)
 #else  /* ! BCM_MWBMAP_USE_CNTSETBITS */
 			mwbmap_p->wd_count[wordix]--;
 			count = mwbmap_p->wd_count[wordix];
-			DHD_WARN(count ==
-			              (bcm_cntsetbits(mwbmap_p->id_bitmap[wordix]) - 1), return BCM_MWBMAP_INVALID_IDX;);
+			MWBMAP_ASSERT(count ==
+			              (bcm_cntsetbits(mwbmap_p->id_bitmap[wordix]) - 1));
 #endif /* ! BCM_MWBMAP_USE_CNTSETBITS */
-			DHD_WARN(count >= 0, return BCM_MWBMAP_INVALID_IDX;);
+			MWBMAP_ASSERT(count >= 0);
 
 			/* clear wd_bitmap bit if id_map count is 0 */
 			bitmap = (count == 0) << bitix;
@@ -2368,18 +2935,18 @@ bcm_mwbmap_alloc(struct bcm_mwbmap * mwbmap_hdl)
 			bitmap_p = &mwbmap_p->id_bitmap[wordix];
 
 			bitmap = mwbmap_p->id_bitmap[wordix]; /* get the id bitmap */
-			DHD_WARN(bitmap != 0U, return BCM_MWBMAP_INVALID_IDX;);
+			MWBMAP_ASSERT(bitmap != 0U);
 
 			/* clear all except trailing 1 */
 			bitmap   = (uint32)(((int)(bitmap)) & (-((int)(bitmap))));
-			DHD_WARN(C_bcm_count_leading_zeros(bitmap) ==
-			              bcm_count_leading_zeros(bitmap), return BCM_MWBMAP_INVALID_IDX;);
+			MWBMAP_ASSERT(C_bcm_count_leading_zeros(bitmap) ==
+			              bcm_count_leading_zeros(bitmap));
 			bitix    = BCM_MWBMAP_MULOP(wordix)
 			         + (BCM_MWBMAP_BITS_WORD - 1)
 			         - bcm_count_leading_zeros(bitmap); /* use asm clz */
 
 			mwbmap_p->ifree--; /* decrement system wide free count */
-			DHD_WARN(mwbmap_p->ifree >= 0, return BCM_MWBMAP_INVALID_IDX;);
+			MWBMAP_ASSERT(mwbmap_p->ifree >= 0);
 
 			MWBMAP_DBG((
 			    "Lvl2: bitix<%02u> wordix<%02u>: %08x ^ %08x = %08x ifree %d",
@@ -2392,7 +2959,7 @@ bcm_mwbmap_alloc(struct bcm_mwbmap * mwbmap_hdl)
 		}
 	}
 
-	DHD_BUG(mwbmap_p->ifree);
+	ASSERT(mwbmap_p->ifree == 0);
 
 	return BCM_MWBMAP_INVALID_IDX;
 }
@@ -2407,17 +2974,17 @@ bcm_mwbmap_force(struct bcm_mwbmap * mwbmap_hdl, uint32 bitix)
 	BCM_MWBMAP_AUDIT(mwbmap_hdl);
 	mwbmap_p = BCM_MWBMAP_PTR(mwbmap_hdl);
 
-	DHD_WARN(bitix < mwbmap_p->total, return;);
+	ASSERT(bitix < mwbmap_p->total);
 
 	/* Start with second hierarchy */
 	wordix   = BCM_MWBMAP_DIVOP(bitix);
 	bitmap   = (uint32)(1U << BCM_MWBMAP_MODOP(bitix));
 	bitmap_p = &mwbmap_p->id_bitmap[wordix];
 
-	DHD_WARN((*bitmap_p & bitmap) == bitmap, return;);
+	ASSERT((*bitmap_p & bitmap) == bitmap);
 
 	mwbmap_p->ifree--; /* update free count */
-	DHD_WARN(mwbmap_p->ifree >= 0, return;);
+	ASSERT(mwbmap_p->ifree >= 0);
 
 	MWBMAP_DBG(("Lvl2: bitix<%u> wordix<%u>: %08x ^ %08x = %08x ifree %d",
 	           bitix, wordix, *bitmap_p, bitmap, (*bitmap_p) ^ bitmap,
@@ -2436,9 +3003,9 @@ bcm_mwbmap_force(struct bcm_mwbmap * mwbmap_hdl, uint32 bitix)
 #else  /* ! BCM_MWBMAP_USE_CNTSETBITS */
 	mwbmap_p->wd_count[bitix]--;
 	count = mwbmap_p->wd_count[bitix];
-	DHD_WARN(count == bcm_cntsetbits(mwbmap_p->id_bitmap[bitix]), return;);
+	MWBMAP_ASSERT(count == bcm_cntsetbits(mwbmap_p->id_bitmap[bitix]));
 #endif /* ! BCM_MWBMAP_USE_CNTSETBITS */
-	DHD_WARN(count >= 0, return;);
+	MWBMAP_ASSERT(count >= 0);
 
 	bitmap   = (count == 0) << BCM_MWBMAP_MODOP(bitix);
 
@@ -2461,17 +3028,17 @@ bcm_mwbmap_free(struct bcm_mwbmap * mwbmap_hdl, uint32 bitix)
 	BCM_MWBMAP_AUDIT(mwbmap_hdl);
 	mwbmap_p = BCM_MWBMAP_PTR(mwbmap_hdl);
 
-	DHD_WARN(bitix < mwbmap_p->total, return;);
+	ASSERT(bitix < mwbmap_p->total);
 
 	/* Start with second level hierarchy */
 	wordix   = BCM_MWBMAP_DIVOP(bitix);
 	bitmap   = (1U << BCM_MWBMAP_MODOP(bitix));
 	bitmap_p = &mwbmap_p->id_bitmap[wordix];
 
-	DHD_WARN((*bitmap_p & bitmap) == 0U, return;);	/* ASSERT not a double free */
+	ASSERT((*bitmap_p & bitmap) == 0U);	/* ASSERT not a double free */
 
 	mwbmap_p->ifree++; /* update free count */
-	DHD_WARN(mwbmap_p->ifree <= mwbmap_p->total, return;);
+	ASSERT(mwbmap_p->ifree <= mwbmap_p->total);
 
 	MWBMAP_DBG(("Lvl2: bitix<%02u> wordix<%02u>: %08x | %08x = %08x ifree %d",
 	           bitix, wordix, *bitmap_p, bitmap, (*bitmap_p) | bitmap,
@@ -2498,10 +3065,10 @@ bcm_mwbmap_free(struct bcm_mwbmap * mwbmap_hdl, uint32 bitix)
 		count = bcm_cntsetbits(mwbmap_p->id_bitmap[bitix]);
 #else  /*  ! BCM_MWBMAP_USE_CNTSETBITS */
 		count = mwbmap_p->wd_count[bitix];
-		DHD_WARN(count == bcm_cntsetbits(mwbmap_p->id_bitmap[bitix]), return;);
+		MWBMAP_ASSERT(count == bcm_cntsetbits(mwbmap_p->id_bitmap[bitix]));
 #endif /*  ! BCM_MWBMAP_USE_CNTSETBITS */
 
-		DHD_WARN(count <= BCM_MWBMAP_BITS_WORD, return;);
+		MWBMAP_ASSERT(count <= BCM_MWBMAP_BITS_WORD);
 
 		MWBMAP_DBG(("Lvl1: bitix<%02u> wordix<%02u>: %08x | %08x = %08x wfree %d",
 		            bitix, wordix, *bitmap_p, bitmap, (*bitmap_p) | bitmap, count));
@@ -2522,7 +3089,7 @@ bcm_mwbmap_free_cnt(struct bcm_mwbmap * mwbmap_hdl)
 	BCM_MWBMAP_AUDIT(mwbmap_hdl);
 	mwbmap_p = BCM_MWBMAP_PTR(mwbmap_hdl);
 
-	DHD_WARN(mwbmap_p->ifree >= 0, return 0;);
+	ASSERT(mwbmap_p->ifree >= 0);
 
 	return mwbmap_p->ifree;
 }
@@ -2537,7 +3104,7 @@ bcm_mwbmap_isfree(struct bcm_mwbmap * mwbmap_hdl, uint32 bitix)
 	BCM_MWBMAP_AUDIT(mwbmap_hdl);
 	mwbmap_p = BCM_MWBMAP_PTR(mwbmap_hdl);
 
-	DHD_WARN(bitix < mwbmap_p->total, return TRUE;);
+	ASSERT(bitix < mwbmap_p->total);
 
 	wordix   = BCM_MWBMAP_DIVOP(bitix);
 	bitmap   = (1U << BCM_MWBMAP_MODOP(bitix));
@@ -2567,7 +3134,7 @@ bcm_mwbmap_show(struct bcm_mwbmap * mwbmap_hdl)
 		count = bcm_cntsetbits(mwbmap_p->id_bitmap[ix]);
 #else  /* ! BCM_MWBMAP_USE_CNTSETBITS */
 		count = mwbmap_p->wd_count[ix];
-		DHD_WARN(count == bcm_cntsetbits(mwbmap_p->id_bitmap[ix]), return;);
+		MWBMAP_ASSERT(count == bcm_cntsetbits(mwbmap_p->id_bitmap[ix]));
 #endif /* ! BCM_MWBMAP_USE_CNTSETBITS */
 		printf("\tIDMAP:%2u. 0x%08x %02u\t", ix, mwbmap_p->id_bitmap[ix], count);
 		bcm_bitprint32(mwbmap_p->id_bitmap[ix]);
@@ -2597,24 +3164,24 @@ bcm_mwbmap_audit(struct bcm_mwbmap * mwbmap_hdl)
 				count = bcm_cntsetbits(mwbmap_p->id_bitmap[idmap_ix]);
 #else  /* ! BCM_MWBMAP_USE_CNTSETBITS */
 				count = mwbmap_p->wd_count[idmap_ix];
-				DHD_WARN(count == bcm_cntsetbits(mwbmap_p->id_bitmap[idmap_ix]), return;);
+				ASSERT(count == bcm_cntsetbits(mwbmap_p->id_bitmap[idmap_ix]));
 #endif /* ! BCM_MWBMAP_USE_CNTSETBITS */
-				DHD_WARN(count != 0U, return;);
+				ASSERT(count != 0U);
 				free_cnt += count;
 			}
 		}
 	}
 
-	DHD_WARN((int)free_cnt == mwbmap_p->ifree, return;);
+	ASSERT((int)free_cnt == mwbmap_p->ifree);
 }
 /* END : Multiword bitmap based 64bit to Unique 32bit Id allocator. */
 
 /* Simple 16bit Id allocator using a stack implementation. */
 typedef struct id16_map {
-	uint16  total;     /* total number of ids managed by allocator */
-	uint16  start;     /* start value of 16bit ids to be managed */
 	uint32  failures;  /* count of failures */
 	void    *dbg;      /* debug placeholder */
+	uint16  total;     /* total number of ids managed by allocator */
+	uint16  start;     /* start value of 16bit ids to be managed */
 	int     stack_idx; /* index into stack of available ids */
 	uint16  stack[0];  /* stack of 16 bit ids */
 } id16_map_t;
@@ -2644,8 +3211,13 @@ id16_map_init(osl_t *osh, uint16 total_ids, uint16 start_val16)
 	uint16 idx, val16;
 	id16_map_t * id16_map;
 
-	DHD_WARN(total_ids > 0, return NULL;);
-	DHD_WARN((start_val16 + total_ids) < ID16_INVALID, return NULL;);
+	ASSERT(total_ids > 0);
+
+	/* A start_val16 of ID16_UNDEFINED, allows the caller to fill the id16 map
+	 * with random values.
+	 */
+	ASSERT((start_val16 == ID16_UNDEFINED) ||
+	       (start_val16 + total_ids) < ID16_INVALID);
 
 	id16_map = (id16_map_t *) MALLOC(osh, ID16_MAP_SZ(total_ids));
 	if (id16_map == NULL) {
@@ -2657,24 +3229,32 @@ id16_map_init(osl_t *osh, uint16 total_ids, uint16 start_val16)
 	id16_map->failures = 0;
 	id16_map->dbg = NULL;
 
-	/* Populate stack with 16bit id values, commencing with start_val16 */
-	id16_map->stack_idx = 0;
-	val16 = start_val16;
+	/*
+	 * Populate stack with 16bit id values, commencing with start_val16.
+	 * if start_val16 is ID16_UNDEFINED, then do not populate the id16 map.
+	 */
+	id16_map->stack_idx = -1;
 
-	for (idx = 0; idx < total_ids; idx++, val16++) {
-		id16_map->stack_idx = idx;
-		id16_map->stack[id16_map->stack_idx] = val16;
+	if (id16_map->start != ID16_UNDEFINED) {
+		val16 = start_val16;
+
+		for (idx = 0; idx < total_ids; idx++, val16++) {
+			id16_map->stack_idx = idx;
+			id16_map->stack[id16_map->stack_idx] = val16;
+		}
 	}
 
 #if defined(BCM_DBG) && defined(BCM_DBG_ID16)
-	id16_map->dbg = MALLOC(osh, ID16_MAP_DBG_SZ(total_ids));
+	if (id16_map->start != ID16_UNDEFINED) {
+		id16_map->dbg = MALLOC(osh, ID16_MAP_DBG_SZ(total_ids));
 
-	if (id16_map->dbg) {
-		id16_map_dbg_t *id16_map_dbg = (id16_map_dbg_t *)id16_map->dbg;
+		if (id16_map->dbg) {
+			id16_map_dbg_t *id16_map_dbg = (id16_map_dbg_t *)id16_map->dbg;
 
-		id16_map_dbg->total = total_ids;
-		for (idx = 0; idx < total_ids; idx++) {
-			id16_map_dbg->avail[idx] = TRUE;
+			id16_map_dbg->total = total_ids;
+			for (idx = 0; idx < total_ids; idx++) {
+				id16_map_dbg->avail[idx] = TRUE;
+			}
 		}
 	}
 #endif /* BCM_DBG && BCM_DBG_ID16 */
@@ -2694,7 +3274,7 @@ id16_map_fini(osl_t *osh, void * id16_map_hndl)
 	id16_map = (id16_map_t *)id16_map_hndl;
 
 	total_ids = id16_map->total;
-	DHD_WARN(total_ids > 0, return NULL;);
+	ASSERT(total_ids > 0);
 
 #if defined(BCM_DBG) && defined(BCM_DBG_ID16)
 	if (id16_map->dbg) {
@@ -2715,8 +3295,12 @@ id16_map_clear(void * id16_map_hndl, uint16 total_ids, uint16 start_val16)
 	uint16 idx, val16;
 	id16_map_t * id16_map;
 
-	DHD_WARN(total_ids > 0, return;);
-	DHD_WARN((start_val16 + total_ids) < ID16_INVALID, return;);
+	ASSERT(total_ids > 0);
+	/* A start_val16 of ID16_UNDEFINED, allows the caller to fill the id16 map
+	 * with random values.
+	 */
+	ASSERT((start_val16 == ID16_UNDEFINED) ||
+	       (start_val16 + total_ids) < ID16_INVALID);
 
 	id16_map = (id16_map_t *)id16_map_hndl;
 	if (id16_map == NULL) {
@@ -2728,26 +3312,30 @@ id16_map_clear(void * id16_map_hndl, uint16 total_ids, uint16 start_val16)
 	id16_map->failures = 0;
 
 	/* Populate stack with 16bit id values, commencing with start_val16 */
-	id16_map->stack_idx = 0;
-	val16 = start_val16;
+	id16_map->stack_idx = -1;
 
-	for (idx = 0; idx < total_ids; idx++, val16++) {
-		id16_map->stack_idx = idx;
-		id16_map->stack[id16_map->stack_idx] = val16;
+	if (id16_map->start != ID16_UNDEFINED) {
+		val16 = start_val16;
+
+		for (idx = 0; idx < total_ids; idx++, val16++) {
+			id16_map->stack_idx = idx;
+			id16_map->stack[id16_map->stack_idx] = val16;
+		}
 	}
 
 #if defined(BCM_DBG) && defined(BCM_DBG_ID16)
-	if (id16_map->dbg) {
-		id16_map_dbg_t *id16_map_dbg = (id16_map_dbg_t *)id16_map->dbg;
+	if (id16_map->start != ID16_UNDEFINED) {
+		if (id16_map->dbg) {
+			id16_map_dbg_t *id16_map_dbg = (id16_map_dbg_t *)id16_map->dbg;
 
-		id16_map_dbg->total = total_ids;
-		for (idx = 0; idx < total_ids; idx++) {
-			id16_map_dbg->avail[idx] = TRUE;
+			id16_map_dbg->total = total_ids;
+			for (idx = 0; idx < total_ids; idx++) {
+				id16_map_dbg->avail[idx] = TRUE;
+			}
 		}
 	}
 #endif /* BCM_DBG && BCM_DBG_ID16 */
 }
-
 
 uint16 BCMFASTPATH /* Allocate a unique 16bit id */
 id16_map_alloc(void * id16_map_hndl)
@@ -2755,11 +3343,11 @@ id16_map_alloc(void * id16_map_hndl)
 	uint16 val16;
 	id16_map_t * id16_map;
 
-	DHD_WARN(id16_map_hndl != NULL, return ID16_INVALID;);
+	ASSERT(id16_map_hndl != NULL);
 
 	id16_map = (id16_map_t *)id16_map_hndl;
 
-	DHD_WARN(id16_map->total > 0, return ID16_INVALID;);
+	ASSERT(id16_map->total > 0);
 
 	if (id16_map->stack_idx < 0) {
 		id16_map->failures++;
@@ -2770,13 +3358,13 @@ id16_map_alloc(void * id16_map_hndl)
 	id16_map->stack_idx--;
 
 #if defined(BCM_DBG) && defined(BCM_DBG_ID16)
-
-	DHD_WARN(val16 < (id16_map->start + id16_map->total), return;);
+	ASSERT((id16_map->start == ID16_UNDEFINED) ||
+	       (val16 < (id16_map->start + id16_map->total)));
 
 	if (id16_map->dbg) { /* Validate val16 */
 		id16_map_dbg_t *id16_map_dbg = (id16_map_dbg_t *)id16_map->dbg;
 
-		DHD_WARN(id16_map_dbg->avail[val16 - id16_map->start] == TRUE, return;);
+		ASSERT(id16_map_dbg->avail[val16 - id16_map->start] == TRUE);
 		id16_map_dbg->avail[val16 - id16_map->start] = FALSE;
 	}
 #endif /* BCM_DBG && BCM_DBG_ID16 */
@@ -2790,18 +3378,18 @@ id16_map_free(void * id16_map_hndl, uint16 val16)
 {
 	id16_map_t * id16_map;
 
-	DHD_WARN(id16_map_hndl != NULL, return;);
+	ASSERT(id16_map_hndl != NULL);
 
 	id16_map = (id16_map_t *)id16_map_hndl;
 
 #if defined(BCM_DBG) && defined(BCM_DBG_ID16)
-
-	DHD_WARN(val16 < (id16_map->start + id16_map->total), return;);
+	ASSERT((id16_map->start == ID16_UNDEFINED) ||
+	       (val16 < (id16_map->start + id16_map->total)));
 
 	if (id16_map->dbg) { /* Validate val16 */
 		id16_map_dbg_t *id16_map_dbg = (id16_map_dbg_t *)id16_map->dbg;
 
-		DHD_WARN(id16_map_dbg->avail[val16 - id16_map->start] == FALSE,);
+		ASSERT(id16_map_dbg->avail[val16 - id16_map->start] == FALSE);
 		id16_map_dbg->avail[val16 - id16_map->start] = TRUE;
 	}
 #endif /* BCM_DBG && BCM_DBG_ID16 */
@@ -2813,7 +3401,7 @@ id16_map_free(void * id16_map_hndl, uint16 val16)
 uint32 /* Returns number of failures to allocate an unique id16 */
 id16_map_failures(void * id16_map_hndl)
 {
-	DHD_WARN(id16_map_hndl != NULL, return 0;);
+	ASSERT(id16_map_hndl != NULL);
 	return ((id16_map_t *)id16_map_hndl)->failures;
 }
 
@@ -2824,14 +3412,19 @@ id16_map_audit(void * id16_map_hndl)
 	int insane = 0;
 	id16_map_t * id16_map;
 
-	DHD_WARN(id16_map_hndl != NULL, return FALSE;);
+	ASSERT(id16_map_hndl != NULL);
 
 	id16_map = (id16_map_t *)id16_map_hndl;
 
-	DHD_WARN((id16_map->stack_idx > 0) && (id16_map->stack_idx < id16_map->total), return FALSE;);
+	ASSERT(id16_map->stack_idx >= -1);
+	ASSERT(id16_map->stack_idx < (int)id16_map->total);
+
+	if (id16_map->start == ID16_UNDEFINED)
+		goto done;
+
 	for (idx = 0; idx <= id16_map->stack_idx; idx++) {
-		DHD_WARN(id16_map->stack[idx] >= id16_map->start, return FALSE;);
-		DHD_WARN(id16_map->stack[idx] < (id16_map->start + id16_map->total), return FALSE;);
+		ASSERT(id16_map->stack[idx] >= id16_map->start);
+		ASSERT(id16_map->stack[idx] < (id16_map->start + id16_map->total));
 
 #if defined(BCM_DBG) && defined(BCM_DBG_ID16)
 		if (id16_map->dbg) {
@@ -2839,7 +3432,7 @@ id16_map_audit(void * id16_map_hndl)
 			if (((id16_map_dbg_t *)(id16_map->dbg))->avail[val16] != TRUE) {
 				insane |= 1;
 				ID16_MAP_MSG(("id16_map<%p>: stack_idx %u invalid val16 %u\n",
-				              id16_map_hndl, idx, val16));
+					id16_map_hndl, idx, val16));
 			}
 		}
 #endif /* BCM_DBG && BCM_DBG_ID16 */
@@ -2855,17 +3448,19 @@ id16_map_audit(void * id16_map_hndl)
 		if (avail && (avail != (id16_map->stack_idx + 1))) {
 			insane |= 1;
 			ID16_MAP_MSG(("id16_map<%p>: avail %u stack_idx %u\n",
-			              id16_map_hndl, avail, id16_map->stack_idx));
+				id16_map_hndl, avail, id16_map->stack_idx));
 		}
 	}
 #endif /* BCM_DBG && BCM_DBG_ID16 */
 
+done:
+	/* invoke any other system audits */
 	return (!!insane);
 }
 /* END: Simple id16 allocator */
 
 
-#endif /* BCMDRIVER */
+#endif 
 
 /* calculate a >> b; and returns only lower 32 bits */
 void
@@ -2944,7 +3539,7 @@ void counter_printlog(counter_tbl_t *ctr_tbl)
 #endif /* OSL_SYSUPTIME_SUPPORT == TRUE */
 #endif /* DEBUG_COUNTER */
 
-#ifdef BCMDRIVER
+#if defined(BCMDRIVER) && !defined(_CFEZ_)
 void
 dll_pool_detach(void * osh, dll_pool_t * pool, uint16 elems_max, uint16 elem_size)
 {
@@ -2960,18 +3555,16 @@ dll_pool_init(void * osh, uint16 elems_max, uint16 elem_size)
 	dll_pool_t * dll_pool_p;
 	dll_t * elem_p;
 
-	DHD_BUG(elem_size <= sizeof(dll_t));
+	ASSERT(elem_size > sizeof(dll_t));
 
 	mem_size = sizeof(dll_pool_t) + (elems_max * elem_size);
 
-	if ((dll_pool_p = (dll_pool_t *)MALLOC(osh, mem_size)) == NULL) {
+	if ((dll_pool_p = (dll_pool_t *)MALLOCZ(osh, mem_size)) == NULL) {
 		printf("dll_pool_init: elems_max<%u> elem_size<%u> malloc failure\n",
 			elems_max, elem_size);
-		DHD_BUG(1);
+		ASSERT(0);
 		return dll_pool_p;
 	}
-
-	bzero(dll_pool_p, mem_size);
 
 	dll_init(&dll_pool_p->free_list);
 	dll_pool_p->elems_max = elems_max;
@@ -2995,7 +3588,7 @@ dll_pool_alloc(dll_pool_t * dll_pool_p)
 	dll_t * elem_p;
 
 	if (dll_pool_p->free_count == 0) {
-		DHD_WARN(dll_empty(&dll_pool_p->free_list),);
+		ASSERT(dll_empty(&dll_pool_p->free_list));
 		return NULL;
 	}
 
@@ -3023,4 +3616,4 @@ dll_pool_free_tail(dll_pool_t * dll_pool_p, void * elem_p)
 	dll_pool_p->free_count += 1;
 }
 
-#endif /* BCMDRIVER */
+#endif 

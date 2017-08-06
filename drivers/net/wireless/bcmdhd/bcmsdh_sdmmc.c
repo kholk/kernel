@@ -1,7 +1,7 @@
 /*
  * BCMSDH Function Driver for the native SDIO/MMC driver in the Linux Kernel
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,10 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmsdh_sdmmc.c 459285 2014-03-03 02:54:39Z $
+ *
+ * <<Broadcom-WL-IPTag/Proprietary,Open:>>
+ *
+ * $Id: bcmsdh_sdmmc.c 579798 2015-08-17 07:00:05Z $
  */
 #include <typedefs.h>
 
@@ -66,10 +69,16 @@ extern int sdio_reset_comm(struct mmc_card *card);
 #define CUSTOM_SDIO_F2_BLKSIZE		DEFAULT_SDIO_F2_BLKSIZE
 #endif
 
+#define DEFAULT_SDIO_F1_BLKSIZE		64
+#ifndef CUSTOM_SDIO_F1_BLKSIZE
+#define CUSTOM_SDIO_F1_BLKSIZE		DEFAULT_SDIO_F1_BLKSIZE
+#endif
+
 #define MAX_IO_RW_EXTENDED_BLK		511
 
 uint sd_sdmode = SDIOH_MODE_SD4;	/* Use SD4 mode by default */
 uint sd_f2_blocksize = CUSTOM_SDIO_F2_BLKSIZE;
+uint sd_f1_blocksize = CUSTOM_SDIO_F1_BLKSIZE;
 uint sd_divisor = 2;			/* Default 48MHz/2 = 24MHz */
 
 uint sd_power = 1;		/* Default to SD Slot powered ON */
@@ -167,8 +176,8 @@ sdioh_attach(osl_t *osh, struct sdio_func *func)
 	sdio_set_drvdata(sd->func[1], sd);
 
 	sdio_claim_host(sd->func[1]);
-	sd->client_block_size[1] = 64;
-	err_ret = sdio_set_block_size(sd->func[1], 64);
+	sd->client_block_size[1] = sd_f1_blocksize;
+	err_ret = sdio_set_block_size(sd->func[1], sd_f1_blocksize);
 	sdio_release_host(sd->func[1]);
 	if (err_ret) {
 		sd_err(("bcmsdh_sdmmc: Failed to set F1 blocksize(%d)\n", err_ret));
@@ -428,12 +437,12 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 	bool bool_val;
 	uint32 actionid;
 
-	DHD_WARN(name, return BCME_BADARG;);
-	DHD_WARN(len >= 0, return BCME_BADARG;);
+	ASSERT(name);
+	ASSERT(len >= 0);
 
 	/* Get must have return space; Set does not take qualifiers */
-	DHD_WARN(set || (arg && len), return BCME_BADARG;);
-	DHD_WARN(!set || (!params && !plen), return BCME_BADARG;);
+	ASSERT(set || (arg && len));
+	ASSERT(!set || (!params && !plen));
 
 	sd_trace(("%s: Enter (%s %s)\n", __FUNCTION__, (set ? "set" : "get"), name));
 
@@ -468,7 +477,7 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 	switch (actionid) {
 	case IOV_GVAL(IOV_MSGLEVEL):
 		int_val = (int32)sd_msglevel;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_MSGLEVEL):
@@ -477,7 +486,7 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 
 	case IOV_GVAL(IOV_BLOCKMODE):
 		int_val = (int32)si->sd_blockmode;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_BLOCKMODE):
@@ -491,7 +500,7 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 			break;
 		}
 		int_val = (int32)si->client_block_size[int_val];
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_BLOCKSIZE):
@@ -527,12 +536,12 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 
 	case IOV_GVAL(IOV_RXCHAIN):
 		int_val = (int32)si->use_rxchain;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_GVAL(IOV_DMA):
 		int_val = (int32)si->sd_use_dma;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_DMA):
@@ -541,7 +550,7 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 
 	case IOV_GVAL(IOV_USEINTS):
 		int_val = (int32)si->use_client_ints;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_USEINTS):
@@ -555,7 +564,7 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 
 	case IOV_GVAL(IOV_DIVISOR):
 		int_val = (uint32)sd_divisor;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_DIVISOR):
@@ -564,7 +573,7 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 
 	case IOV_GVAL(IOV_POWER):
 		int_val = (uint32)sd_power;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_POWER):
@@ -573,7 +582,7 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 
 	case IOV_GVAL(IOV_CLOCK):
 		int_val = (uint32)sd_clock;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_CLOCK):
@@ -582,7 +591,7 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 
 	case IOV_GVAL(IOV_SDMODE):
 		int_val = (uint32)sd_sdmode;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_SDMODE):
@@ -591,7 +600,7 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 
 	case IOV_GVAL(IOV_HISPEED):
 		int_val = (uint32)sd_hiok;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_SVAL(IOV_HISPEED):
@@ -600,12 +609,12 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 
 	case IOV_GVAL(IOV_NUMINTS):
 		int_val = (int32)si->intrcount;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_GVAL(IOV_NUMLOCALINTS):
 		int_val = (int32)0;
-		bcopy(&int_val, arg, sizeof(int_val));
+		bcopy(&int_val, arg, val_size);
 		break;
 
 	case IOV_GVAL(IOV_HOSTREG):
@@ -966,7 +975,7 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 	struct mmc_host *host = sdio_func->card->host;
 
 	sd_trace(("%s: Enter\n", __FUNCTION__));
-	DHD_WARN(pkt, return SDIOH_API_RC_FAIL;);
+	ASSERT(pkt);
 	DHD_PM_RESUME_WAIT(sdioh_request_packet_wait);
 	DHD_PM_RESUME_RETURN_ERROR(SDIOH_API_RC_FAIL);
 
@@ -996,7 +1005,7 @@ sdioh_request_packet_chain(sdioh_info_t *sd, uint fix_inc, uint write, uint func
 			int sg_data_size;
 			uint8 *pdata = (uint8*)PKTDATA(sd->osh, pnext);
 
-			DHD_WARN(pdata != NULL, return SDIOH_API_RC_FAIL;);
+			ASSERT(pdata != NULL);
 			pkt_len = PKTLEN(sd->osh, pnext);
 			sd_trace(("%s[%d] data=%p, len=%d\n", __FUNCTION__, write, pdata, pkt_len));
 			/* sg_count is unlikely larger than the array size, and this is
@@ -1077,7 +1086,7 @@ sdioh_buffer_tofrom_bus(sdioh_info_t *sd, uint fix_inc, uint write, uint func,
 	int err_ret = 0;
 
 	sd_trace(("%s: Enter\n", __FUNCTION__));
-	DHD_WARN(buf, return SDIOH_API_RC_FAIL;);
+	ASSERT(buf);
 
 	/* NOTE:
 	 * For all writes, each packet length is aligned to 32 (or 4)
@@ -1149,13 +1158,13 @@ sdioh_request_buffer(sdioh_info_t *sd, uint pio_dma, uint fix_inc, uint write, u
 		buf_len = PKTLEN(sd->osh, pkt);
 	}
 
-	DHD_WARN(buffer, return SDIOH_API_RC_FAIL;);
+	ASSERT(buffer);
 
 	/* buffer and length are aligned, use it directly so we can avoid memory copy */
 	if (((ulong)buffer & DMA_ALIGN_MASK) == 0 && (buf_len & DMA_ALIGN_MASK) == 0)
 		return sdioh_buffer_tofrom_bus(sd, fix_inc, write, func, addr, buffer, buf_len);
 
-	sd_err(("%s: [%d] doing memory copy buf=%p, len=%d\n",
+	sd_trace(("%s: [%d] doing memory copy buf=%p, len=%d\n",
 		__FUNCTION__, write, buffer, buf_len));
 
 	/* otherwise, a memory copy is needed as the input buffer is not aligned */
@@ -1254,13 +1263,13 @@ static void IRQHandler(struct sdio_func *func)
 
 	sd = sdio_get_drvdata(func);
 
-	DHD_BUG(!sd);
+	ASSERT(sd != NULL);
 	sdio_release_host(sd->func[0]);
 
 	if (sd->use_client_ints) {
 		sd->intrcount++;
-		DHD_BUG(!sd->intr_handler);
-		DHD_BUG(!sd->intr_handler_arg);
+		ASSERT(sd->intr_handler);
+		ASSERT(sd->intr_handler_arg);
 		(sd->intr_handler)(sd->intr_handler_arg);
 	} else {
 		sd_err(("bcmsdh_sdmmc: ***IRQHandler\n"));

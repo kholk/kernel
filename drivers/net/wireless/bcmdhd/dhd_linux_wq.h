@@ -2,14 +2,14 @@
  * Broadcom Dongle Host Driver (DHD), Generic work queue framework
  * Generic interface to handle dhd deferred work events
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
- *
+ * Copyright (C) 1999-2016, Broadcom Corporation
+ * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- *
+ * 
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -17,12 +17,15 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- *
+ * 
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_linux_wq.h 449578 2014-01-17 13:53:20Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: dhd_linux_wq.h 514727 2014-11-12 03:02:48Z $
  */
 #ifndef _dhd_linux_wq_h_
 #define _dhd_linux_wq_h_
@@ -37,17 +40,15 @@ enum _wq_event {
 	DHD_WQ_WORK_IPV6_NDO,
 	DHD_WQ_WORK_HANG_MSG,
 	DHD_WQ_WORK_SOC_RAM_DUMP,
+
 	DHD_MAX_WQ_EVENTS
 };
 
 /*
  *	Work event priority
  */
-enum wq_priority {
-	DHD_WQ_WORK_PRIORITY_LOW = 1,
-	DHD_WQ_WORK_PRIORITY_HIGH,
-	DHD_WQ_MAX_PRIORITY
-};
+#define DHD_WORK_PRIORITY_LOW	0
+#define DHD_WORK_PRIORITY_HIGH	1
 
 /*
  *	Error definitions
@@ -57,7 +58,6 @@ enum wq_priority {
 #define DHD_WQ_STS_UNINITIALIZED	-2
 #define DHD_WQ_STS_SCHED_FAILED		-3
 #define DHD_WQ_STS_UNKNOWN_EVENT	-4
-#define DHD_WQ_STS_UNKNOWN_PRIORITY	-5
 
 typedef void (*event_handler_t)(void *handle, void *event_data, u8 event);
 
