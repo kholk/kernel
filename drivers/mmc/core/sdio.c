@@ -1090,8 +1090,9 @@ static int mmc_sdio_resume(struct mmc_host *host)
 static u32 mmc_select_low_voltage(struct mmc_host *host, u32 ocr)
 {
 	int bit;
+	int ocr_orig = ocr;
 
-	pr_debug("%s \n",__func__);
+	pr_err("%s \n",__func__);
 
 	if ((host->ocr_avail == MMC_VDD_165_195) && mmc_host_uhs(host) &&
 		((ocr & host->ocr_avail) == 0)) {
@@ -1103,8 +1104,8 @@ static u32 mmc_select_low_voltage(struct mmc_host *host, u32 ocr)
 		/* Power cycle card to select lowest possible voltage */
 		mmc_power_cycle(host, ocr);
 	}
-
-	return ocr;
+pr_err("returning 0x%x", ocr_orig);
+	return ocr_orig;
 }
 #endif
 
@@ -1292,8 +1293,10 @@ int mmc_attach_sdio(struct mmc_host *host)
 		} else {
 #endif
 			err = sdio_init_func(host->card, i + 1);
-			if (err)
+			if (err) {
+				pr_err("REMOVING CARD....... :(\n");
 				goto remove;
+			}
 #ifdef CONFIG_MMC_EMBEDDED_SDIO
 		}
 #endif
