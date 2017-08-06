@@ -865,14 +865,6 @@ wl_get_netinfo_by_netdev(struct bcm_cfg80211 *cfg, struct net_device *ndev)
 	((wl_cfgp2p_find_wpsie((u8 *)_sme->ie, _sme->ie_len) != NULL) && \
 	 (!_sme->crypto.n_ciphers_pairwise) && \
 	 (!_sme->crypto.cipher_group))
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
-#define STA_INFO_BIT(info) (1ul << NL80211_STA_ ## info)
-#define strnicmp(str1, str2, len) strncasecmp((str1), (str2), (len))
-#else
-#define STA_INFO_BIT(info) (STATION_ ## info)
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)) */
-
 extern s32 wl_cfg80211_attach(struct net_device *ndev, void *context);
 extern void wl_cfg80211_detach(struct bcm_cfg80211 *cfg);
 

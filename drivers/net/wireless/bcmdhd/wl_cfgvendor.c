@@ -95,13 +95,7 @@ int wl_cfgvendor_send_async_event(struct wiphy *wiphy,
 	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 
 	/* Alloc the SKB for vendor_event */
-#if (defined(CONFIG_ARCH_QCOM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-	skb = cfg80211_vendor_event_alloc(wiphy, NULL, len, event_id, kflags);
-#else
 	skb = cfg80211_vendor_event_alloc(wiphy, len, event_id, kflags);
-#endif /* (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || */
-		/* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0) */
 	if (!skb) {
 		WL_ERR(("skb alloc failed"));
 		return -ENOMEM;
@@ -259,12 +253,7 @@ int wl_cfgvendor_send_hotlist_event(struct wiphy *wiphy,
 		kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 
 		/* Alloc the SKB for vendor_event */
-#if (defined(CONFIG_ARCH_QCOM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-		skb = cfg80211_vendor_event_alloc(wiphy, NULL, malloc_len, event, kflags);
-#else
 		skb = cfg80211_vendor_event_alloc(wiphy, malloc_len, event, kflags);
-#endif /* (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || */
 		if (!skb) {
 			WL_ERR(("skb alloc failed"));
 			return -ENOMEM;
@@ -1605,13 +1594,7 @@ wl_cfgvendor_rtt_evt(void *ctx, void *rtt_data)
 	rtt_cache_list = (struct list_head *)rtt_data;
 	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 	if (list_empty(rtt_cache_list)) {
-#if (defined(CONFIG_ARCH_QCOM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-		skb = cfg80211_vendor_event_alloc(wiphy, NULL, 100,
-			GOOGLE_RTT_COMPLETE_EVENT, kflags);
-#else
 		skb = cfg80211_vendor_event_alloc(wiphy, 100, GOOGLE_RTT_COMPLETE_EVENT, kflags);
-#endif /* (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || */
 		if (!skb) {
 			WL_ERR(("skb alloc failed"));
 			return;
@@ -1623,15 +1606,8 @@ wl_cfgvendor_rtt_evt(void *ctx, void *rtt_data)
 	}
 	list_for_each_entry(rtt_header, rtt_cache_list, list) {
 		/* Alloc the SKB for vendor_event */
-#if (defined(CONFIG_ARCH_QCOM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-		skb = cfg80211_vendor_event_alloc(wiphy, NULL, rtt_header->result_tot_len + 100,
-			GOOGLE_RTT_COMPLETE_EVENT, kflags);
-#else
 		skb = cfg80211_vendor_event_alloc(wiphy, rtt_header->result_tot_len + 100,
 			GOOGLE_RTT_COMPLETE_EVENT, kflags);
-#endif /* (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || */
-		/* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0) */;
 		if (!skb) {
 			WL_ERR(("skb alloc failed"));
 			return;
@@ -2648,15 +2624,8 @@ static void wl_cfgvendor_dbg_ring_send_evt(void *ctx,
 	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 	wiphy = ndev->ieee80211_ptr->wiphy;
 	/* Alloc the SKB for vendor_event */
-#if (defined(CONFIG_ARCH_QCOM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-	skb = cfg80211_vendor_event_alloc(wiphy, NULL, len + 100,
-			GOOGLE_DEBUG_RING_EVENT, kflags);
-#else
 	skb = cfg80211_vendor_event_alloc(wiphy, len + 100,
 			GOOGLE_DEBUG_RING_EVENT, kflags);
-#endif /* (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || */
-		/* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0) */
 	if (!skb) {
 		WL_ERR(("skb alloc failed"));
 		return;
@@ -2680,15 +2649,9 @@ static void wl_cfgvendor_dbg_send_urgent_evt(void *ctx, const void *data,
 	}
 	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 	wiphy = ndev->ieee80211_ptr->wiphy;
-#if (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-	skb = cfg80211_vendor_event_alloc(wiphy, NULL, len + 100,
-			GOOGLE_FW_DUMP_EVENT, kflags);
-#else
+	/* Alloc the SKB for vendor_event */
 	skb = cfg80211_vendor_event_alloc(wiphy, len + 100,
 			GOOGLE_FW_DUMP_EVENT, kflags);
-#endif /* (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || */
-		/* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0) */
 	if (!skb) {
 		WL_ERR(("skb alloc failed"));
 		return;
