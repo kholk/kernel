@@ -2545,6 +2545,12 @@ isr_setup_status_complete(struct usb_ep *ep, struct usb_request *req)
 
 	trace("%pK, %pK", ep, req);
 
+	if (udc->setaddr) {
+		udc->setaddr = false;
+		pr_err("SETADDR DONE\n");
+		usb_gadget_set_state(&udc->gadget, USB_STATE_ADDRESS);
+	}
+
 	spin_lock_irqsave(udc->lock, flags);
 	if (udc->test_mode)
 		hw_port_test_set(udc->test_mode);
@@ -2797,14 +2803,18 @@ __acquires(udc->lock)
 			err = isr_get_status_response(udc, &req);
 			break;
 		case USB_REQ_SET_ADDRESS:
+			pr_err("REQ_SET_ADDRESS\n");
 			if (type != (USB_DIR_OUT|USB_RECIP_DEVICE))
 				goto delegate;
 			if (le16_to_cpu(req.wLength) != 0 ||
 			    le16_to_cpu(req.wIndex)  != 0)
 				break;
+			pr_err("SETTING ADDRESS\n");
 			err = hw_usb_set_address((u8)le16_to_cpu(req.wValue));
 			if (err)
 				break;
+			udc->setaddr = true;
+			pr_err("INVOKING ISR SETUP STATUS PHASE\n");
 			err = isr_setup_status_phase(udc);
 			break;
 		case USB_REQ_SET_CONFIGURATION:

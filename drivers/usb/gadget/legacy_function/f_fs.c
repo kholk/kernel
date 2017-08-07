@@ -48,7 +48,7 @@ static void *ffs_ipc_log;
 #define ffs_log(fmt, ...) do { \
 	ipc_log_string(ffs_ipc_log, "%s: " fmt,  __func__, \
 			##__VA_ARGS__); \
-	pr_debug(fmt, ##__VA_ARGS__); \
+	pr_err("%s: "fmt, __func__, ##__VA_ARGS__); \
 } while (0)
 
 /* Reference counter handling */
@@ -3727,7 +3727,7 @@ static struct usb_function *ffs_alloc(struct usb_function_instance *fi)
 	if (unlikely(!func))
 		return ERR_PTR(-ENOMEM);
 
-	func->function.name    = "Function FS Gadget";
+	func->function.name    = "Function FS Gadget LEGACY";
 
 	func->function.bind    = ffs_func_bind;
 	func->function.unbind  = ffs_func_unbind;

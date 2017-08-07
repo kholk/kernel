@@ -237,14 +237,14 @@ int usb_add_function(struct usb_configuration *config,
 	function->config = config;
 	function->intf_id = -EINVAL;
 	list_add_tail(&function->list, &config->functions);
-/*
+
 	if (function->bind_deactivated) {
 		value = usb_function_deactivate(function);
 		pr_err("CANNOT DEACTIVATE\n");
 		if (value)
 			goto done;
 	}
-*/
+
 	/* REVISIT *require* function->bind? */
 	if (function->bind) {
 		value = function->bind(config, function);
@@ -1645,7 +1645,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 {
 	struct usb_composite_dev	*cdev = get_gadget_data(gadget);
 	struct usb_request		*req = cdev->req;
-	int				value = -EOPNOTSUPP;
+	int				value = -EINVAL;
 	int				status = 0;
 	u16				w_index = le16_to_cpu(ctrl->wIndex);
 	u8				intf = w_index & 0xFF;

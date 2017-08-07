@@ -21,9 +21,11 @@
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
 
+#define VERBOSE_DEBUG
+
 #ifdef VERBOSE_DEBUG
 #ifndef pr_vdebug
-#  define pr_vdebug pr_debug
+#  define pr_vdebug pr_err //_ratelimited//pr_debug
 #endif /* pr_vdebug */
 #  define ffs_dump_mem(prefix, ptr, len) \
 	print_hex_dump_bytes(pr_fmt(prefix ": "), DUMP_PREFIX_NONE, ptr, len)
