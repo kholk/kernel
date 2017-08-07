@@ -43,6 +43,10 @@ module_param(disable_l1_for_hs, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_l1_for_hs,
 	"Disable support for L1 LPM for HS devices");
 
+bool usb_l1_supported(void) {
+	return !disable_l1_for_hs;
+};
+
 /**
  * struct usb_os_string - represents OS String to be reported by a gadget
  * @bLength: total length of the entire descritor, always 0x12

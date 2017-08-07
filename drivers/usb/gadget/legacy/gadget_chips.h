@@ -17,7 +17,7 @@
 
 #include <linux/usb/gadget.h>
 
-#define EXTRA_BUF_ALLOC	0
+#define EXTRA_BUF_ALLOC	256
 
 #define CONFIGFS_ATTR_STRUCT(_item)					\
 struct _item##_attribute {						\
