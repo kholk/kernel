@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,7 +25,6 @@
 #include <linux/irq.h>
 #include <linux/list.h>
 #include <linux/mutex.h>
-#include <linux/of_address.h>
 #include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/device.h>
@@ -82,34 +81,12 @@ static struct glink_apps_rpm_data *glink_data;
 #define DEFAULT_BUFFER_SIZE 256
 #define DEBUG_PRINT_BUFFER_SIZE 512
 #define MAX_SLEEP_BUFFER 128
-#define GFP_FLAG(noirq) (noirq ? GFP_ATOMIC : GFP_NOIO)
+#define GFP_FLAG(noirq) (noirq ? GFP_ATOMIC : GFP_NOFS)
 #define INV_RSC "resource does not exist"
 #define ERR "err\0"
 #define MAX_ERR_BUFFER_SIZE 128
 #define MAX_WAIT_ON_ACK 24
 #define INIT_ERROR 1
-#define V1_PROTOCOL_VERSION 0x31726576 /* rev1 */
-#define V0_PROTOCOL_VERSION 0 /* rev0 */
-#define RPM_MSG_TYPE_OFFSET 16
-#define RPM_MSG_TYPE_SIZE 8
-#define RPM_SET_TYPE_OFFSET 28
-#define RPM_SET_TYPE_SIZE 4
-#define RPM_REQ_LEN_OFFSET 0
-#define RPM_REQ_LEN_SIZE 16
-#define RPM_MSG_VERSION_OFFSET 24
-#define RPM_MSG_VERSION_SIZE 8
-#define RPM_MSG_VERSION 1
-#define RPM_MSG_SET_OFFSET 28
-#define RPM_MSG_SET_SIZE 4
-#define RPM_RSC_ID_OFFSET 16
-#define RPM_RSC_ID_SIZE 12
-#define RPM_DATA_LEN_OFFSET 0
-#define RPM_DATA_LEN_SIZE 16
-#define RPM_HDR_SIZE ((rpm_msg_fmt_ver == RPM_MSG_V0_FMT) ?\
-		sizeof(struct rpm_v0_hdr) : sizeof(struct rpm_v1_hdr))
-#define GET_FIELD(offset, size) (((1U << (offset + size)) - 1) - \
-		((1U << offset) - 1))
-#define CLEAR_FIELD(offset, size) (~GET_FIELD(offset, size))
 
 static ATOMIC_NOTIFIER_HEAD(msm_rpm_sleep_notifier);
 static bool standalone;
@@ -132,54 +109,22 @@ enum {
 	MSM_RPM_MSG_TYPE_NR,
 };
 
-static const uint32_t msm_rpm_request_service_v1[MSM_RPM_MSG_TYPE_NR] = {
+static const uint32_t msm_rpm_request_service[MSM_RPM_MSG_TYPE_NR] = {
 	0x716572, /* 'req\0' */
 };
 
-enum {
-	RPM_V1_REQUEST_SERVICE,
-	RPM_V1_SYSTEMDB_SERVICE,
-	RPM_V1_COMMAND_SERVICE,
-	RPM_V1_ACK_SERVICE,
-	RPM_V1_NACK_SERVICE,
-} msm_rpm_request_service_v2;
-
-struct rpm_v0_hdr {
+/*the order of fields matter and reflect the order expected by the RPM*/
+struct rpm_request_header {
 	uint32_t service_type;
 	uint32_t request_len;
 };
 
-struct rpm_v1_hdr {
-	uint32_t request_hdr;
-};
-
-struct rpm_message_header_v0 {
-	struct rpm_v0_hdr hdr;
+struct rpm_message_header {
 	uint32_t msg_id;
 	enum msm_rpm_set set;
 	uint32_t resource_type;
 	uint32_t resource_id;
 	uint32_t data_len;
-};
-
-struct rpm_message_header_v1 {
-	struct rpm_v1_hdr hdr;
-	uint32_t msg_id;
-	uint32_t resource_type;
-	uint32_t request_details;
-};
-
-struct msm_rpm_ack_msg_v0 {
-	uint32_t req;
-	uint32_t req_len;
-	uint32_t rsc_id;
-	uint32_t msg_len;
-	uint32_t id_ack;
-};
-
-struct msm_rpm_ack_msg_v1 {
-	uint32_t request_hdr;
-	uint32_t id_ack;
 };
 
 struct kvp {
@@ -200,252 +145,49 @@ struct slp_buf {
 	char *buf;
 	bool valid;
 };
-
-enum rpm_msg_fmts {
-	RPM_MSG_V0_FMT,
-	RPM_MSG_V1_FMT
-};
-
-static uint32_t rpm_msg_fmt_ver;
-module_param_named(
-	rpm_msg_fmt_ver, rpm_msg_fmt_ver, uint, S_IRUGO
-);
-
 static struct rb_root tr_root = RB_ROOT;
 static int (*msm_rpm_send_buffer)(char *buf, uint32_t size, bool noirq);
 static int msm_rpm_send_smd_buffer(char *buf, uint32_t size, bool noirq);
 static int msm_rpm_glink_send_buffer(char *buf, uint32_t size, bool noirq);
 static uint32_t msm_rpm_get_next_msg_id(void);
 
-static inline uint32_t get_offset_value(uint32_t val, uint32_t offset,
-		uint32_t size)
+static inline unsigned int get_rsc_type(char *buf)
 {
-	return (((val) & GET_FIELD(offset, size))
-		>> offset);
+	struct rpm_message_header *h;
+	h = (struct rpm_message_header *)
+		(buf + sizeof(struct rpm_request_header));
+	return h->resource_type;
 }
 
-static inline void change_offset_value(uint32_t *val, uint32_t offset,
-		uint32_t size, int32_t val1)
+static inline unsigned int get_rsc_id(char *buf)
 {
-	uint32_t member = *val;
-	uint32_t offset_val = get_offset_value(member, offset, size);
-	uint32_t mask = (1 << size) - 1;
-
-	offset_val += val1;
-	*val &= CLEAR_FIELD(offset, size);
-	*val |= ((offset_val & mask) << offset);
+	struct rpm_message_header *h;
+	h = (struct rpm_message_header *)
+		(buf + sizeof(struct rpm_request_header));
+	return h->resource_id;
 }
 
-static inline void set_offset_value(uint32_t *val, uint32_t offset,
-		uint32_t size, uint32_t val1)
-{
-	uint32_t mask = (1 << size) - 1;
+#define get_data_len(buf) \
+	(((struct rpm_message_header *) \
+	  (buf + sizeof(struct rpm_request_header)))->data_len)
 
-	*val &= CLEAR_FIELD(offset, size);
-	*val |= ((val1 & mask) << offset);
-}
-static uint32_t get_msg_id(char *buf)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		return ((struct rpm_message_header_v0 *)buf)->msg_id;
+#define get_req_len(buf) \
+	(((struct rpm_request_header *)(buf))->request_len)
 
-	return ((struct rpm_message_header_v1 *)buf)->msg_id;
+#define get_msg_id(buf) \
+	(((struct rpm_message_header *) \
+	  (buf + sizeof(struct rpm_request_header)))->msg_id)
 
-}
-
-static uint32_t get_ack_msg_id(char *buf)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		return ((struct msm_rpm_ack_msg_v0 *)buf)->id_ack;
-
-	return ((struct msm_rpm_ack_msg_v1 *)buf)->id_ack;
-
-}
-
-static uint32_t get_rsc_type(char *buf)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		return ((struct rpm_message_header_v0 *)buf)->resource_type;
-
-	return ((struct rpm_message_header_v1 *)buf)->resource_type;
-
-}
-
-static uint32_t get_set_type(char *buf)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		return ((struct rpm_message_header_v0 *)buf)->set;
-
-	return get_offset_value(((struct rpm_message_header_v1 *)buf)->
-			request_details, RPM_SET_TYPE_OFFSET,
-			RPM_SET_TYPE_SIZE);
-}
-
-static uint32_t get_data_len(char *buf)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		return ((struct rpm_message_header_v0 *)buf)->data_len;
-
-	return get_offset_value(((struct rpm_message_header_v1 *)buf)->
-			request_details, RPM_DATA_LEN_OFFSET,
-			RPM_DATA_LEN_SIZE);
-}
-
-static uint32_t get_rsc_id(char *buf)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		return ((struct rpm_message_header_v0 *)buf)->resource_id;
-
-	return get_offset_value(((struct rpm_message_header_v1 *)buf)->
-			request_details, RPM_RSC_ID_OFFSET,
-			RPM_RSC_ID_SIZE);
-}
-
-static uint32_t get_ack_req_len(char *buf)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		return ((struct msm_rpm_ack_msg_v0 *)buf)->req_len;
-
-	return get_offset_value(((struct msm_rpm_ack_msg_v1 *)buf)->
-			request_hdr, RPM_REQ_LEN_OFFSET,
-			RPM_REQ_LEN_SIZE);
-}
-
-static uint32_t get_ack_msg_type(char *buf)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		return ((struct msm_rpm_ack_msg_v0 *)buf)->req;
-
-	return get_offset_value(((struct msm_rpm_ack_msg_v1 *)buf)->
-			request_hdr, RPM_MSG_TYPE_OFFSET,
-			RPM_MSG_TYPE_SIZE);
-}
-
-static uint32_t get_req_len(char *buf)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		return ((struct rpm_message_header_v0 *)buf)->hdr.request_len;
-
-	return get_offset_value(((struct rpm_message_header_v1 *)buf)->
-			hdr.request_hdr, RPM_REQ_LEN_OFFSET,
-			RPM_REQ_LEN_SIZE);
-}
-
-static void set_msg_ver(char *buf, uint32_t val)
-{
-	if (rpm_msg_fmt_ver) {
-		set_offset_value(&((struct rpm_message_header_v1 *)buf)->
-			hdr.request_hdr, RPM_MSG_VERSION_OFFSET,
-			RPM_MSG_VERSION_SIZE, val);
-	} else {
-		set_offset_value(&((struct rpm_message_header_v1 *)buf)->
-			hdr.request_hdr, RPM_MSG_VERSION_OFFSET,
-			RPM_MSG_VERSION_SIZE, 0);
-	}
-}
-
-static void set_req_len(char *buf, uint32_t val)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT) {
-		((struct rpm_message_header_v0 *)buf)->hdr.request_len = val;
-	} else {
-		set_offset_value(&((struct rpm_message_header_v1 *)buf)->
-			hdr.request_hdr, RPM_REQ_LEN_OFFSET,
-			RPM_REQ_LEN_SIZE, val);
-	}
-}
-
-static void change_req_len(char *buf, int32_t val)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT) {
-		((struct rpm_message_header_v0 *)buf)->hdr.request_len += val;
-	} else {
-		change_offset_value(&((struct rpm_message_header_v1 *)buf)->
-			hdr.request_hdr, RPM_REQ_LEN_OFFSET,
-			RPM_REQ_LEN_SIZE, val);
-	}
-}
-
-static void set_msg_type(char *buf, uint32_t val)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT) {
-		((struct rpm_message_header_v0 *)buf)->hdr.service_type =
-			msm_rpm_request_service_v1[val];
-	} else {
-		set_offset_value(&((struct rpm_message_header_v1 *)buf)->
-			hdr.request_hdr, RPM_MSG_TYPE_OFFSET,
-			RPM_MSG_TYPE_SIZE, RPM_V1_REQUEST_SERVICE);
-	}
-}
-
-static void set_rsc_id(char *buf, uint32_t val)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		((struct rpm_message_header_v0 *)buf)->resource_id = val;
-	else
-		set_offset_value(&((struct rpm_message_header_v1 *)buf)->
-			request_details, RPM_RSC_ID_OFFSET,
-			RPM_RSC_ID_SIZE, val);
-}
-
-static void set_data_len(char *buf, uint32_t val)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		((struct rpm_message_header_v0 *)buf)->data_len = val;
-	else
-		set_offset_value(&((struct rpm_message_header_v1 *)buf)->
-			request_details, RPM_DATA_LEN_OFFSET,
-			RPM_DATA_LEN_SIZE, val);
-}
-static void change_data_len(char *buf, int32_t val)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		((struct rpm_message_header_v0 *)buf)->data_len += val;
-	else
-		change_offset_value(&((struct rpm_message_header_v1 *)buf)->
-			request_details, RPM_DATA_LEN_OFFSET,
-			RPM_DATA_LEN_SIZE, val);
-}
-
-static void set_set_type(char *buf, uint32_t val)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		((struct rpm_message_header_v0 *)buf)->set = val;
-	else
-		set_offset_value(&((struct rpm_message_header_v1 *)buf)->
-			request_details, RPM_SET_TYPE_OFFSET,
-			RPM_SET_TYPE_SIZE, val);
-}
-static void set_msg_id(char *buf, uint32_t val)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		((struct rpm_message_header_v0 *)buf)->msg_id = val;
-	else
-		((struct rpm_message_header_v1 *)buf)->msg_id = val;
-
-}
-
-static void set_rsc_type(char *buf, uint32_t val)
-{
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		((struct rpm_message_header_v0 *)buf)->resource_type = val;
-	else
-		((struct rpm_message_header_v1 *)buf)->resource_type = val;
-}
 
 static inline int get_buf_len(char *buf)
 {
-	return get_req_len(buf) + RPM_HDR_SIZE;
+	return get_req_len(buf) + sizeof(struct rpm_request_header);
 }
 
 static inline struct kvp *get_first_kvp(char *buf)
 {
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		return (struct kvp *)(buf +
-				sizeof(struct rpm_message_header_v0));
-	else
-		return (struct kvp *)(buf +
-				sizeof(struct rpm_message_header_v1));
+	return (struct kvp *)(buf + sizeof(struct rpm_request_header)
+			+ sizeof(struct rpm_message_header));
 }
 
 static inline struct kvp *get_next_kvp(struct kvp *k)
@@ -459,7 +201,7 @@ static inline void *get_data(struct kvp *k)
 }
 
 
-static void delete_kvp(char *buf, struct kvp *d)
+static void delete_kvp(char *msg, struct kvp *d)
 {
 	struct kvp *n;
 	int dec;
@@ -467,13 +209,12 @@ static void delete_kvp(char *buf, struct kvp *d)
 
 	n = get_next_kvp(d);
 	dec = (void *)n - (void *)d;
-	size = get_data_len(buf) -
-		((void *)n - (void *)get_first_kvp(buf));
+	size = get_data_len(msg) - ((void *)n - (void *)get_first_kvp(msg));
 
 	memcpy((void *)d, (void *)n, size);
 
-	change_data_len(buf, -dec);
-	change_req_len(buf, -dec);
+	get_data_len(msg) -= dec;
+	get_req_len(msg) -= dec;
 }
 
 static inline void update_kvp_data(struct kvp *dest, struct kvp *src)
@@ -483,23 +224,20 @@ static inline void update_kvp_data(struct kvp *dest, struct kvp *src)
 
 static void add_kvp(char *buf, struct kvp *n)
 {
-	int32_t inc = sizeof(*n) + n->s;
-
-	if (get_req_len(buf) + inc > MAX_SLEEP_BUFFER) {
-		WARN_ON(get_req_len(buf) + inc > MAX_SLEEP_BUFFER);
-		return;
-	}
+	uint32_t inc = sizeof(*n) + n->s;
+	BUG_ON((get_req_len(buf) + inc) > MAX_SLEEP_BUFFER);
 
 	memcpy(buf + get_buf_len(buf), n, inc);
 
-	change_data_len(buf, inc);
-	change_req_len(buf, inc);
+	get_data_len(buf) += inc;
+	get_req_len(buf) += inc;
 }
 
 static struct slp_buf *tr_search(struct rb_root *root, char *slp)
 {
 	unsigned int type = get_rsc_type(slp);
 	unsigned int id = get_rsc_id(slp);
+
 	struct rb_node *node = root->rb_node;
 
 	while (node) {
@@ -525,6 +263,7 @@ static int tr_insert(struct rb_root *root, struct slp_buf *slp)
 {
 	unsigned int type = get_rsc_type(slp->buf);
 	unsigned int id = get_rsc_id(slp->buf);
+
 	struct rb_node **node = &(root->rb_node), *parent = NULL;
 
 	while (*node) {
@@ -554,8 +293,7 @@ static int tr_insert(struct rb_root *root, struct slp_buf *slp)
 
 #define for_each_kvp(buf, k) \
 	for (k = (struct kvp *)get_first_kvp(buf); \
-		((void *)k - (void *)get_first_kvp(buf)) < \
-		 get_data_len(buf);\
+		((void *)k - (void *)get_first_kvp(buf)) < get_data_len(buf);\
 		k = get_next_kvp(k))
 
 
@@ -593,7 +331,8 @@ static void tr_update(struct slp_buf *s, char *buf)
 static atomic_t msm_rpm_msg_id = ATOMIC_INIT(0);
 
 struct msm_rpm_request {
-	uint8_t *client_buf;
+	struct rpm_request_header req_hdr;
+	struct rpm_message_header msg_hdr;
 	struct msm_rpm_kvp_data *kvp;
 	uint32_t num_elements;
 	uint32_t write_idx;
@@ -617,7 +356,13 @@ struct msm_rpm_wait_data {
 };
 DEFINE_SPINLOCK(msm_rpm_list_lock);
 
-
+struct msm_rpm_ack_msg {
+	uint32_t req;
+	uint32_t req_len;
+	uint32_t rsc_id;
+	uint32_t msg_len;
+	uint32_t id_ack;
+};
 
 LIST_HEAD(msm_rpm_ack_list);
 
@@ -625,37 +370,26 @@ static struct tasklet_struct data_tasklet;
 
 static inline uint32_t msm_rpm_get_msg_id_from_ack(uint8_t *buf)
 {
-	return get_ack_msg_id(buf);
+	return ((struct msm_rpm_ack_msg *)buf)->id_ack;
 }
 
 static inline int msm_rpm_get_error_from_ack(uint8_t *buf)
 {
 	uint8_t *tmp;
-	uint32_t req_len = get_ack_req_len(buf);
-	uint32_t msg_type = get_ack_msg_type(buf);
+	uint32_t req_len = ((struct msm_rpm_ack_msg *)buf)->req_len;
+
+	struct msm_rpm_ack_msg *tmp_buf = (struct msm_rpm_ack_msg *)buf;
 	int rc = -ENODEV;
-	uint32_t err;
-	uint32_t ack_msg_size = rpm_msg_fmt_ver ?
-			sizeof(struct msm_rpm_ack_msg_v1) :
-			sizeof(struct msm_rpm_ack_msg_v0);
 
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT &&
-			msg_type == RPM_V1_ACK_SERVICE) {
-		return 0;
-	} else if (rpm_msg_fmt_ver && msg_type == RPM_V1_NACK_SERVICE) {
-		err = *(uint32_t *)(buf + sizeof(struct msm_rpm_ack_msg_v1));
-		return err;
-	}
-
-	req_len -= ack_msg_size;
+	req_len -= sizeof(struct msm_rpm_ack_msg);
 	req_len += 2 * sizeof(uint32_t);
 	if (!req_len)
 		return 0;
 
 	pr_err("%s:rpm returned error or nack req_len: %d id_ack: %d\n",
-				__func__, req_len, get_ack_msg_id(buf));
+				__func__, tmp_buf->req_len, tmp_buf->id_ack);
 
-	tmp = buf + ack_msg_size;
+	tmp = buf + sizeof(struct msm_rpm_ack_msg);
 
 	if (memcmp(tmp, ERR, sizeof(uint32_t))) {
 		pr_err("%s rpm returned error\n", __func__);
@@ -705,13 +439,55 @@ int msm_rpm_smd_buffer_request(struct msm_rpm_request *cdata,
 		/* handle unsent requests */
 		tr_update(slp, buf);
 	}
-	trace_rpm_smd_sleep_set(get_msg_id(cdata->client_buf),
-			get_rsc_type(cdata->client_buf),
-			get_req_len(cdata->client_buf));
+	trace_rpm_smd_sleep_set(cdata->msg_hdr.msg_id,
+				cdata->msg_hdr.resource_type,
+				cdata->msg_hdr.resource_id);
 
 	spin_unlock_irqrestore(&slp_buffer_lock, flags);
 
 	return 0;
+}
+static void msm_rpm_print_sleep_buffer(struct slp_buf *s)
+{
+	char buf[DEBUG_PRINT_BUFFER_SIZE] = {0};
+	int pos;
+	int buflen = DEBUG_PRINT_BUFFER_SIZE;
+	char ch[5] = {0};
+	u32 type;
+	struct kvp *e;
+
+	if (!s)
+		return;
+
+	if (!s->valid)
+		return;
+
+	type = get_rsc_type(s->buf);
+	memcpy(ch, &type, sizeof(u32));
+
+	pos = scnprintf(buf, buflen,
+			"Sleep request type = 0x%08x(%s)",
+			get_rsc_type(s->buf), ch);
+	pos += scnprintf(buf + pos, buflen - pos, " id = 0%x",
+			get_rsc_id(s->buf));
+	for_each_kvp(s->buf, e) {
+		uint32_t i;
+		char *data = get_data(e);
+
+		memcpy(ch, &e->k, sizeof(u32));
+
+		pos += scnprintf(buf + pos, buflen - pos,
+				"\n\t\tkey = 0x%08x(%s)",
+				e->k, ch);
+		pos += scnprintf(buf + pos, buflen - pos,
+				" sz= %d data =", e->s);
+
+		for (i = 0; i < e->s; i++)
+			pos += scnprintf(buf + pos, buflen - pos,
+					" 0x%02X", data[i]);
+	}
+	pos += scnprintf(buf + pos, buflen - pos, "\n");
+	printk(buf);
 }
 
 static struct msm_rpm_driver_data msm_rpm_data = {
@@ -779,8 +555,7 @@ static int msm_rpm_read_sleep_ack(void)
 
 		ret = msm_rpm_read_smd_data(buf);
 		if (!ret) {
-			/*
-			 * Mimic Glink behavior to ensure that the
+			/* Mimic Glink behavior to ensure that the
 			 * data is read and the msg is removed from
 			 * the wait list. We should have gotten here
 			 * only when there are no drivers waiting on
@@ -814,13 +589,14 @@ static int msm_rpm_flush_requests(bool print)
 	for (t = rb_first(&tr_root); t; t = rb_next(t)) {
 
 		struct slp_buf *s = rb_entry(t, struct slp_buf, node);
-		unsigned int type = get_rsc_type(s->buf);
-		unsigned int id = get_rsc_id(s->buf);
 
 		if (!s->valid)
 			continue;
 
-		set_msg_id(s->buf, msm_rpm_get_next_msg_id());
+		if (print)
+			msm_rpm_print_sleep_buffer(s);
+
+		get_msg_id(s->buf) = msm_rpm_get_next_msg_id();
 
 		if (!glink_enabled)
 			ret = msm_rpm_send_smd_buffer(s->buf,
@@ -830,7 +606,9 @@ static int msm_rpm_flush_requests(bool print)
 					get_buf_len(s->buf), true);
 
 		WARN_ON(ret != get_buf_len(s->buf));
-		trace_rpm_smd_send_sleep_set(get_msg_id(s->buf), type, id);
+		trace_rpm_smd_send_sleep_set(get_msg_id(s->buf),
+					get_rsc_type(s->buf),
+					get_rsc_id(s->buf));
 
 		s->valid = false;
 		count++;
@@ -856,13 +634,13 @@ static int msm_rpm_flush_requests(bool print)
 	return 0;
 }
 
-static void msm_rpm_notify_sleep_chain(char *buf,
+static void msm_rpm_notify_sleep_chain(struct rpm_message_header *hdr,
 		struct msm_rpm_kvp_data *kvp)
 {
 	struct msm_rpm_notifier_data notif;
 
-	notif.rsc_type = get_rsc_type(buf);
-	notif.rsc_id = get_req_len(buf);
+	notif.rsc_type = hdr->resource_type;
+	notif.rsc_id = hdr->resource_id;
 	notif.key = kvp->key;
 	notif.size = kvp->nbytes;
 	notif.value = kvp->value;
@@ -887,7 +665,7 @@ static int msm_rpm_add_kvp_data_common(struct msm_rpm_request *handle,
 		return  -EINVAL;
 
 	data_size = ALIGN(size, SZ_4);
-	msg_size = data_size + 8;
+	msg_size = data_size + sizeof(struct rpm_request_header);
 
 	for (i = 0; i < handle->write_idx; i++) {
 		if (handle->kvp[i].key != key)
@@ -926,10 +704,9 @@ static int msm_rpm_add_kvp_data_common(struct msm_rpm_request *handle,
 	}
 
 	if (!handle->kvp[i].valid)
-		change_data_len(handle->client_buf, msg_size);
+		handle->msg_hdr.data_len += msg_size;
 	else
-		change_data_len(handle->client_buf,
-			(data_size - handle->kvp[i].nbytes));
+		handle->msg_hdr.data_len += (data_size - handle->kvp[i].nbytes);
 
 	handle->kvp[i].nbytes = data_size;
 	handle->kvp[i].key = key;
@@ -945,7 +722,6 @@ static struct msm_rpm_request *msm_rpm_create_request_common(
 		int num_elements, bool noirq)
 {
 	struct msm_rpm_request *cdata;
-	uint32_t buf_size;
 
 	if (probe_status)
 		return ERR_PTR(probe_status);
@@ -958,21 +734,10 @@ static struct msm_rpm_request *msm_rpm_create_request_common(
 		goto cdata_alloc_fail;
 	}
 
-	if (rpm_msg_fmt_ver == RPM_MSG_V0_FMT)
-		buf_size = sizeof(struct rpm_message_header_v0);
-	else
-		buf_size = sizeof(struct rpm_message_header_v1);
-
-	cdata->client_buf = kzalloc(buf_size, GFP_FLAG(noirq));
-
-	if (!cdata->client_buf) {
-		pr_warn("Cannot allocate memory for client_buf\n");
-		goto client_buf_alloc_fail;
-	}
-
-	set_set_type(cdata->client_buf, set);
-	set_rsc_type(cdata->client_buf, rsc_type);
-	set_rsc_id(cdata->client_buf, rsc_id);
+	cdata->msg_hdr.set = set;
+	cdata->msg_hdr.resource_type = rsc_type;
+	cdata->msg_hdr.resource_id = rsc_id;
+	cdata->msg_hdr.data_len = 0;
 
 	cdata->num_elements = num_elements;
 	cdata->write_idx = 0;
@@ -997,8 +762,6 @@ static struct msm_rpm_request *msm_rpm_create_request_common(
 buf_alloc_fail:
 	kfree(cdata->kvp);
 kvp_alloc_fail:
-	kfree(cdata->client_buf);
-client_buf_alloc_fail:
 	kfree(cdata);
 cdata_alloc_fail:
 	return NULL;
@@ -1014,7 +777,6 @@ void msm_rpm_free_request(struct msm_rpm_request *handle)
 	for (i = 0; i < handle->num_elements; i++)
 		kfree(handle->kvp[i].value);
 	kfree(handle->kvp);
-	kfree(handle->client_buf);
 	kfree(handle->buf);
 	kfree(handle);
 }
@@ -1176,7 +938,7 @@ static void msm_rpm_process_ack(uint32_t msg_id, int errno)
 
 	list_for_each_safe(ptr, next, &msm_rpm_wait_list) {
 		elem = list_entry(ptr, struct msm_rpm_wait_data, list);
-		if (elem->msg_id == msg_id) {
+		if (elem && (elem->msg_id == msg_id)) {
 			elem->errno = errno;
 			elem->ack_recd = true;
 			complete(&elem->ack);
@@ -1186,6 +948,7 @@ static void msm_rpm_process_ack(uint32_t msg_id, int errno)
 			}
 			break;
 		}
+		elem = NULL;
 	}
 	/* Special case where the sleep driver doesn't
 	 * wait for ACKs. This would decrease the latency involved with
@@ -1269,7 +1032,6 @@ static void msm_rpm_log_request(struct msm_rpm_request *cdata)
 	int j, prev_valid;
 	int valid_count = 0;
 	int pos = 0;
-	uint32_t res_type, rsc_id;
 
 	name[4] = 0;
 
@@ -1280,20 +1042,18 @@ static void msm_rpm_log_request(struct msm_rpm_request *cdata)
 	pos += scnprintf(buf + pos, buflen - pos, "%sRPM req: ", KERN_INFO);
 	if (msm_rpm_debug_mask & MSM_RPM_LOG_REQUEST_SHOW_MSG_ID)
 		pos += scnprintf(buf + pos, buflen - pos, "msg_id=%u, ",
-				get_msg_id(cdata->client_buf));
+				cdata->msg_hdr.msg_id);
 	pos += scnprintf(buf + pos, buflen - pos, "s=%s",
-		(get_set_type(cdata->client_buf) ==
-				MSM_RPM_CTX_ACTIVE_SET ? "act" : "slp"));
+		(cdata->msg_hdr.set == MSM_RPM_CTX_ACTIVE_SET ? "act" : "slp"));
 
-	res_type = get_rsc_type(cdata->client_buf);
-	rsc_id = get_rsc_id(cdata->client_buf);
 	if ((msm_rpm_debug_mask & MSM_RPM_LOG_REQUEST_PRETTY)
 	    && (msm_rpm_debug_mask & MSM_RPM_LOG_REQUEST_RAW)) {
 		/* Both pretty and raw formatting */
-		memcpy(name, &res_type, sizeof(uint32_t));
+		memcpy(name, &cdata->msg_hdr.resource_type, sizeof(uint32_t));
 		pos += scnprintf(buf + pos, buflen - pos,
 			", rsc_type=0x%08X (%s), rsc_id=%u; ",
-			res_type, name, rsc_id);
+			cdata->msg_hdr.resource_type, name,
+			cdata->msg_hdr.resource_id);
 
 		for (i = 0, prev_valid = 0; i < cdata->write_idx; i++) {
 			if (!cdata->kvp[i].valid)
@@ -1333,9 +1093,9 @@ static void msm_rpm_log_request(struct msm_rpm_request *cdata)
 		}
 	} else if (msm_rpm_debug_mask & MSM_RPM_LOG_REQUEST_PRETTY) {
 		/* Pretty formatting only */
-		memcpy(name, &res_type, sizeof(uint32_t));
+		memcpy(name, &cdata->msg_hdr.resource_type, sizeof(uint32_t));
 		pos += scnprintf(buf + pos, buflen - pos, " %s %u; ", name,
-			rsc_id);
+				cdata->msg_hdr.resource_id);
 
 		for (i = 0, prev_valid = 0; i < cdata->write_idx; i++) {
 			if (!cdata->kvp[i].valid)
@@ -1364,7 +1124,9 @@ static void msm_rpm_log_request(struct msm_rpm_request *cdata)
 	} else {
 		/* Raw formatting only */
 		pos += scnprintf(buf + pos, buflen - pos,
-			", rsc_type=0x%08X, rsc_id=%u; ", res_type, rsc_id);
+			", rsc_type=0x%08X, rsc_id=%u; ",
+			cdata->msg_hdr.resource_type,
+			cdata->msg_hdr.resource_id);
 
 		for (i = 0, prev_valid = 0; i < cdata->write_idx; i++) {
 			if (!cdata->kvp[i].valid)
@@ -1466,25 +1228,21 @@ static int msm_rpm_send_data(struct msm_rpm_request *cdata,
 	int ret;
 	uint32_t i;
 	uint32_t msg_size;
-	int msg_hdr_sz, req_hdr_sz;
-	uint32_t data_len = get_data_len(cdata->client_buf);
-	uint32_t set = get_set_type(cdata->client_buf);
-	uint32_t msg_id;
+	int req_hdr_sz, msg_hdr_sz;
 
 	if (probe_status)
 		return probe_status;
 
-	if (!data_len)
+	if (!cdata->msg_hdr.data_len)
 		return 1;
 
-	msg_hdr_sz = rpm_msg_fmt_ver ? sizeof(struct rpm_message_header_v1) :
-			sizeof(struct rpm_message_header_v0);
+	req_hdr_sz = sizeof(cdata->req_hdr);
+	msg_hdr_sz = sizeof(cdata->msg_hdr);
 
-	req_hdr_sz = RPM_HDR_SIZE;
-	set_msg_type(cdata->client_buf, msg_type);
+	cdata->req_hdr.service_type = msm_rpm_request_service[msg_type];
 
-	set_req_len(cdata->client_buf, data_len + msg_hdr_sz - req_hdr_sz);
-	msg_size = get_req_len(cdata->client_buf) + req_hdr_sz;
+	cdata->req_hdr.request_len = cdata->msg_hdr.data_len + msg_hdr_sz;
+	msg_size = cdata->req_hdr.request_len + req_hdr_sz;
 
 	/* populate data_len */
 	if (msg_size > cdata->numbytes) {
@@ -1500,7 +1258,8 @@ static int msm_rpm_send_data(struct msm_rpm_request *cdata,
 
 	tmpbuff = cdata->buf;
 
-	tmpbuff += msg_hdr_sz;
+	tmpbuff += req_hdr_sz + msg_hdr_sz;
+
 	for (i = 0; (i < cdata->write_idx); i++) {
 		/* Sanity check */
 		BUG_ON((tmpbuff - cdata->buf) > cdata->numbytes);
@@ -1517,23 +1276,22 @@ static int msm_rpm_send_data(struct msm_rpm_request *cdata,
 		memcpy(tmpbuff, cdata->kvp[i].value, cdata->kvp[i].nbytes);
 		tmpbuff += cdata->kvp[i].nbytes;
 
-		if (set == MSM_RPM_CTX_SLEEP_SET)
-			msm_rpm_notify_sleep_chain(cdata->client_buf,
+		if (cdata->msg_hdr.set == MSM_RPM_CTX_SLEEP_SET)
+			msm_rpm_notify_sleep_chain(&cdata->msg_hdr,
 					&cdata->kvp[i]);
 
 	}
 
-	memcpy(cdata->buf, cdata->client_buf, msg_hdr_sz);
-	if ((set == MSM_RPM_CTX_SLEEP_SET) &&
+	memcpy(cdata->buf, &cdata->req_hdr, req_hdr_sz + msg_hdr_sz);
+
+	if ((cdata->msg_hdr.set == MSM_RPM_CTX_SLEEP_SET) &&
 		!msm_rpm_smd_buffer_request(cdata, msg_size,
 			GFP_FLAG(noirq)))
 		return 1;
 
-	msg_id = msm_rpm_get_next_msg_id();
-	/* Set the version bit for new protocol */
-	set_msg_ver(cdata->buf, rpm_msg_fmt_ver);
-	set_msg_id(cdata->buf, msg_id);
-	set_msg_id(cdata->client_buf, msg_id);
+	cdata->msg_hdr.msg_id = msm_rpm_get_next_msg_id();
+
+	memcpy(cdata->buf + req_hdr_sz, &cdata->msg_hdr, msg_hdr_sz);
 
 	if (msm_rpm_debug_mask
 	    & (MSM_RPM_LOG_REQUEST_PRETTY | MSM_RPM_LOG_REQUEST_RAW))
@@ -1543,29 +1301,29 @@ static int msm_rpm_send_data(struct msm_rpm_request *cdata,
 		for (i = 0; (i < cdata->write_idx); i++)
 			cdata->kvp[i].valid = false;
 
-		set_data_len(cdata->client_buf, 0);
-		ret = msg_id;
+		cdata->msg_hdr.data_len = 0;
+		ret = cdata->msg_hdr.msg_id;
 		return ret;
 	}
 
-	msm_rpm_add_wait_list(msg_id, noack);
+	msm_rpm_add_wait_list(cdata->msg_hdr.msg_id, noack);
 
 	ret = msm_rpm_send_buffer(&cdata->buf[0], msg_size, noirq);
 
 	if (ret == msg_size) {
 		for (i = 0; (i < cdata->write_idx); i++)
 			cdata->kvp[i].valid = false;
-		set_data_len(cdata->client_buf, 0);
-		ret = msg_id;
-		trace_rpm_smd_send_active_set(msg_id,
-			get_rsc_type(cdata->client_buf),
-			get_rsc_id(cdata->client_buf));
+		cdata->msg_hdr.data_len = 0;
+		ret = cdata->msg_hdr.msg_id;
+		trace_rpm_smd_send_active_set(cdata->msg_hdr.msg_id,
+					cdata->msg_hdr.resource_type,
+					cdata->msg_hdr.resource_id);
 	} else if (ret < msg_size) {
 		struct msm_rpm_wait_data *rc;
 		ret = 0;
 		pr_err("Failed to write data msg_size:%d ret:%d msg_id:%d\n",
-				msg_size, ret, msg_id);
-		rc = msm_rpm_get_entry_from_msg_id(msg_id);
+				msg_size, ret, cdata->msg_hdr.msg_id);
+		rc = msm_rpm_get_entry_from_msg_id(cdata->msg_hdr.msg_id);
 		if (rc)
 			msm_rpm_free_list_entry(rc);
 	}
@@ -2101,8 +1859,6 @@ static int msm_rpm_dev_probe(struct platform_device *pdev)
 {
 	char *key = NULL;
 	int ret = 0;
-	void __iomem *reg_base;
-	uint32_t version = V0_PROTOCOL_VERSION; /* set to default v0 format */
 
 	/*
 	 * Check for standalone support
@@ -2113,18 +1869,6 @@ static int msm_rpm_dev_probe(struct platform_device *pdev)
 		probe_status = ret;
 		goto skip_init;
 	}
-
-	reg_base = of_iomap(pdev->dev.of_node, 0);
-
-	if (reg_base) {
-		version = readq_relaxed(reg_base);
-		iounmap(reg_base);
-	}
-
-	if (version == V1_PROTOCOL_VERSION)
-		rpm_msg_fmt_ver = RPM_MSG_V1_FMT;
-
-	pr_debug("RPM-SMD running version %d/n", rpm_msg_fmt_ver);
 
 	ret = msm_rpm_dev_glink_probe(pdev);
 	if (!ret) {
