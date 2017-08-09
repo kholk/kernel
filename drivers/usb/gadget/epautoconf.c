@@ -251,15 +251,6 @@ struct usb_ep *usb_ep_autoconfig_ss(
 	/* Fail */
 	return NULL;
 found_ep:
-	ep->desc = NULL;
-	ep->comp_desc = NULL;
-	ep->claimed = true;
-	return ep;
-
-
-
-
-
 	/*
 	 * If the protocol driver hasn't yet decided on wMaxPacketSize
 	 * and wants to know the maximum possible, provide the info.

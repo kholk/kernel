@@ -2343,6 +2343,7 @@ static int _gadget_stop_activity(struct usb_gadget *gadget)
 
 	//gadget->xfer_isr_count = 0;
 	udc->driver->disconnect(gadget);
+	//usb_gadget_udc_reset(gadget, udc->driver);
 
 	spin_lock_irqsave(udc->lock, flags);
 	_ep_nuke(&udc->ep0out);
@@ -3787,17 +3788,10 @@ pm_put:
 static int ci13xxx_stop(struct usb_gadget *gadget)
 {
 	struct ci13xxx *udc = _udc;
-	struct usb_gadget_driver *driver = udc->driver;
+	//struct usb_gadget_driver *driver = udc->driver;
 	unsigned long flags;
 
 	trace("%pK", driver);
-
-	if (driver             == NULL ||
-	    driver->unbind     == NULL ||
-	    driver->setup      == NULL ||
-	    driver->disconnect == NULL ||
-	    driver             != udc->driver)
-		return -EINVAL;
 
 	spin_lock_irqsave(udc->lock, flags);
 
@@ -3988,6 +3982,19 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 			mEp->ep.ops       = &usb_ep_ops;
 			usb_ep_set_maxpacket_limit(&mEp->ep,
 				k ? USHRT_MAX : CTRL_PAYLOAD_MAX);
+
+			if (i == 0) {
+				mEp->ep.caps.type_control = true;
+                        } else {
+				mEp->ep.caps.type_iso = true;
+				mEp->ep.caps.type_bulk = true;
+				mEp->ep.caps.type_int = true;
+			}
+
+			if (j == TX)
+				mEp->ep.caps.dir_in = true;
+			else
+				mEp->ep.caps.dir_out = true;
 
 			INIT_LIST_HEAD(&mEp->qh.queue);
 			mEp->qh.ptr = dma_pool_alloc(udc->qh_pool, GFP_KERNEL,
