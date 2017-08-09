@@ -50,6 +50,7 @@
 #include <linux/extcon.h>
 
 #include <linux/msm-bus.h>
+#include <linux/reset.h>
 
 #define USE_PER_COMPOSITION_BAM
 
@@ -586,7 +587,7 @@ static int msm_otg_phy_clk_reset(struct msm_otg *motg)
 {
 	int ret;
 
-	if (!motg->phy_reset_clk)
+	if (!motg->phy_reset)
 		return 0;
 
 	if (motg->sleep_clk)
@@ -594,9 +595,9 @@ static int msm_otg_phy_clk_reset(struct msm_otg *motg)
 	if (motg->phy_csr_clk)
 		clk_disable_unprepare(motg->phy_csr_clk);
 
-	ret = clk_reset(motg->phy_reset_clk, CLK_RESET_ASSERT);
+	ret = reset_control_assert(motg->phy_reset);
 	if (ret < 0) {
-		pr_err("phy_reset_clk assert failed %d\n", ret);
+		pr_err("phy_reset assert failed %d\n", ret);
 		return ret;
 	}
 	/*
@@ -604,9 +605,9 @@ static int msm_otg_phy_clk_reset(struct msm_otg *motg)
 	 * PHY POR assert and de-assert.
 	 */
 	usleep_range(10, 15);
-	ret = clk_reset(motg->phy_reset_clk, CLK_RESET_DEASSERT);
+	ret = reset_control_deassert(motg->phy_reset);
 	if (ret < 0) {
-		pr_err("phy_reset_clk de-assert failed %d\n", ret);
+		pr_err("phy_reset de-assert failed %d\n", ret);
 		return ret;
 	}
 	/*
@@ -748,18 +749,18 @@ static void msm_usb_phy_reset(struct msm_otg *motg)
 		writel_relaxed(val, motg->usb_phy_ctrl_reg);
 		break;
 	case QUSB_ULPI_PHY:
-		ret = clk_reset(motg->phy_reset_clk, CLK_RESET_ASSERT);
+		ret = reset_control_assert(motg->phy_reset);
 		if (ret) {
-			pr_err("phy_reset_clk assert failed %d\n", ret);
+			pr_err("phy_reset assert failed %d\n", ret);
 			break;
 		}
 
 		/* need to delay 10us for PHY to reset */
 		usleep_range(10, 20);
 
-		ret = clk_reset(motg->phy_reset_clk, CLK_RESET_DEASSERT);
+		ret = reset_control_deassert(motg->phy_reset);
 		if (ret) {
-			pr_err("phy_reset_clk de-assert failed %d\n", ret);
+			pr_err("phy_reset de-assert failed %d\n", ret);
 			break;
 		}
 
@@ -787,13 +788,13 @@ static void msm_usb_phy_reset(struct msm_otg *motg)
 				motg->phy_csr_regs + QUSB2PHY_PORT_POWERDOWN);
 		break;
 	case SNPS_FEMTO_PHY:
-		if (!motg->phy_por_clk) {
-			pr_err("phy_por_clk missing\n");
+		if (!motg->phy_por_reset) {
+			pr_err("phy_por_reset missing\n");
 			break;
 		}
-		ret = clk_reset(motg->phy_por_clk, CLK_RESET_ASSERT);
+		ret = reset_control_assert(motg->phy_por_reset);
 		if (ret) {
-			pr_err("phy_por_clk assert failed %d\n", ret);
+			pr_err("phy_por_reset assert failed %d\n", ret);
 			break;
 		}
 		/*
@@ -816,9 +817,9 @@ static void msm_usb_phy_reset(struct msm_otg *motg)
 		 * PHY POR assert and de-assert.
 		 */
 		usleep_range(10, 20);
-		ret = clk_reset(motg->phy_por_clk, CLK_RESET_DEASSERT);
+		ret = reset_control_deassert(motg->phy_por_reset);
 		if (ret) {
-			pr_err("phy_por_clk de-assert failed %d\n", ret);
+			pr_err("phy_por_reset de-assert failed %d\n", ret);
 			break;
 		}
 		/*
@@ -4744,33 +4745,23 @@ static int msm_otg_probe(struct platform_device *pdev)
 	}
 
 	/*
-	 * If present, phy_reset_clk is used to reset the PHY, ULPI bridge
+	 * If present, phy_reset is used to reset the PHY, ULPI bridge
 	 * and CSR Wrapper. This is a reset only clock.
 	 */
-
-	if (of_property_match_string(pdev->dev.of_node,
-			"clock-names", "phy_reset_clk") >= 0) {
-		motg->phy_reset_clk = devm_clk_get(&pdev->dev, "phy_reset_clk");
-		if (IS_ERR(motg->phy_reset_clk)) {
-			ret = PTR_ERR(motg->phy_reset_clk);
-			goto disable_sleep_clk;
-		}
-	}
+	motg->phy_reset = devm_reset_control_get(&pdev->dev, "phy_reset");
+	if (IS_ERR(motg->phy_reset))
+		pr_err("%s: WARNING: phy_reset not found!!\n", __func__);
 
 	/*
-	 * If present, phy_por_clk is used to assert/de-assert phy POR
+	 * If present, phy_por_reset is used to assert/de-assert phy POR
 	 * input. This is a reset only clock. phy POR must be asserted
 	 * after overriding the parameter registers via CSR wrapper or
 	 * ULPI bridge.
 	 */
-	if (of_property_match_string(pdev->dev.of_node,
-				"clock-names", "phy_por_clk") >= 0) {
-		motg->phy_por_clk = devm_clk_get(&pdev->dev, "phy_por_clk");
-		if (IS_ERR(motg->phy_por_clk)) {
-			ret = PTR_ERR(motg->phy_por_clk);
-			goto disable_sleep_clk;
-		}
-	}
+	motg->phy_por_reset = devm_reset_control_get(&pdev->dev,
+							"phy_por_reset");
+	if (IS_ERR(motg->phy_por_reset))
+		pr_err("%s: WARNING: phy_por_reset not found!!\n", __func__);
 
 	/*
 	 * If present, phy_csr_clk is required for accessing PHY
