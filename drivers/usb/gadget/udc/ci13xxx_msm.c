@@ -19,8 +19,6 @@
 
 #define CI13XXX_MSM_MAX_LOG2_ITC	7
 
-extern bool usb_l1_supported(void);
-
 struct ci13xxx_udc_context {
 	int irq;
 	void __iomem *regs;
@@ -159,7 +157,8 @@ static void ci13xxx_msm_reset(void)
 	temp &= ~GENCONFIG_ULPI_SERIAL_EN;
 	writel_relaxed(temp, USB_GENCONFIG);
 
-	if (usb_l1_supported())
+//	if (udc->gadget.l1_supported)
+	if (0)
 		ci13xxx_msm_set_l1(udc);
 
 	if (phy && (phy->flags & ENABLE_SECONDARY_PHY)) {
@@ -359,7 +358,7 @@ static int ci13xxx_msm_probe(struct platform_device *pdev)
 	struct resource *res;
 	int ret;
 	struct ci13xxx_platform_data *pdata = pdev->dev.platform_data;
-	bool is_l1_supported = false;
+	//bool is_l1_supported = false;
 
 	dev_dbg(&pdev->dev, "ci13xxx_msm_probe\n");
 
@@ -372,7 +371,7 @@ static int ci13xxx_msm_probe(struct platform_device *pdev)
 			ci13xxx_msm_udc_driver.nz_itc =
 				1 << (pdata->log2_itc-1);
 
-		is_l1_supported = pdata->l1_supported;
+		//is_l1_supported = false; //pdata->l1_supported;
 		/* Set ahb2ahb bypass flag if it is requested. */
 		if (pdata->enable_ahb2ahb_bypass)
 			ci13xxx_msm_udc_driver.flags |=
@@ -396,14 +395,12 @@ static int ci13xxx_msm_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	ret = udc_probe(&ci13xxx_msm_udc_driver, &pdev->dev, _udc_ctxt.regs);
+	ret = udc_probe(&ci13xxx_msm_udc_driver, &pdev->dev, _udc_ctxt.regs,
+			DEF_CAPOFFSET);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "udc_probe failed\n");
 		goto iounmap;
 	}
-
-
-	pr_err("CI13XXX: L1 supported=%d", is_l1_supported);
 
 	//_udc->gadget.l1_supported = is_l1_supported;
 
@@ -493,14 +490,14 @@ void msm_usb_irq_disable(bool disable)
 	struct ci13xxx *udc = _udc;
 	unsigned long flags;
 
-	spin_lock_irqsave(udc->lock, flags);
+	spin_lock_irqsave(&udc->lock, flags);
 
 	if (_udc_ctxt.irq_disabled == disable) {
 		pr_debug("Interrupt state already disable = %d\n", disable);
 		if (disable)
 			mod_timer(&_udc_ctxt.irq_enable_timer,
 					IRQ_ENABLE_DELAY);
-		spin_unlock_irqrestore(udc->lock, flags);
+		spin_unlock_irqrestore(&udc->lock, flags);
 		return;
 	}
 
@@ -518,7 +515,7 @@ void msm_usb_irq_disable(bool disable)
 		_udc_ctxt.irq_disabled = false;
 	}
 
-	spin_unlock_irqrestore(udc->lock, flags);
+	spin_unlock_irqrestore(&udc->lock, flags);
 }
 
 static void enable_usb_irq_timer_func(unsigned long data)
