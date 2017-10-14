@@ -253,5 +253,6 @@
 		somc,panel-id-read-cmds;
 		somc,alt-panelid-cmd;
 		somc,dsi-restart-hack;
+		somc,reset-gpio-bad-design-quirk;
 	};
 };
