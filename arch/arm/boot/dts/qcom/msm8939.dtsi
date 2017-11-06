@@ -487,6 +487,12 @@
 		qcom,freq-mitigation-control-list = <&CPU0 &CPU1 &CPU2 &CPU3
 						&CPU4 &CPU5 &CPU6 &CPU7>;
 	};
+
+	bcl: qcom,bcl {
+		qcom,bcl-freq-control-list = <&CPU4 &CPU5 &CPU6 &CPU7>;
+		qcom,bcl-hotplug-list = <&CPU4 &CPU5 &CPU6 &CPU7>;
+		qcom,bcl-soc-hotplug-list = <&CPU4 &CPU5 &CPU6 &CPU7>;
+	};
 };
 
 &bam_dmux {

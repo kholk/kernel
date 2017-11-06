@@ -241,5 +241,11 @@
 
 		qcom,coresight-jtagmm-cpu = <&CPU3>;
 	};
+
+	bcl: qcom,bcl {
+		qcom,bcl-freq-control-list = <&CPU2 &CPU3>;
+		qcom,bcl-hotplug-list = <&CPU2 &CPU3>;
+		qcom,bcl-soc-hotplug-list = <&CPU2 &CPU3>;
+	};
 };
 
