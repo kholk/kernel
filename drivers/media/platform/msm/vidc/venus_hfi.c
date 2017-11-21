@@ -602,14 +602,15 @@ static int __smem_alloc(struct venus_hfi_device *dev,
 	struct msm_smem *alloc = &mem->mem_data;
 	int rc = 0;
 
-	if (!dev || !dev->hal_client || !mem || !size) {
+	if (!dev || !mem || !size) {
 		dprintk(VIDC_ERR, "Invalid Params\n");
 		return -EINVAL;
 	}
 
 	dprintk(VIDC_INFO, "start to alloc size: %d, flags: %d\n", size, flags);
-	rc = msm_smem_alloc(dev->hal_client, size, align, flags,
-		usage, 1, alloc);
+	rc = msm_smem_alloc(
+		size, align, flags, usage, 1, (void *)dev->res,
+		MSM_VIDC_UNKNOWN, alloc);
 	if (rc) {
 		dprintk(VIDC_ERR, "Alloc failed\n");
 		rc = -ENOMEM;
@@ -618,7 +619,7 @@ static int __smem_alloc(struct venus_hfi_device *dev,
 
 	dprintk(VIDC_DBG, "__smem_alloc: ptr = %pK, size = %d\n",
 			alloc->kvaddr, size);
-	rc = msm_smem_cache_operations(dev->hal_client, alloc->handle, 0,
+	rc = msm_smem_cache_operations(alloc->dma_buf, 0,
 			alloc->size, SMEM_CACHE_CLEAN);
 	if (rc) {
 		dprintk(VIDC_WARN, "Failed to clean cache\n");
@@ -640,7 +641,7 @@ static void __smem_free(struct venus_hfi_device *dev, struct msm_smem *mem)
 		return;
 	}
 
-	msm_smem_free(dev->hal_client, mem);
+	msm_smem_free(mem);
 }
 
 static void __write_register(struct venus_hfi_device *device,
@@ -1373,8 +1374,8 @@ static void __interface_queues_release(struct venus_hfi_device *device)
 		}
 
 		mem_map = (struct hfi_mem_map *)(qdss + 1);
-		cb = msm_smem_get_context_bank(device->hal_client,
-					false, HAL_BUFFER_INTERNAL_CMD_QUEUE);
+		cb = msm_smem_get_context_bank(MSM_VIDC_UNKNOWN,
+			false, device->res, HAL_BUFFER_INTERNAL_CMD_QUEUE);
 
 		for (i = 0; cb && i < num_entries; i++) {
 			iommu_unmap(cb->mapping->domain,
@@ -1405,9 +1406,6 @@ static void __interface_queues_release(struct venus_hfi_device *device)
 
 	device->mem_addr.align_virtual_addr = NULL;
 	device->mem_addr.align_device_addr = 0;
-
-	msm_smem_delete_client(device->hal_client);
-	device->hal_client = NULL;
 }
 
 static int __get_qdss_iommu_virtual_addr(struct venus_hfi_device *dev,
@@ -1500,7 +1498,7 @@ static int __interface_queues_init(struct venus_hfi_device *dev)
 	mem_addr = &dev->mem_addr;
 	if (!is_iommu_present(dev->res))
 		fw_bias = dev->hal_data->firmware_base;
-	rc = __smem_alloc(dev, mem_addr, q_size, 1, 0,
+	rc = __smem_alloc(dev, mem_addr, q_size, 1, SMEM_UNCACHED,
 			HAL_BUFFER_INTERNAL_CMD_QUEUE);
 	if (rc) {
 		dprintk(VIDC_ERR, "iface_q_table_alloc_fail\n");
@@ -1529,7 +1527,7 @@ static int __interface_queues_init(struct venus_hfi_device *dev)
 
 	if ((msm_vidc_fw_debug_mode & HFI_DEBUG_MODE_QDSS) && num_entries) {
 		rc = __smem_alloc(dev, mem_addr,
-				ALIGNED_QDSS_SIZE, 1, 0,
+				ALIGNED_QDSS_SIZE, 1, SMEM_UNCACHED,
 				HAL_BUFFER_INTERNAL_CMD_QUEUE);
 		if (rc) {
 			dprintk(VIDC_WARN,
@@ -1546,7 +1544,7 @@ static int __interface_queues_init(struct venus_hfi_device *dev)
 	}
 
 	rc = __smem_alloc(dev, mem_addr,
-			ALIGNED_SFR_SIZE, 1, 0,
+			ALIGNED_SFR_SIZE, 1, SMEM_UNCACHED,
 			HAL_BUFFER_INTERNAL_CMD_QUEUE);
 	if (rc) {
 		dprintk(VIDC_WARN, "sfr_alloc_fail: SFR not will work\n");
@@ -1598,8 +1596,8 @@ static int __interface_queues_init(struct venus_hfi_device *dev)
 		qdss->mem_map_table_base_addr = mem_map_table_base_addr;
 
 		mem_map = (struct hfi_mem_map *)(qdss + 1);
-		cb = msm_smem_get_context_bank(dev->hal_client, false,
-				HAL_BUFFER_INTERNAL_CMD_QUEUE);
+		cb = msm_smem_get_context_bank(MSM_VIDC_UNKNOWN, false,
+			dev->res, HAL_BUFFER_INTERNAL_CMD_QUEUE);
 		if (!cb) {
 			dprintk(VIDC_ERR,
 				"%s: failed to get context bank\n", __func__);
@@ -1747,28 +1745,14 @@ static int venus_hfi_core_init(void *device)
 
 	__set_state(dev, VENUS_STATE_INIT);
 
-	if (!dev->hal_client) {
-		dev->hal_client = msm_smem_new_client(
-				SMEM_ION, dev->res, MSM_VIDC_UNKNOWN);
-		if (dev->hal_client == NULL) {
-			dprintk(VIDC_ERR, "Failed to alloc ION_Client\n");
-			rc = -ENODEV;
-			goto err_core_init;
-		}
+	dprintk(VIDC_DBG, "Dev_Virt: %pa, Reg_Virt: %pK\n",
+		&dev->hal_data->firmware_base,
+		dev->hal_data->register_base);
 
-		dprintk(VIDC_DBG, "Dev_Virt: %pa, Reg_Virt: %pK\n",
-			&dev->hal_data->firmware_base,
-			dev->hal_data->register_base);
-
-		rc = __interface_queues_init(dev);
-		if (rc) {
-			dprintk(VIDC_ERR, "failed to init queues\n");
-			rc = -ENOMEM;
-			goto err_core_init;
-		}
-	} else {
-		dprintk(VIDC_ERR, "hal_client exists\n");
-		rc = -EEXIST;
+	rc = __interface_queues_init(dev);
+	if (rc) {
+		dprintk(VIDC_ERR, "failed to init queues\n");
+		rc = -ENOMEM;
 		goto err_core_init;
 	}
 
