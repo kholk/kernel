@@ -212,6 +212,7 @@
 
 #if GCC_VERSION >= 40400
 #define __optimize(level)	__attribute__((__optimize__(level)))
+#define __nostackprotector	__optimize("no-stack-protector")
 #endif /* GCC_VERSION >= 40400 */
 
 #if GCC_VERSION >= 40500
