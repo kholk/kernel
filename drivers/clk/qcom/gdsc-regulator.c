@@ -494,6 +494,8 @@ static int gdsc_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	pr_err("GDSC: Probing %s\n", sc->rdesc.name);
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
 		dev_err(&pdev->dev, "Failed to get resources\n");

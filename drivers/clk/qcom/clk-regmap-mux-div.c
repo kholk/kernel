@@ -32,8 +32,9 @@
 int __mux_div_set_src_div(struct clk_regmap_mux_div *md, u32 src, u32 div)
 {
 	int ret, count;
-	u32 val, mask;
+	u32 val;
 	const char *name = clk_hw_get_name(&md->clkr.hw);
+	u32 mask;
 
 	val = (div << md->hid_shift) | (src << md->src_shift);
 	mask = ((BIT(md->hid_width) - 1) << md->hid_shift) |
@@ -55,6 +56,7 @@ int __mux_div_set_src_div(struct clk_regmap_mux_div *md, u32 src, u32 div)
 				  &val);
 		if (ret)
 			return ret;
+
 		if (!(val & CMD_RCGR_UPDATE))
 			return 0;
 		udelay(1);
@@ -115,6 +117,8 @@ static int mux_div_determine_rate(struct clk_hw *hw,
 	unsigned int i, div, max_div;
 	unsigned long actual_rate, best_rate = 0;
 	unsigned long req_rate = req->rate;
+
+	//pr_err("Hello! My name is... %s\n", clk_hw_get_name(hw));
 
 	for (i = 0; i < clk_hw_get_num_parents(hw); i++) {
 		struct clk_hw *parent = clk_hw_get_parent_by_index(hw, i);
@@ -192,8 +196,11 @@ static u8 mux_div_get_parent(struct clk_hw *hw)
 	mux_div_get_src_div(md, &src, &div);
 
 	for (i = 0; i < clk_hw_get_num_parents(hw); i++)
-		if (src == md->parent_map[i].cfg)
+		if (src == md->parent_map[i].cfg) {
+			struct clk_hw *p = clk_hw_get_parent_by_index(hw, i);
+			pr_err("Found parent %s cfg %d\n", clk_hw_get_name(p), src);
 			return i;
+		}
 
 	pr_err("%s: Can't find parent with src %d\n", name, src);
 	return 0;

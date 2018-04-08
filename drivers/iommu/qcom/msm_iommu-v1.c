@@ -573,6 +573,7 @@ static void __program_context(struct msm_iommu_drvdata *iommu_drvdata,
 	SET_CB_SCTLR_AFE(cb_base, ctx, 1);
 	SET_CB_SCTLR_TRE(cb_base, ctx, 1);
 	SET_CB_SCTLR_ASIDPNE(cb_base, ctx, 1);
+
 	SET_CB_SCTLR_M(cb_base, ctx, 1);
 
 	mb();

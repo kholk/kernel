@@ -23,6 +23,30 @@ struct pll_vco_data {
 	u8 post_div_val;
 };
 
+/* Alpha PLL types */
+enum {
+	CLK_ALPHA_PLL_TYPE_DEFAULT,
+	CLK_ALPHA_PLL_TYPE_8976,
+	CLK_ALPHA_PLL_TYPE_8976_2,
+	CLK_ALPHA_PLL_TYPE_MAX,
+};
+
+enum {
+	PLL_OFF_L_VAL,
+	PLL_OFF_ALPHA_VAL,
+	PLL_OFF_ALPHA_VAL_U,
+	PLL_OFF_USER_CTL,
+	PLL_OFF_USER_CTL_U,
+	PLL_OFF_CONFIG_CTL,
+	PLL_OFF_CONFIG_CTL_U,
+	PLL_OFF_TEST_CTL,
+	PLL_OFF_TEST_CTL_U,
+	PLL_OFF_STATUS,
+	PLL_OFF_MAX_REGS
+};
+
+extern const u8 clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_MAX][PLL_OFF_MAX_REGS];
+
 struct pll_vco {
 	unsigned long min_freq;
 	unsigned long max_freq;
@@ -36,11 +60,14 @@ struct pll_vco {
  * @soft_vote_mask: soft voting mask for multiple PLL software instances
  * @vco_table: array of VCO settings
  * @vco_data: array of VCO data settings like post div
+ * @regs: alpha pll register map (see @clk_alpha_pll_regs)
  * @clkr: regmap clock handle
  */
 struct clk_alpha_pll {
 	u32 offset;
+	const u8 *regs;
 	struct pll_config *config;
+	bool inited;
 
 	u32 *soft_vote;
 	u32 soft_vote_mask;
@@ -73,17 +100,23 @@ struct clk_alpha_pll {
 #define PLLOUT_EARLY	BIT(3)
 	u32 pllout_flags;
 	unsigned long min_supported_freq;
+
+	void __iomem *spm_iobase;
+	u8 spm_offset;
+	u8 spm_event_bit;
 };
 
 /**
  * struct clk_alpha_pll_postdiv - phase locked loop (PLL) post-divider
  * @offset: base address of registers
+ * @regs: alpha pll register map (see @clk_alpha_pll_regs)
  * @width: width of post-divider
  * @clkr: regmap clock handle
  */
 struct clk_alpha_pll_postdiv {
 	u32 offset;
 	u8 width;
+	const u8 *regs;
 
 	struct clk_regmap clkr;
 };
@@ -92,6 +125,9 @@ extern const struct clk_ops clk_alpha_pll_ops;
 extern const struct clk_ops clk_alpha_pll_hwfsm_ops;
 extern const struct clk_ops clk_alpha_pll_postdiv_ops;
 extern const struct clk_ops clk_alpha_pll_slew_ops;
+
+extern const struct clk_ops clk_fabia_pll_ops;
+extern const struct clk_ops clk_fabia_pll_slew_ops;
 
 void clk_alpha_pll_configure(struct clk_alpha_pll *pll, struct regmap *regmap,
 		const struct pll_config *config);

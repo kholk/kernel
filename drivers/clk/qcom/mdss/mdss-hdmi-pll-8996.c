@@ -15,7 +15,7 @@
 #include <linux/err.h>
 #include <linux/delay.h>
 #include <linux/iopoll.h>
-#include <linux/clk/msm-clk-provider.h>
+//#include <linux/clk/msm-clk-provider.h>
 #include <linux/clk/msm-clk.h>
 #include <linux/clk/msm-clock-generic.h>
 #include <dt-bindings/clock/msm-clocks-8996.h>

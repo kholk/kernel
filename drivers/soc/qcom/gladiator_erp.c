@@ -75,6 +75,7 @@ struct msm_gladiator_data {
 	void __iomem *gladiator_virt_base;
 	int erp_irq;
 	struct notifier_block pm_notifier_block;
+	struct clk *qdss_clk;
 };
 
 static int enable_panic_on_error;
@@ -572,6 +573,21 @@ static int gladiator_erp_probe(struct platform_device *pdev)
 		goto bail;
 	}
 
+	if (of_property_match_string(pdev->dev.of_node,
+				"clock-names", "atb_clk") >= 0) {
+		msm_gld_data->qdss_clk = devm_clk_get(&pdev->dev, "atb_clk");
+		if (IS_ERR(msm_gld_data->qdss_clk)) {
+			dev_err(&pdev->dev, "Failed to get QDSS ATB clock\n");
+			goto bail;
+		}
+	} else {
+		dev_dbg(&pdev->dev, "No matching string of QDSS ATB clock\n");
+	}
+
+	ret = clk_prepare_enable(msm_gld_data->qdss_clk);
+	if (ret)
+		goto err_atb_clk;
+
 	ret = parse_dt_node(pdev, msm_gld_data);
 	if (ret)
 		goto free_data;
@@ -588,6 +604,8 @@ static int gladiator_erp_probe(struct platform_device *pdev)
 
 free_data:
 	devm_kfree(&pdev->dev, msm_gld_data);
+err_atb_clk:
+	clk_disable_unprepare(msm_gld_data->qdss_clk);
 bail:
 	dev_err(&pdev->dev, "Probe failed bailing out\n");
 	return ret;

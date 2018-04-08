@@ -55,6 +55,8 @@ static int voter_clk_prepare(struct clk_hw *hw)
 	struct clk_hw *parent;
 	struct clk_voter *v = to_clk_voter(hw);
 
+	//pr_err("CLK-VOTER: Preparing clock %s\n", hw->init->name);
+
 	parent = clk_hw_get_parent(hw);
 
 	if (v->is_branch) {

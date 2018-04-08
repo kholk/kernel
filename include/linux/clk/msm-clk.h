@@ -27,6 +27,7 @@ enum branch_mem_flags {
 #include <linux/clk.h>
 
 #elif defined(CONFIG_COMMON_CLK_MSM)
+
 #define CLKFLAG_INVERT			0x00000001
 #define CLKFLAG_NOINVERT		0x00000002
 #define CLKFLAG_NONEST			0x00000004

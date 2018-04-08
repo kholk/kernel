@@ -1665,6 +1665,7 @@ end:
  * mdss_mdp_retention_init() - initialize retention setting
  * @mdata: pointer to the global mdss data structure.
  */
+extern const char *__clk_get_name(const struct clk *clk);
 static int mdss_mdp_retention_init(struct mdss_data_type *mdata)
 {
 	struct clk *mdss_axi_clk = mdss_mdp_get_clk(MDSS_CLK_AXI);
@@ -1678,6 +1679,7 @@ static int mdss_mdp_retention_init(struct mdss_data_type *mdata)
 	rc = clk_set_flags(mdss_axi_clk, CLKFLAG_NORETAIN_MEM);
 	if (rc) {
 		pr_err("failed to set AXI no memory retention %d\n", rc);
+		pr_err("Failing clock name: %s\n", __clk_get_name(mdss_axi_clk));
 		return rc;
 	}
 
@@ -2111,15 +2113,25 @@ static void mdss_mdp_hw_rev_caps_init(struct mdss_data_type *mdata)
 		mdata->max_cursor_size = 64;
 		mdata->min_prefill_lines = 12;
 		mdata->has_ubwc = true;
+		mdata->per_pipe_ib_factor.numer = 8;
+		mdata->per_pipe_ib_factor.denom = 5;
+		mdata->apply_post_scale_bytes = false;
+		mdata->hflip_buffer_reused = false;
+		mdata->min_prefill_lines = 25;
 		set_bit(MDSS_QOS_OVERHEAD_FACTOR, mdata->mdss_qos_map);
 		set_bit(MDSS_QOS_PER_PIPE_LUT, mdata->mdss_qos_map);
 		set_bit(MDSS_QOS_SIMPLIFIED_PREFILL, mdata->mdss_qos_map);
 		set_bit(MDSS_CAPS_YUV_CONFIG, mdata->mdss_caps_map);
+//		set_bit(MDSS_CAPS_MDP_VOTE_CLK_NOT_SUPPORTED,
+//			mdata->mdss_caps_map);
+		set_bit(MDSS_QOS_CDP, mdata->mdss_qos_map); /* cdp supported */
+		mdata->enable_cdp = false; /* disable cdp */
 		mdss_mdp_init_default_prefill_factors(mdata);
 		set_bit(MDSS_QOS_OTLIM, mdata->mdss_qos_map);
 		mdss_set_quirk(mdata, MDSS_QUIRK_MIN_BUS_VOTE);
 		mdss_set_quirk(mdata, MDSS_QUIRK_DMA_BI_DIR);
 		mdss_set_quirk(mdata, MDSS_QUIRK_NEED_SECURE_MAP);
+//		mdss_set_quirk(mdata, MDSS_QUIRK_MDP_CLK_SET_RATE);
 		break;
 	case MDSS_MDP_HW_REV_114:
 		/* disable ECG for 28nm PHY platform */
@@ -3150,6 +3162,7 @@ static int mdss_mdp_probe(struct platform_device *pdev)
 		if (split_display)
 			num_of_display_on--;
 	}
+
 	if (!num_of_display_on) {
 		mdss_mdp_footswitch_ctrl_splash(false);
 	} else {

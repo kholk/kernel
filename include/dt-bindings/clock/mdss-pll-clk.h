@@ -13,7 +13,7 @@
 #ifndef __MDSS_PLL_CLK_H
 #define __MDSS_PLL_CLK_H
 
-/* DSI PLL clocks */
+/* DSI PLL 14nm clocks */
 #define BYTE0_MUX_CLK             0
 #define BYTE0_SRC_CLK             1
 #define PIX0_MUX_CLK              2
@@ -38,6 +38,22 @@
 #define SHADOW_N2_DIV_1_CLK       21
 #define SHADOW_POST_N1_DIV_1_CLK  22
 #define SHADOW_VCO_CLK_1_CLK      23
+
+/* DSI PLL 28nm HPM clocks */
+#define HPM_BYTE0_MUX_CLK	  0
+#define HPM_BYTE0_SRC_CLK	  1
+#define HPM_PIX0_SRC_CLK	  2
+#define HPM_ANALOG_POSTDIV_0_CLK  3
+#define HPM_INDIR_PATH_DIV2_0_CLK 4
+#define HPM_4DIV_0_CLK		  5
+#define HPM_VCO_CLK_0_CLK	  6
+#define HPM_BYTE1_MUX_CLK	  7
+#define HPM_BYTE1_SRC_CLK	  8
+#define HPM_PIX1_SRC_CLK	  9
+#define HPM_ANALOG_POSTDIV_1_CLK  10
+#define HPM_INDIR_PATH_DIV2_1_CLK 11
+#define HPM_4DIV_1_CLK		  12
+#define HPM_VCO_CLK_1_CLK	  13
 
 /* DP PLL clocks */
 #define DP_VCO_CLK                  0

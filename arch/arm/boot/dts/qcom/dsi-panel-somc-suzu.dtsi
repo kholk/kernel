@@ -36,6 +36,7 @@
 		somc,qpnp-lab-full-pull-down;
 		somc,qpnp-ibb-pull-down-enable;
 		somc,qpnp-ibb-full-pull-down;
+		qcom,esd-check-enabled;
 		somc,mdss-dsi-master;
 	};
 

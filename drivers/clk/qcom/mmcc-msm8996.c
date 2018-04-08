@@ -293,6 +293,7 @@ static const struct pll_config mmpll0_config = {
 
 static struct clk_alpha_pll mmpll0_early = {
 	.offset = 0x0,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.vco_table = mmpll_p_vco,
 	.num_vco = ARRAY_SIZE(mmpll_p_vco),
 	.clkr = {
@@ -310,6 +311,7 @@ static struct clk_alpha_pll mmpll0_early = {
 
 static struct clk_alpha_pll_postdiv mmpll0 = {
 	.offset = 0x0,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.width = 4,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "mmpll0",
@@ -334,6 +336,7 @@ static const struct pll_config mmpll1_config = {
 
 static struct clk_alpha_pll mmpll1_early = {
 	.offset = 0x30,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.vco_table = mmpll_p_vco,
 	.num_vco = ARRAY_SIZE(mmpll_p_vco),
 	.clkr = {
@@ -351,6 +354,7 @@ static struct clk_alpha_pll mmpll1_early = {
 
 static struct clk_alpha_pll_postdiv mmpll1 = {
 	.offset = 0x30,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.width = 4,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "mmpll1",
@@ -375,6 +379,7 @@ static const struct pll_config mmpll2_config = {
 
 static struct clk_alpha_pll mmpll2_early = {
 	.offset = 0x4100,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.vco_table = mmpll_gfx_vco,
 	.num_vco = ARRAY_SIZE(mmpll_gfx_vco),
 	.clkr.hw.init = &(struct clk_init_data){
@@ -388,6 +393,7 @@ static struct clk_alpha_pll mmpll2_early = {
 
 static struct clk_alpha_pll_postdiv mmpll2 = {
 	.offset = 0x4100,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.width = 4,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "mmpll2",
@@ -412,6 +418,7 @@ static const struct pll_config mmpll3_config = {
 
 static struct clk_alpha_pll mmpll3_early = {
 	.offset = 0x60,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.vco_table = mmpll_p_vco,
 	.num_vco = ARRAY_SIZE(mmpll_p_vco),
 	.clkr.hw.init = &(struct clk_init_data){
@@ -425,6 +432,7 @@ static struct clk_alpha_pll mmpll3_early = {
 
 static struct clk_alpha_pll_postdiv mmpll3 = {
 	.offset = 0x60,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.width = 4,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "mmpll3",
@@ -449,6 +457,7 @@ static const struct pll_config mmpll4_config = {
 
 static struct clk_alpha_pll mmpll4_early = {
 	.offset = 0x90,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.vco_table = mmpll_t_vco,
 	.num_vco = ARRAY_SIZE(mmpll_t_vco),
 	.clkr.hw.init = &(struct clk_init_data){
@@ -462,6 +471,7 @@ static struct clk_alpha_pll mmpll4_early = {
 
 static struct clk_alpha_pll_postdiv mmpll4 = {
 	.offset = 0x90,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.width = 2,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "mmpll4",
@@ -486,6 +496,7 @@ static const struct pll_config mmpll5_config = {
 
 static struct clk_alpha_pll mmpll5_early = {
 	.offset = 0xc0,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.vco_table = mmpll_p_vco,
 	.num_vco = ARRAY_SIZE(mmpll_p_vco),
 	.clkr.hw.init = &(struct clk_init_data){
@@ -499,6 +510,7 @@ static struct clk_alpha_pll mmpll5_early = {
 
 static struct clk_alpha_pll_postdiv mmpll5 = {
 	.offset = 0xc0,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.width = 4,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "mmpll5",
@@ -523,6 +535,7 @@ static const struct pll_config mmpll8_config = {
 
 static struct clk_alpha_pll mmpll8_early = {
 	.offset = 0x4130,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.vco_table = mmpll_gfx_vco,
 	.num_vco = ARRAY_SIZE(mmpll_gfx_vco),
 	.clkr.hw.init = &(struct clk_init_data){
@@ -536,6 +549,7 @@ static struct clk_alpha_pll mmpll8_early = {
 
 static struct clk_alpha_pll_postdiv mmpll8 = {
 	.offset = 0x4130,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.width = 4,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "mmpll8",
@@ -560,6 +574,7 @@ static const struct pll_config mmpll9_config = {
 
 static struct clk_alpha_pll mmpll9_early = {
 	.offset = 0x4200,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.vco_table = mmpll_t_vco,
 	.num_vco = ARRAY_SIZE(mmpll_t_vco),
 	.flags = SUPPORTS_DYNAMIC_UPDATE,
@@ -575,6 +590,7 @@ static struct clk_alpha_pll mmpll9_early = {
 
 static struct clk_alpha_pll_postdiv mmpll9 = {
 	.offset = 0x4200,
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_DEFAULT],
 	.width = 2,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "mmpll9",

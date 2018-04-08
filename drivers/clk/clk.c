@@ -280,7 +280,7 @@ unlock_out:
 	clk_enable_unlock(flags);
 }
 
-static bool clk_ignore_unused;
+static bool clk_ignore_unused = false;
 static int __init clk_ignore_unused_setup(char *__unused)
 {
 	clk_ignore_unused = true;
@@ -654,6 +654,8 @@ static int clk_find_vdd_level(struct clk_core *clk, unsigned long rate)
 	if (level == clk->num_rate_max) {
 		pr_err("Rate %lu for %s is greater than highest Fmax\n", rate,
 				clk->name);
+		pr_err("Highest Fmax is %lu\n",
+			clk->rate_max[clk->num_rate_max - 1]);
 		return -EINVAL;
 	}
 
@@ -763,8 +765,9 @@ static int clk_unvote_vdd_level(struct clk_vdd_class *vdd_class, int level)
 
 	if (WARN(!vdd_class->level_votes[level],
 				"Reference counts are incorrect for %s level %d\n",
-				vdd_class->class_name, level))
+				vdd_class->class_name, level)) {
 		goto out;
+	}
 
 	vdd_class->level_votes[level]--;
 
@@ -807,6 +810,8 @@ static void clk_unvote_rate_vdd(struct clk_core *core, unsigned long rate)
 	level = clk_find_vdd_level(core, rate);
 	if (level < 0)
 		return;
+
+	pr_err("Unvoting for rate %lu, level %d", rate, level);
 
 	clk_unvote_vdd_level(core->vdd_class, level);
 }
@@ -978,8 +983,10 @@ static void clk_core_disable(struct clk_core *core)
 	if (!core)
 		return;
 
-	if (WARN_ON(core->enable_count == 0))
+	if (WARN_ON(core->enable_count == 0)) {
+		pr_err("ENABLE COUNT 0 for %s\n", core->name);
 		return;
+	}
 
 	if (WARN_ON(core->enable_count == 1 && core->flags & CLK_IS_CRITICAL))
 		return;
@@ -1843,8 +1850,10 @@ static int clk_core_set_rate_nolock(struct clk_core *core,
 
 	/* calculate new rates and get the topmost changed clock */
 	top = clk_calc_new_rates(core, rate);
-	if (!top)
+	if (!top) {
+		pr_err("calc_new_rates fail for clk %s rate %lu\n", core->name, rate);
 		return -EINVAL;
+	}
 
 	/* notify that we are about to change rates */
 	fail_clk = clk_propagate_rate_change(top, PRE_RATE_CHANGE);
@@ -2297,8 +2306,10 @@ int clk_set_flags(struct clk *clk, unsigned long flags)
 	if (!clk)
 		return 0;
 
-	if (!clk->core->ops->set_flags)
+	if (!clk->core->ops->set_flags) {
+		pr_err("No set_flags for clock %s", __clk_get_name(clk));
 		return -EINVAL;
+	}
 
 	return clk->core->ops->set_flags(clk->core->hw, flags);
 }
