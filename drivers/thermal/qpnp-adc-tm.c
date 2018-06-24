@@ -1664,8 +1664,11 @@ static int qpnp_adc_tm_set_trip_temp(void *data, int low_temp, int high_temp)
 	int rc = 0;
 	uint32_t btm_chan = 0, btm_chan_idx = 0;
 
-	if (qpnp_adc_tm_is_valid(chip))
+	if (qpnp_adc_tm_is_valid(chip)) {
+		pr_err("Invalid ADC TM with btm number 0x%x, vadc number 0x%x\n",
+			adc_tm->btm_channel_num, adc_tm->vadc_channel_num);
 		return -ENODEV;
+	}
 
 	if (qpnp_adc_tm_check_revision(chip, adc_tm->btm_channel_num))
 		return -EINVAL;
@@ -3088,7 +3091,11 @@ static int qpnp_adc_tm_probe(struct platform_device *pdev)
 				&chip->sensor[sen_idx],
 				&qpnp_adc_tm_thermal_ops);
 			if (IS_ERR(chip->sensor[sen_idx].tz_dev))
-				pr_err("thermal device register failed.\n");
+				pr_err("thermal device 0x%x register failed.\n",
+					chip->sensor[sen_idx].vadc_channel_num);
+			else
+				pr_err("Registered ADC-TM sensor 0x%x\n",
+					chip->sensor[sen_idx].vadc_channel_num);
 		}
 		chip->sensor[sen_idx].req_wq = alloc_workqueue(
 				"qpnp_adc_notify_wq", WQ_HIGHPRI, 0);

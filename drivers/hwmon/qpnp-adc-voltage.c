@@ -2630,7 +2630,8 @@ static int32_t qpnp_vadc_init_thermal(struct qpnp_vadc_chip *vadc,
 				&vadc->vadc_therm_chan[i],
 				&qpnp_vadc_thermal_ops);
 			if (IS_ERR(vadc->vadc_therm_chan[i].tz_dev)) {
-				pr_err("thermal device register failed.\n");
+				pr_err("thermal device 0x%x register failed.\n",
+					vadc->vadc_therm_chan[i].vadc_channel);
 				rc = PTR_ERR(vadc->vadc_therm_chan[i].tz_dev);
 				goto thermal_err_sens;
 			}

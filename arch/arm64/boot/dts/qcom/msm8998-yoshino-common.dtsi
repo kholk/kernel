@@ -46,7 +46,7 @@
 					dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1";
-					fsmgr_flags = "wait,verify";
+					fsmgr_flags = "wait";
 					status = "ok";
 				};
 				odm {
@@ -62,7 +62,7 @@
 					dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/system";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1";
-					fsmgr_flags = "wait,verify";
+					fsmgr_flags = "wait";
 					status = "ok";
 				};
 			};
@@ -72,10 +72,6 @@
 
 &cont_splash_mem {
 	reg = <0x0 0x9d400000 0x0 0x02400000>;
-};
-
-&mdss_fb0 {
-	/delete-node/ qcom,cont-splash-memory;
 };
 
 &soc {
@@ -247,7 +243,7 @@
 		pinctrl-0 = <&msm_gpio_55 &msm_gpio_56>;
 		pinctrl-1 = <&msm_gpio_55 &msm_gpio_56>;
 		qcom,clk-freq-out = <355000>;
-		status = "disabled";
+		status = "okay";
 	};
 
 	/* UART: BLSP8 */

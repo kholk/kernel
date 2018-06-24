@@ -560,7 +560,7 @@
 		qcom,regulator-type = <2>;
 		status = "disabled";
 
-		regulator-lvs1 {
+		pm8998_lvs1: regulator-lvs1 {
 			compatible = "qcom,rpm-smd-regulator";
 			regulator-name = "pm8998_lvs1";
 			qcom,set = <3>;

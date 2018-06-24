@@ -593,7 +593,7 @@ static int __clk_alpha_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 	const struct pll_vco *vco;
 	u32 l, alpha_width = pll_alpha_width(pll);
 	u64 a;
-
+pr_err("ALPHA PLL SET RATE FOR ========= %s =========\n", clk_hw_get_name(hw));
 	rate = alpha_pll_round_rate(rate, prate, &l, &a, alpha_width);
 	vco = alpha_pll_find_vco(pll, rate);
 	if (pll->vco_table && !vco) {
@@ -1482,6 +1482,15 @@ const struct clk_ops clk_alpha_pll_ops = {
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_ops);
 
+const struct clk_ops clk_alpha_pll_fixed_ops = {
+	.enable = clk_alpha_pll_enable,
+	.disable = clk_alpha_pll_disable,
+	.is_enabled = clk_alpha_pll_is_enabled,
+	.recalc_rate = clk_alpha_pll_recalc_rate,
+	.round_rate = clk_alpha_pll_round_rate,
+};
+EXPORT_SYMBOL_GPL(clk_alpha_pll_fixed_ops);
+
 const struct clk_ops clk_alpha_pll_huayra_ops = {
 	.enable = clk_alpha_pll_enable,
 	.disable = clk_alpha_pll_disable,
@@ -1573,7 +1582,6 @@ static const struct clk_div_table clk_alpha_div_table[] = {
 };
 
 static const struct clk_div_table clk_alpha_odd_div_table[] = {
-	{ 0x0, 1 },
 	{ 0x3, 3 },
 	{ 0x5, 5 },
 	{ 0x7, 7 },

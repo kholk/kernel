@@ -110,6 +110,8 @@ static int clk_branch_wait(const struct clk_branch *br, bool enabling,
 		}
 		WARN(1, "clk: %s status stuck at 'o%s'", name,
 				enabling ? "ff" : "n");
+		pr_err("clk: %s status stuck at'o%s'", name,
+				enabling ? "ff" : "n");
 		return -EBUSY;
 	}
 	return 0;
@@ -123,8 +125,10 @@ static int clk_branch_toggle(struct clk_hw *hw, bool en,
 
 	if (en) {
 		ret = clk_enable_regmap(hw);
-		if (ret)
+		if (ret) {
+			pr_err("CLK_ENABLE_REGMAP FAILED\n");
 			return ret;
+		}
 	} else {
 		clk_disable_regmap(hw);
 	}
