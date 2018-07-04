@@ -3320,6 +3320,14 @@ static int dsi_display_res_init(struct dsi_display *display)
 			goto error_ctrl_put;
 		}
 	}
+	
+#ifdef CONFIG_DRM_SDE_SPECIFIC_PANEL
+	rc = dsi_panel_driver_create_fs(display);
+	if (rc) {
+		pr_err("%s: faild dsi_panel_driver_create_fs rc=%d\n", __func__, rc);
+		return rc;
+	}
+#endif /* CONFIG_DRM_SDE_SPECIFIC_PANEL */
 
 	display->panel = dsi_panel_get(&display->pdev->dev, display->panel_of,
 						display->cmdline_topology);
@@ -3411,9 +3419,6 @@ static bool dsi_display_is_seamless_dfps_possible(
 		const enum dsi_dfps_type dfps_type)
 {
 	struct dsi_display_mode *cur;
-#ifdef CONFIG_DRM_SDE_SPECIFIC_PANEL
-	int rc;
-#endif
 
 	if (!display || !tgt || !display->panel) {
 		pr_err("Invalid params\n");
@@ -3434,13 +3439,6 @@ static bool dsi_display_is_seamless_dfps_possible(
 				tgt->timing.h_back_porch);
 		return false;
 	}
-#ifdef CONFIG_DRM_SDE_SPECIFIC_PANEL
-	rc = dsi_panel_driver_create_fs(display);
-	if (rc) {
-		pr_err("%s: faild dsi_panel_driver_create_fs rc=%d\n", __func__, rc);
-		return rc;
-	}
-#endif /* CONFIG_DRM_SDE_SPECIFIC_PANEL */
 
 	if (cur->timing.h_sync_width != tgt->timing.h_sync_width) {
 		pr_debug("timing.h_sync_width differs %d %d\n",
