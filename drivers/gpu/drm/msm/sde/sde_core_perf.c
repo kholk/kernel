@@ -637,7 +637,7 @@ void sde_core_perf_crtc_update(struct drm_crtc *crtc,
 	 * bandwidth is available before clock rate is increased.
 	 */
 	if (update_clk) {
-		clk_rate = _sde_core_perf_get_core_clk_rate(kms);
+		clk_rate = 430000000; //_sde_core_perf_get_core_clk_rate(kms);
 
 		SDE_EVT32(kms->dev, stop_req, clk_rate, params_changed,
 			old->core_clk_rate, new->core_clk_rate);
