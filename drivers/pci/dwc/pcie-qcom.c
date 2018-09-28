@@ -11,6 +11,7 @@
 #define DOWNSTREAM_BUS_SCALING
 
 #include <linux/clk.h>
+#include <linux/clk/qcom.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
@@ -116,6 +117,7 @@ struct qcom_pcie_resources_2_3_2 {
 	struct clk *cfg_clk;
 	struct clk *smmu_clk;
 	struct clk *pipe_clk;
+	struct clk *ref_clk;
 	struct regulator_bulk_data supplies[QCOM_PCIE_2_3_2_MAX_SUPPLY];
 };
 
@@ -539,7 +541,11 @@ static int qcom_pcie_get_resources_2_3_2(struct qcom_pcie *pcie)
 		return PTR_ERR(res->smmu_clk);
 
 	res->pipe_clk = devm_clk_get(dev, "pipe");
-	return PTR_ERR_OR_ZERO(res->pipe_clk);
+	if (IS_ERR(res->pipe_clk))
+		return PTR_ERR(res->pipe_clk);
+
+	res->ref_clk = devm_clk_get(dev, "ref");
+	return PTR_ERR_OR_ZERO(res->ref_clk);
 }
 
 static void qcom_pcie_deinit_2_3_2(struct qcom_pcie *pcie)
@@ -605,7 +611,13 @@ static int qcom_pcie_init_2_3_2(struct qcom_pcie *pcie)
 #endif
 	ret = clk_prepare_enable(res->smmu_clk);
 	if (ret) {
-		dev_err(dev, "cannot prepare/enable slave clock\n");
+		dev_err(dev, "cannot prepare/enable smmu clock\n");
+		goto err_aux_clk;
+	}
+
+	ret = clk_prepare_enable(res->ref_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable reference clock\n");
 		goto err_aux_clk;
 	}
 
@@ -621,6 +633,18 @@ static int qcom_pcie_init_2_3_2(struct qcom_pcie *pcie)
 		goto err_cfg_clk;
 	}
 
+	ret = clk_set_flags(res->master_clk, CLKFLAG_NORETAIN_MEM);
+	if (ret) {
+		dev_err(dev, "cannot set flags master clock\n");
+		goto err_master_clk;
+	}
+
+	ret = clk_set_flags(res->slave_clk, CLKFLAG_NORETAIN_PERIPH);
+	if (ret) {
+		dev_err(dev, "cannot set flags slave clock\n");
+		goto err_master_clk;
+	}
+
 	ret = clk_prepare_enable(res->master_clk);
 	if (ret) {
 		dev_err(dev, "cannot prepare/enable master clock\n");
@@ -632,6 +656,8 @@ static int qcom_pcie_init_2_3_2(struct qcom_pcie *pcie)
 		dev_err(dev, "cannot prepare/enable slave clock\n");
 		goto err_slave_clk;
 	}
+
+	clk_set_rate(res->aux_clk, 1010000);
 
 	/* enable PCIe clocks and resets */
 	val = readl(pcie->parf + PCIE20_PARF_PHY_CTRL);
@@ -682,7 +708,7 @@ static int qcom_pcie_post_init_2_3_2(struct qcom_pcie *pcie)
 		return ret;
 	}
 
-	clk_set_rate(res->pipe_clk, 1010526);
+	clk_set_rate(res->pipe_clk, 125000000); //1010526);
 
 	return 0;
 }
@@ -1143,6 +1169,7 @@ static int qcom_pcie_host_init(struct pcie_port *pp)
 	struct qcom_pcie *pcie = to_qcom_pcie(pci);
 	int ret;
 
+	pm_runtime_get_sync(pci->dev);
 	qcom_ep_reset_assert(pcie);
 
 	ret = pcie->ops->init(pcie);
@@ -1179,6 +1206,7 @@ err_disable_phy:
 	phy_power_off(pcie->phy);
 err_deinit:
 	pcie->ops->deinit(pcie);
+	pm_runtime_put(pci->dev);
 
 	return ret;
 }
