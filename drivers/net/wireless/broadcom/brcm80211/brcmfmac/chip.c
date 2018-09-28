@@ -445,7 +445,7 @@ static void brcmf_chip_ai_resetcore(struct brcmf_core_priv *core, u32 prereset,
 	int count;
 
 	ci = core->chip;
-
+pr_err("resetcore\n");
 	/* must disable first to work for arbitrary current core state */
 	brcmf_chip_ai_coredisable(core, prereset, reset);
 
@@ -458,10 +458,11 @@ static void brcmf_chip_ai_resetcore(struct brcmf_core_priv *core, u32 prereset,
 			break;
 		usleep_range(40, 60);
 	}
-
+pr_err("write\n");
 	ci->ops->write32(ci->ctx, core->wrapbase + BCMA_IOCTL,
 			 postreset | BCMA_IOCTL_CLK);
 	ci->ops->read32(ci->ctx, core->wrapbase + BCMA_IOCTL);
+pr_err("resetok\n");
 }
 
 static char *brcmf_chip_name(uint chipid, char *buf, uint len)
@@ -855,9 +856,9 @@ int brcmf_chip_dmp_erom_scan(struct brcmf_chip_priv *ci)
 	u8 nmp, nsp, nmw, nsw, rev;
 	u32 base, wrap;
 	int err;
-
+pr_err("read32\n");
 	eromaddr = ci->ops->read32(ci->ctx, CORE_CC_REG(SI_ENUM_BASE, eromptr));
-
+pr_err("read OK\n");
 	while (desc_type != DMP_DESC_EOT) {
 		val = brcmf_chip_dmp_get_desc(ci, &eromaddr, &desc_type);
 		if (!(val & DMP_DESC_VALID))
@@ -893,7 +894,7 @@ int brcmf_chip_dmp_erom_scan(struct brcmf_chip_priv *ci)
 		err = brcmf_chip_dmp_get_regaddr(ci, &eromaddr, &base, &wrap);
 		if (err)
 			continue;
-
+pr_err("add core\n");
 		/* finally a core to be added */
 		core = brcmf_chip_add_core(ci, id, base, wrap);
 		if (IS_ERR(core))
@@ -952,10 +953,11 @@ static int brcmf_chip_recognition(struct brcmf_chip_priv *ci)
 		core = brcmf_chip_add_core(ci, BCMA_CORE_80211, 0x18001000, 0);
 		brcmf_chip_sb_corerev(ci, core);
 	} else if (socitype == SOCI_AI) {
+pr_err("SOCI_AI\n");
 		ci->iscoreup = brcmf_chip_ai_iscoreup;
 		ci->coredisable = brcmf_chip_ai_coredisable;
 		ci->resetcore = brcmf_chip_ai_resetcore;
-
+pr_err("EROM_SCAN\n");
 		brcmf_chip_dmp_erom_scan(ci);
 	} else {
 		brcmf_err("chip backplane type %u is not supported\n",
@@ -963,10 +965,11 @@ static int brcmf_chip_recognition(struct brcmf_chip_priv *ci)
 		return -ENODEV;
 	}
 
+pr_err("CORESCHECK\n");
 	ret = brcmf_chip_cores_check(ci);
 	if (ret)
 		return ret;
-
+pr_err("PASSIVE\n");
 	/* assure chip is passive for core access */
 	brcmf_chip_set_passive(&ci->pub);
 
@@ -974,10 +977,12 @@ static int brcmf_chip_recognition(struct brcmf_chip_priv *ci)
 	 * but further access may require a chip specific reset at this point.
 	 */
 	if (ci->ops->reset) {
-		ci->ops->reset(ci->ctx, &ci->pub);
-		brcmf_chip_set_passive(&ci->pub);
+		pr_err("RST\n");
+//		ci->ops->reset(ci->ctx, &ci->pub);
+		pr_err("PASSIVE AGAIN\n");
+	//	brcmf_chip_set_passive(&ci->pub);
 	}
-
+pr_err("GET RAMINFO\n");
 	return brcmf_chip_get_raminfo(ci);
 }
 

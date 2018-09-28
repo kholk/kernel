@@ -3355,9 +3355,9 @@ static inline int msm_pcie_oper_conf(struct pci_bus *bus, u32 devfn, int oper,
 
 	if (oper == RD) {
 		*val = ((rd_val & mask) >> (8 * byte_offset));
-		PCIE_DBG3(dev,
-			"RC%d %d:0x%02x + 0x%04x[%d] -> 0x%08x; rd 0x%08x\n",
-			rc_idx, bus->number, devfn, where, size, *val, rd_val);
+		//PCIE_DBG3(dev,
+		//	"RC%d %d:0x%02x + 0x%04x[%d] -> 0x%08x; rd 0x%08x\n",
+		//	rc_idx, bus->number, devfn, where, size, *val, rd_val);
 	} else {
 		wr_val = (rd_val & ~mask) |
 				((*val << (8 * byte_offset)) & mask);
@@ -3380,10 +3380,10 @@ static inline int msm_pcie_oper_conf(struct pci_bus *bus, u32 devfn, int oper,
 					bdf, rc);
 		}
 
-		PCIE_DBG3(dev,
-			"RC%d %d:0x%02x + 0x%04x[%d] <- 0x%08x; rd 0x%08x val 0x%08x\n",
-			rc_idx, bus->number, devfn, where, size,
-			wr_val, rd_val, *val);
+		//PCIE_DBG3(dev,
+		//	"RC%d %d:0x%02x + 0x%04x[%d] <- 0x%08x; rd 0x%08x val 0x%08x\n",
+		//	rc_idx, bus->number, devfn, where, size,
+		//	wr_val, rd_val, *val);
 	}
 
 unlock:
@@ -6898,7 +6898,7 @@ static void __exit pcie_exit(void)
 		msm_pcie_sysfs_exit(&msm_pcie_dev[i]);
 }
 
-fs_initcall_sync(pcie_init);
+module_init(pcie_init);
 module_exit(pcie_exit);
 
 

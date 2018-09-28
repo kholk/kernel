@@ -102,6 +102,7 @@
 	/* BCM4359 C0 PCI-E */
 	brcmf: brcmfmac {
 		reg = <1 0>;
+		status = "disabled";
 		compatible = "brcm,bcm4329-fmac";
 		interrupt-parent = <&tlmm>;
 		interrupts = <79 8>;
@@ -3254,9 +3255,9 @@
 
 &pcie0 {
 //	qcom,clk-power-manage-en;
-	qcom,boot-option = <0x1>;
+	qcom,boot-option = <0x0>;
 
-	status = "disabled";
+	status = "ok";
 
 		qcom,msm-bus,name = "pcie0";
 		qcom,msm-bus,num-cases = <2>;
@@ -3291,6 +3292,7 @@
 	status = "disabled";
 };
 
+#if 0
 &soc {
 		phy@34000 {
 			compatible = "qcom,msm8996-qmp-pcie-phy";
@@ -3435,3 +3437,4 @@
 			};
 		};
 };
+#endif

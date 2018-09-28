@@ -1590,13 +1590,17 @@ static int brcmf_pcie_buscore_reset(void *ctx, struct brcmf_chip *chip)
 	u32 val;
 
 	devinfo->ci = chip;
+pr_err("PCIE_RESET\n");
 	brcmf_pcie_reset_device(devinfo);
 
+pr_err("READ\n");
 	val = brcmf_pcie_read_reg32(devinfo, BRCMF_PCIE_PCIE2REG_MAILBOXINT);
-	if (val != 0xffffffff)
+	if (val != 0xffffffff) {
+		pr_err("Unexpected value, WRITE!\n");
 		brcmf_pcie_write_reg32(devinfo, BRCMF_PCIE_PCIE2REG_MAILBOXINT,
 				       val);
-
+	}
+pr_err("READ OK\n");
 	return 0;
 }
 
@@ -1795,7 +1799,7 @@ brcmf_pcie_remove(struct pci_dev *pdev)
 	struct brcmf_pciedev_info *devinfo;
 	struct brcmf_bus *bus;
 
-	brcmf_dbg(PCIE, "Enter\n");
+	brcmf_dbg(PCIE, "Enter REMOVE\n");
 
 	bus = dev_get_drvdata(&pdev->dev);
 	if (bus == NULL)
@@ -1838,7 +1842,7 @@ static int brcmf_pcie_pm_enter_D3(struct device *dev)
 	struct brcmf_pciedev_info *devinfo;
 	struct brcmf_bus *bus;
 
-	brcmf_dbg(PCIE, "Enter\n");
+	brcmf_dbg(PCIE, "Enter D3\n");
 
 	bus = dev_get_drvdata(dev);
 	devinfo = bus->bus_priv.pcie->devinfo;

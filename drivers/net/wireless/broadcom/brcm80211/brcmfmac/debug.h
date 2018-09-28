@@ -85,7 +85,7 @@ do {								\
 
 #else /* defined(DEBUG) || defined(CONFIG_BRCM_TRACING) */
 
-#define brcmf_dbg(level, fmt, ...) no_printk(fmt, ##__VA_ARGS__)
+#define brcmf_dbg(level, fmt, ...) pr_err(fmt, ##__VA_ARGS__)
 
 #define BRCMF_DATA_ON()		0
 #define BRCMF_CTL_ON()		0

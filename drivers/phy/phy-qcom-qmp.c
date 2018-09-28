@@ -1009,7 +1009,7 @@ static const struct qmp_phy_cfg qmp_v3_usb3_uniphy_cfg = {
 };
 
 static const struct qmp_phy_cfg sdm845_ufsphy_cfg = {
-	//.type			= PHY_TYPE_UFS,
+	.type			= PHY_TYPE_UFS,
 	.nlanes			= 2,
 
 	.serdes_tbl		= sdm845_ufsphy_serdes_tbl,
