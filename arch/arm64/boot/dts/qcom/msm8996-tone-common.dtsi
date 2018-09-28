@@ -332,24 +332,6 @@
 		};
 	};
 
-	bcmdhd_wlan {
-		compatible = "android,bcmdhd_wlan";
-		gpios = <&tlmm 84 0x00>, /* WL_REG_ON */
-			<&tlmm 79 0x00>; /* WL_HOST_WAKE */
-		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&msm_gpio_84 &msm_gpio_79>;
-		pinctrl-1 = <&msm_gpio_84 &msm_gpio_79>;
-		wlan-pci-number = <0>;
-
-		qcom,msm-bus,name = "msm-bcmdhd";
-		qcom,msm-bus,num-cases = <3>;
-		qcom,msm-bus,num-paths = <1>;
-		qcom,msm-bus,vectors-KBps =
-			<45 512 0 0>, /* None vote */
-			<45 512 500 800>, /* Low vote */
-			<45 512 500 5448000>; /* High Vote */
-	};
-
 	somc_pinctrl: somc_pinctrl@0 {
 		compatible = "somc-pinctrl";
 		pinctrl-names = "platform_common_default",
@@ -2431,7 +2413,7 @@
 			pins = "gpio84";
 			drive-strength = <2>;
 			bias-disable;
-			output-low;
+			output-high;
 		};
 	};
 
@@ -3263,6 +3245,9 @@
 
 &pcie0 {
 	qcom,clk-power-manage-en;
+
+	/* Enumerate devices at PCI-E probe */
+	qcom,boot-option = <0x0>;
 };
 
 &wil6210 {
