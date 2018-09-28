@@ -8,6 +8,8 @@
  * Author: Stanimir Varbanov <svarbanov@mm-sol.com>
  */
 
+#define DOWNSTREAM_BUS_SCALING
+
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -25,6 +27,11 @@
 #include <linux/reset.h>
 #include <linux/slab.h>
 #include <linux/types.h>
+
+#ifdef DOWNSTREAM_BUS_SCALING
+#include <linux/msm-bus.h>
+#include <linux/msm-bus-board.h>
+#endif
 
 #include "pcie-designware.h"
 
@@ -165,6 +172,10 @@ struct qcom_pcie {
 	union qcom_pcie_resources res;
 	struct phy *phy;
 	struct gpio_desc *reset;
+#ifdef DOWNSTREAM_BUS_SCALING
+	struct msm_bus_scale_pdata   *bus_scale_table;
+	uint32_t			   bus_client;
+#endif
 	const struct qcom_pcie_ops *ops;
 };
 
@@ -534,6 +545,9 @@ static int qcom_pcie_get_resources_2_3_2(struct qcom_pcie *pcie)
 static void qcom_pcie_deinit_2_3_2(struct qcom_pcie *pcie)
 {
 	struct qcom_pcie_resources_2_3_2 *res = &pcie->res.v2_3_2;
+#ifdef DOWNSTREAM_BUS_SCALING
+	int rc = 0;
+#endif
 
 	clk_disable_unprepare(res->slave_clk);
 	clk_disable_unprepare(res->master_clk);
@@ -541,6 +555,17 @@ static void qcom_pcie_deinit_2_3_2(struct qcom_pcie *pcie)
 	clk_disable_unprepare(res->aux_clk);
 	clk_disable_unprepare(res->smmu_clk);
 
+#ifdef DOWNSTREAM_BUS_SCALING
+	if (pcie->bus_client) {
+		rc = msm_bus_scale_client_update_request(pcie->bus_client, 0);
+		if (rc) {
+			pr_err("PCIe: fail to set bus bandwidth:%d.\n", rc);
+//			return;
+		} else {
+			pr_err("PCIe: Draw back bus bandwidth. OK.\n");
+		}
+	}
+#endif
 	regulator_bulk_disable(ARRAY_SIZE(res->supplies), res->supplies);
 }
 
@@ -564,6 +589,20 @@ static int qcom_pcie_init_2_3_2(struct qcom_pcie *pcie)
 		dev_err(dev, "cannot enable regulators\n");
 		return ret;
 	}
+
+#ifdef DOWNSTREAM_BUS_SCALING
+	if (pcie->bus_client) {
+		ret = msm_bus_scale_client_update_request(pcie->bus_client, 1);
+		if (ret) {
+			dev_err(dev,
+				"PCIe: fail to set bus bandwidth:%d.\n", ret);
+			return ret;
+		} else {
+			dev_err(dev,
+				"PCIe: Set bus bandwidth. OK.\n");
+		}
+	}
+#endif
 	ret = clk_prepare_enable(res->smmu_clk);
 	if (ret) {
 		dev_err(dev, "cannot prepare/enable slave clock\n");
@@ -1262,6 +1301,23 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 	ret = pcie->ops->get_resources(pcie);
 	if (ret)
 		return ret;
+
+#ifdef DOWNSTREAM_BUS_SCALING
+	pcie->bus_scale_table = msm_bus_cl_get_pdata(pdev);
+	if (!pcie->bus_scale_table) {
+		dev_err(dev, "PCIe: No bus scale table\n");
+		pcie->bus_client = 0;
+	} else {
+		pcie->bus_client =
+			msm_bus_scale_register_client(pcie->bus_scale_table);
+		if (!pcie->bus_client) {
+			dev_err(dev,
+				"PCIe: Failed to register bus client\n");
+			msm_bus_cl_clear_pdata(pcie->bus_scale_table);
+			return ret;
+		}
+	}
+#endif
 
 	pp->root_bus_nr = -1;
 	pp->ops = &qcom_pcie_dw_ops;
