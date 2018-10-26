@@ -354,6 +354,10 @@ int msm_property_index(struct msm_property_info *info,
 	int rc = -EINVAL;
 
 	if (!info || !property) {
+		if (property)
+			DRM_ERROR("property->name = %s", property->name);
+		if (info)
+			DRM_ERROR("info is present\n");
 		DRM_ERROR("invalid argument(s)\n");
 	} else {
 		/*

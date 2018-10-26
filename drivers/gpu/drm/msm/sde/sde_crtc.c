@@ -5313,14 +5313,34 @@ static int sde_crtc_atomic_set_property(struct drm_crtc *crtc,
 		ret = _sde_crtc_set_dest_scaler_lut(sde_crtc, cstate, idx);
 		break;
 	case CRTC_PROP_CORE_CLK:
+//		pr_err("*****************CRTC_PROP_CORE_CLK, setting val=%llu\n", val);
+		cstate->bw_control = true;
+		break;
 	case CRTC_PROP_CORE_AB:
+//		pr_err("*****************CRTC_PROP_CORE_AB, setting val=%llu\n", val);
+		cstate->bw_control = true;
+		break;
 	case CRTC_PROP_CORE_IB:
+//		pr_err("*****************CRTC_PROP_CORE_IB, setting val=%llu\n", val);
 		cstate->bw_control = true;
 		break;
 	case CRTC_PROP_LLCC_AB:
+//		pr_err("*****************CRTC_PROP_LLCC_AB, setting val=%llu\n", val);
+		cstate->bw_control = true;
+		cstate->bw_split_vote = true;
+		break;
 	case CRTC_PROP_LLCC_IB:
+//		pr_err("*****************CRTC_PROP_LLCC_IB, setting val=%llu\n", val);
+		cstate->bw_control = true;
+		cstate->bw_split_vote = true;
+		break;
 	case CRTC_PROP_DRAM_AB:
+//		pr_err("CRTC_PROP_DRAM_AB, setting val=%llu\n", val);
+		cstate->bw_control = true;
+		cstate->bw_split_vote = true;
+		break;
 	case CRTC_PROP_DRAM_IB:
+//		pr_err("CRTC_PROP_DRAM_IB, setting val=%llu\n", val);
 		cstate->bw_control = true;
 		cstate->bw_split_vote = true;
 		break;

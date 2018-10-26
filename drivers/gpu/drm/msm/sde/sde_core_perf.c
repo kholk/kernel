@@ -843,10 +843,13 @@ int sde_core_perf_init(struct sde_core_perf *perf,
 	perf->clk_name = clk_name;
 	perf->sde_rsc_available = is_sde_rsc_available(SDE_RSC_INDEX);
 	/* set default mode */
-	if (perf->sde_rsc_available)
+	if (perf->sde_rsc_available) {
 		perf->bw_vote_mode = DISP_RSC_MODE;
-	else
+		pr_err("disp rsc mode\n");
+	} else {
 		perf->bw_vote_mode = APPS_RSC_MODE;
+		pr_err("apps rsc mode\n");
+	}
 
 	perf->core_clk = sde_power_clk_get_clk(phandle, clk_name);
 	if (!perf->core_clk) {
