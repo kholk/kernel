@@ -164,6 +164,29 @@ static int32_t cam_actuator_power_down(struct cam_actuator_ctrl_t *a_ctrl)
 	return rc;
 }
 
+static uint16_t bu64747_calc_hacked_focus(uint16_t dac_value)
+{
+	uint16_t old_max, old_min, old_range;
+	uint16_t new_max, new_min, new_range, new_val;
+
+	old_max = 707;
+	old_min = 428;
+	new_max = 800;
+	new_min = 10;
+
+	if (dac_value <= old_min)
+		return 0;
+	if (dac_value >= old_max)
+		return new_max;
+
+	old_range = old_max - old_min;
+	new_range = new_max - new_min;
+
+	new_val = (((dac_value - old_min) * new_range) / old_range) + new_min;
+
+	return new_val;
+}
+
 static int32_t cam_actuator_i2c_modes_util(
 	struct camera_io_master *io_master_info,
 	struct i2c_settings_list *i2c_list)
@@ -179,9 +202,10 @@ static int32_t cam_actuator_i2c_modes_util(
 		    i2c_list->i2c_settings.data_type == 2 &&
 		    i2c_list->i2c_settings.size == 1) {
 			struct cam_sensor_i2c_reg_array *orig = i2c_list->i2c_settings.reg_setting;
-			uint16_t bu64747_dac = i2c_list->i2c_settings.reg_setting[0].reg_data;
+			uint16_t bu64747_req_foc = i2c_list->i2c_settings.reg_setting[0].reg_data;
+			uint16_t bu64747_dac = bu64747_calc_hacked_focus(bu64747_req_foc);
 
-			CAM_DBG(CAM_ACTUATOR, "bu64747: set new dac value %d.", bu64747_dac);
+			CAM_ERR(CAM_ACTUATOR, "bu64747: set new dac value %d.", bu64747_dac);
 			bu64747_set_dac_array[1].reg_data = bu64747_dac & 0x00FF;
 			bu64747_set_dac_array[2].reg_data = (bu64747_dac & 0x0300) >> 8;
 			i2c_list->i2c_settings.data_type = 1;
@@ -200,7 +224,7 @@ static int32_t cam_actuator_i2c_modes_util(
 		    i2c_list->i2c_settings.size == 1) {
 			uint16_t bu64253_dac = i2c_list->i2c_settings.reg_setting[0].reg_data;
 
-			CAM_DBG(CAM_ACTUATOR, "bu64253: set new dac value %d.", bu64253_dac);
+			CAM_ERR(CAM_ACTUATOR, "bu64253: set new dac value %d.", bu64253_dac);
 			i2c_list->i2c_settings.data_type = 1;
 			i2c_list->i2c_settings.reg_setting[0].reg_addr = 0xC0 | ((bu64253_dac & 0x0300) >> 8);
 			i2c_list->i2c_settings.reg_setting[0].reg_data = bu64253_dac & 0x00FF;
