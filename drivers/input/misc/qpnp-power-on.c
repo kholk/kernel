@@ -339,7 +339,7 @@ static bool is_pon_gen2(struct qpnp_pon *pon)
 }
 
 /**
- * qpnp_pon_set_restart_reason - Store device restart reason in PMIC register.
+ * __qpnp_pon_set_restart_reason - Store device restart reason in PMIC register.
  *
  * Returns = 0 if PMIC feature is not available or store restart reason
  * successfully.
@@ -349,7 +349,7 @@ static bool is_pon_gen2(struct qpnp_pon *pon)
  * It checks here to see if the restart reason register has been specified.
  * If it hasn't, this function should immediately return 0
  */
-int qpnp_pon_set_restart_reason(enum pon_restart_reason reason)
+int __qpnp_pon_set_restart_reason(int reason)
 {
 	int rc = 0;
 	struct qpnp_pon *pon = sys_reset_dev;
@@ -372,6 +372,31 @@ int qpnp_pon_set_restart_reason(enum pon_restart_reason reason)
 				"Unable to write to addr=%x, rc(%d)\n",
 				QPNP_PON_SOFT_RB_SPARE(pon), rc);
 	return rc;
+}
+
+int qpnp_pon_set_restart_reason(int reason)
+{
+	int real_reason = reason;
+	int loader_tgt = msm_restart_get_bootloader_target();
+
+	if (loader_tgt == LOADER_TARGET_QCOM ||
+	    loader_tgt == LOADER_TARGET_SOMC_S1BOOT)
+		goto end;
+
+	/* SoMC XBOOT */
+	if (reason > PON_RESTART_REASON_UNKNOWN &&
+	    reason < PON_RESTART_REASON_REBOOT) {
+		real_reason = reason + 1;
+	}
+
+	if (reason == PON_RESTART_REASON_REBOOT ||
+	    reason >  XBOOT_RESTART_REASON_XFL) {
+		pr_warn("WARNING: Unknown restart reason for XBOOT!\n");
+		real_reason = XBOOT_RESTART_REASON_UNKNOWN;
+	}
+
+end:
+	return __qpnp_pon_set_restart_reason(real_reason);
 }
 EXPORT_SYMBOL(qpnp_pon_set_restart_reason);
 
