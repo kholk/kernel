@@ -313,6 +313,41 @@ static const char * const qpnp_poff_reason[] = {
 	[39] = "Triggered from S3_RESET_KPDPWR_ANDOR_RESIN (power key and/or reset line)",
 };
 
+int restart_reason_map_qcom[PON_RESTART_REASON_MAX] = {
+	/* 0 ~ 31 for common defined features */
+	[PON_RESTART_REASON_UNKNOWN]		= 0x00,
+	[PON_RESTART_REASON_RECOVERY]		= 0x01,
+	[PON_RESTART_REASON_BOOTLOADER]		= 0x02,
+	[PON_RESTART_REASON_RTC]		= 0x03,
+	[PON_RESTART_REASON_DMVERITY_CORRUPTED]	= 0x04,
+	[PON_RESTART_REASON_DMVERITY_ENFORCE]	= 0x05,
+	[PON_RESTART_REASON_KEYS_CLEAR]		= 0x06,
+	[PON_RESTART_REASON_REBOOT]		= 0x10,
+
+	/* 32 ~ 63 for OEMs/ODMs secific features */
+	[PON_RESTART_REASON_OEM_MIN]		= 0x20,
+	[PON_RESTART_REASON_OEM_MAX]		= 0x3f,
+};
+
+int restart_reason_map_xboot[PON_RESTART_REASON_MAX] = {
+	[PON_RESTART_REASON_NONE]		= 0x00,
+	[PON_RESTART_REASON_UNKNOWN]		= 0x01,
+	[PON_RESTART_REASON_RECOVERY]		= 0x02,
+	[PON_RESTART_REASON_BOOTLOADER]		= 0x03,
+	[PON_RESTART_REASON_RTC]		= 0x04,
+	[PON_RESTART_REASON_DMVERITY_CORRUPTED]	= 0x05,
+	[PON_RESTART_REASON_DMVERITY_ENFORCE]	= 0x06,
+	[PON_RESTART_REASON_KEYS_CLEAR]		= 0x07,
+	[PON_RESTART_REASON_KERNEL_PANIC]	= 0x40,
+	[PON_RESTART_REASON_UNHANDLED_RESET]	= 0x41,
+	[PON_RESTART_REASON_FOTA_CRASH]		= 0x42,
+	[PON_RESTART_REASON_OEM_MIN]		= 0x50,
+	[PON_RESTART_REASON_OEM_F]		= 0x50,
+	[PON_RESTART_REASON_OEM_P]		= 0x51,
+	[PON_RESTART_REASON_OEM_MAX]		= 0x5f,
+	[PON_RESTART_REASON_XFL]		= 0x60,
+};
+
 static int
 qpnp_pon_masked_write(struct qpnp_pon *pon, u16 addr, u8 mask, u8 val)
 {
@@ -374,28 +409,17 @@ int __qpnp_pon_set_restart_reason(int reason)
 	return rc;
 }
 
-int qpnp_pon_set_restart_reason(int reason)
+int qpnp_pon_set_restart_reason(enum pon_restart_reason reason)
 {
 	int real_reason = reason;
 	int loader_tgt = msm_restart_get_bootloader_target();
 
 	if (loader_tgt == LOADER_TARGET_QCOM ||
 	    loader_tgt == LOADER_TARGET_SOMC_S1BOOT)
-		goto end;
+		real_reason = restart_reason_map_qcom[reason];
+	else
+		real_reason = restart_reason_map_xboot[reason];
 
-	/* SoMC XBOOT */
-	if (reason > PON_RESTART_REASON_UNKNOWN &&
-	    reason < PON_RESTART_REASON_REBOOT) {
-		real_reason = reason + 1;
-	}
-
-	if (reason == PON_RESTART_REASON_REBOOT ||
-	    reason >  XBOOT_RESTART_REASON_XFL) {
-		pr_warn("WARNING: Unknown restart reason for XBOOT!\n");
-		real_reason = XBOOT_RESTART_REASON_UNKNOWN;
-	}
-
-end:
 	return __qpnp_pon_set_restart_reason(real_reason);
 }
 EXPORT_SYMBOL(qpnp_pon_set_restart_reason);

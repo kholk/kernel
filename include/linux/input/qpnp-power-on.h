@@ -51,30 +51,7 @@ enum pon_power_off_type {
 	PON_POWER_OFF_MAX_TYPE		= 0x10,
 };
 
-enum xboot_restart_reason {
-	/* Do NOT use the XBT reasons. For reference purposes only.
-	XBT_RESTART_REASON_NONE			= 0x00,
-	XBT_RESTART_REASON_UNKNOWN		= 0x01,
-	XBT_RESTART_REASON_RECOVERY		= 0x02,
-	XBT_RESTART_REASON_BOOTLOADER		= 0x03,
-	XBT_RESTART_REASON_RTC			= 0x04,
-	XBT_RESTART_REASON_DMVERITY_CORRUPTED	= 0x05,
-	XBT_RESTART_REASON_DMVERITY_ENFORCE	= 0x06,
-	XBT_RESTART_REASON_KEYS_CLEAR		= 0x07,
-	*/
-	XBOOT_RESTART_REASON_UNKNOWN		= 0x01,
-
-	/* SoMC specific */
-	XBOOT_RESTART_REASON_KERNEL_PANIC	= 0x40,
-	XBOOT_RESTART_REASON_UNHANDLED_RESET	= 0x41,
-	XBOOT_RESTART_REASON_FOTA_CRASH		= 0x42,
-	XBOOT_RESTART_REASON_OEM_MIN		= 0x50,
-	XBOOT_RESTART_REASON_OEM_F		= 0x50,
-	XBOOT_RESTART_REASON_OEM_P		= 0x51,
-	XBOOT_RESTART_REASON_OEM_MAX		= 0x5f,
-	XBOOT_RESTART_REASON_XFL		= 0x60,
-};
-
+/* NOTE: These are NOT the real restart reason values. */
 enum pon_restart_reason {
 	/* 0 ~ 31 for common defined features */
 	PON_RESTART_REASON_UNKNOWN		= 0x00,
@@ -86,9 +63,22 @@ enum pon_restart_reason {
 	PON_RESTART_REASON_KEYS_CLEAR		= 0x06,
 	PON_RESTART_REASON_REBOOT		= 0x10,
 
-	/* 32 ~ 63 for OEMs/ODMs secific features */
-	PON_RESTART_REASON_OEM_MIN		= 0x20,
-	PON_RESTART_REASON_OEM_MAX		= 0x3f,
+	/* QCOM: 32 ~ 63 for OEMs/ODMs secific features */
+	//PON_RESTART_REASON_OEM_MIN		= 0x20,
+	//PON_RESTART_REASON_OEM_MAX		= 0x3f,
+
+	/* SoMC specific */
+	PON_RESTART_REASON_KERNEL_PANIC		= 0x40,
+	PON_RESTART_REASON_UNHANDLED_RESET	= 0x41,
+	PON_RESTART_REASON_FOTA_CRASH		= 0x42,
+	PON_RESTART_REASON_OEM_MIN		= 0x50,
+	PON_RESTART_REASON_OEM_F		= 0x50,
+	PON_RESTART_REASON_OEM_P		= 0x51,
+	PON_RESTART_REASON_OEM_MAX		= 0x5f,
+	PON_RESTART_REASON_XFL			= 0x60,
+
+	PON_RESTART_REASON_NONE			= 0x80,
+	PON_RESTART_REASON_MAX,
 };
 
 enum loader_target {
@@ -118,7 +108,7 @@ int qpnp_pon_system_pwr_off(enum pon_power_off_type type);
 int qpnp_pon_is_warm_reset(void);
 int qpnp_pon_trigger_config(enum pon_trigger_source pon_src, bool enable);
 int qpnp_pon_wd_config(bool enable);
-int qpnp_pon_set_restart_reason(int reason);
+int qpnp_pon_set_restart_reason(enum pon_restart_reason reason);
 bool qpnp_pon_check_hard_reset_stored(void);
 
 #ifdef CONFIG_PON_SOMC_ORG
@@ -142,7 +132,7 @@ int qpnp_pon_wd_config(bool enable)
 {
 	return -ENODEV;
 }
-static inline int qpnp_pon_set_restart_reason(int reason)
+static inline int qpnp_pon_set_restart_reason(enum pon_restart_reason reason)
 {
 	return -ENODEV;
 }

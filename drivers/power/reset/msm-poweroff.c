@@ -304,7 +304,7 @@ static void msm_restart_prepare(const char *cmd)
 	     loader_tgt == LOADER_TARGET_SOMC_XBOOT_AB)) {
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
 		__raw_writel(0xC0DEDEAD, restart_reason);
-		qpnp_pon_set_restart_reason(XBOOT_RESTART_REASON_KERNEL_PANIC);
+		qpnp_pon_set_restart_reason(PON_RESTART_REASON_KERNEL_PANIC);
 		flush_cache_all();
 
 		return;
@@ -318,7 +318,7 @@ static void msm_restart_prepare(const char *cmd)
 		} else if (!strncmp(cmd, "recovery", 8)) {
 			if (loader_tgt == LOADER_TARGET_SOMC_XBOOT) {
 				qpnp_pon_set_restart_reason(
-					XBOOT_RESTART_REASON_OEM_F);
+					PON_RESTART_REASON_OEM_F);
 				__raw_writel(0x6f656d46, restart_reason); //F
 			} else if (loader_tgt == LOADER_TARGET_SOMC_S1BOOT) {
 				qpnp_pon_set_restart_reason(
@@ -485,7 +485,7 @@ static void do_msm_poweroff(void)
 
 	if (loader_tgt == LOADER_TARGET_SOMC_XBOOT ||
 	    loader_tgt == LOADER_TARGET_SOMC_XBOOT_AB) {
-				/* this is  XBOOT_RESTART_REASON_NONE */
+				/* this is  PON_RESTART_REASON_NONE */
 		qpnp_pon_set_restart_reason(PON_RESTART_REASON_UNKNOWN);
 	}
 
@@ -794,7 +794,7 @@ skip_sysfs_create:
 	if (loader_tgt == LOADER_TARGET_SOMC_XBOOT ||
 	    loader_tgt == LOADER_TARGET_SOMC_XBOOT_AB) {
 		__raw_writel(0xC0DEDEAD, restart_reason);
-		qpnp_pon_set_restart_reason(XBOOT_RESTART_REASON_KERNEL_PANIC);
+		qpnp_pon_set_restart_reason(PON_RESTART_REASON_KERNEL_PANIC);
 	} else if (loader_tgt == LOADER_TARGET_SOMC_S1BOOT) {
 		__raw_writel(0x77665501, restart_reason);
 		qpnp_pon_set_restart_reason(PON_RESTART_REASON_UNKNOWN);
