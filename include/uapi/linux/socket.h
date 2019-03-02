@@ -18,7 +18,7 @@ struct __kernel_sockaddr_storage {
 				/* _SS_MAXSIZE value minus size of ss_family */
 } __attribute__ ((aligned(_K_SS_ALIGNSIZE)));	/* force desired alignment */
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && defined(__ANDROID__)
  #define sockaddr_storage __kernel_sockaddr_storage
 #endif
 
