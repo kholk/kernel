@@ -1,6 +1,10 @@
 #ifndef _UAPI_LINUX_SOCKET_H
 #define _UAPI_LINUX_SOCKET_H
 
+#if !defined(__KERNEL__) && !defined(__ANDROID__)
+#include <sys/socket.h>
+#endif
+
 /*
  * Desired design of maximum size and alignment (see RFC2553)
  */
