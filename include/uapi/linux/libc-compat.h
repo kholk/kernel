@@ -158,6 +158,21 @@
 
 #endif /* defined(__NETIPX_IPX_H) */
 
+/* Coordinate with glibc time.h */
+#if defined(_TIME_H)
+#define __UAPI_DEF_TIMESPEC		0
+#define __UAPI_DEF_TIMEVAL		0
+#define __UAPI_DEF_ITIMERSPEC		0
+#define __UAPI_DEF_TIMER_ABSTIME	0
+
+#else /* defined(_TIME_H) */
+#define __UAPI_DEF_TIMESPEC		1
+#define __UAPI_DEF_TIMEVAL		1
+#define __UAPI_DEF_ITIMERSPEC		1
+#define __UAPI_DEF_TIMER_ABSTIME	1
+
+#endif /* defined(_TIME_H) */
+
 /* Definitions for xattr.h */
 #if defined(_SYS_XATTR_H)
 #define __UAPI_DEF_XATTR		0
@@ -256,10 +271,32 @@
 #define __UAPI_DEF_IPX_ROUTE_DEF		1
 #endif
 
+/* Definitions for sys/time.h */
+#if defined(_SYS_TIME_H)
+#define __UAPI_DEF_TIMEZONE			0
+#define __UAPI_DEF_ITIMER_REAL_VIRTUAL_PROF	0
+#define __UAPI_DEF_ITIMERVAL			0
+
+#else /* defined(_SYS_TIME_H) */
+#define __UAPI_DEF_TIMEZONE			1
+#define __UAPI_DEF_ITIMER_REAL_VIRTUAL_PROF	1
+#define __UAPI_DEF_ITIMERVAL			1
+
+#endif /* defined(_SYS_TIME_H) */
+
 /* Definitions for xattr.h */
 #ifndef __UAPI_DEF_XATTR
 #define __UAPI_DEF_XATTR		1
 #endif
+
+/* Definitions for time.h */
+#define __UAPI_DEF_TIMESPEC			1
+#define __UAPI_DEF_TIMEVAL			1
+#define __UAPI_DEF_TIMEZONE			1
+#define __UAPI_DEF_ITIMER_REAL_VIRTUAL_PROF	1
+#define __UAPI_DEF_ITIMERSPEC			1
+#define __UAPI_DEF_ITIMERVAL			1
+#define __UAPI_DEF_TIMER_ABSTIME		1
 
 #endif /* __GLIBC__ */
 
