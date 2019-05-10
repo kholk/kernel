@@ -7759,6 +7759,7 @@ void ftrace_dump(enum ftrace_dump_mode oops_dump_mode)
 	 */
 
 	while (!trace_empty(&iter)) {
+		struct trace_iterator *iterp = &iter;
 
 		if (!cnt)
 			printk(KERN_TRACE "---------------------------------\n");
@@ -7766,7 +7767,7 @@ void ftrace_dump(enum ftrace_dump_mode oops_dump_mode)
 		cnt++;
 
 		/* reset all but tr, trace, and overruns */
-		memset(&iter.seq, 0,
+		memset(&iterp->seq, 0,
 		       sizeof(struct trace_iterator) -
 		       offsetof(struct trace_iterator, seq));
 		iter.iter_flags |= TRACE_FILE_LAT_FMT;
