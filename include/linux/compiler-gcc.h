@@ -360,6 +360,10 @@
 #define COMPILER_HAS_GENERIC_BUILTIN_OVERFLOW 1
 #endif
 
+#if GCC_VERSION >= 90000
+#define __copy(symbol) __attribute__((__copy__(symbol)))
+#endif
+
 /*
  * Turn individual warnings and errors on and off locally, depending
  * on version.
