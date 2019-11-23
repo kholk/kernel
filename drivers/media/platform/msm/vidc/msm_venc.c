@@ -363,7 +363,7 @@ static struct msm_vidc_ctrl msm_venc_ctrls[] = {
 		.qmenu = NULL,
 	},
 	{
-		.id = V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL,
+		.id = V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
 		.name = "Video Framerate and Bitrate Control",
 		.type = V4L2_CTRL_TYPE_MENU,
 		.minimum = V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL_OFF,
@@ -1510,7 +1510,7 @@ int msm_venc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		request_iframe.enable = true;
 		pdata = &request_iframe;
 		break;
-	case V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL:
+	case V4L2_CID_MPEG_VIDEO_BITRATE_MODE:
 	{
 		struct v4l2_ctrl *hybrid_hp = TRY_GET_CTRL(
 			V4L2_CID_MPEG_VIDC_VIDEO_HYBRID_HIERP_MODE);
@@ -1984,7 +1984,7 @@ int msm_venc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		struct v4l2_ctrl *rate_control;
 
 		rate_control =
-			TRY_GET_CTRL(V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL);
+			TRY_GET_CTRL(V4L2_CID_MPEG_VIDEO_BITRATE_MODE);
 		if ((rate_control->val ==
 				V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL_CBR_VFR ||
 			rate_control->val ==
@@ -2277,7 +2277,7 @@ int msm_venc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 			break;
 		}
 
-		rc_mode = TRY_GET_CTRL(V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL);
+		rc_mode = TRY_GET_CTRL(V4L2_CID_MPEG_VIDEO_BITRATE_MODE);
 
 		switch (rc_mode->val) {
 		case V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL_VBR_CFR:
