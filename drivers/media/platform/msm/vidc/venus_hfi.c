@@ -30,8 +30,10 @@
 #include <linux/platform_device.h>
 #include <linux/soc/qcom/llcc-qcom.h>
 #include <soc/qcom/scm.h>
-#include <soc/qcom/smem.h>
+#include <soc/qcom/socinfo.h>
+#include <linux/soc/qcom/smem.h>
 #include <soc/qcom/subsystem_restart.h>
+#include <linux/dma-mapping.h>
 #include "hfi_packetization.h"
 #include "msm_vidc_debug.h"
 #include "venus_hfi.h"
@@ -998,14 +1000,10 @@ static int __tzbsp_set_video_state(enum tzbsp_video_state state)
 	desc.args[1] = cmd.spare = 0;
 	desc.arginfo = SCM_ARGS(2);
 
-	if (!is_scm_armv8()) {
-		rc = scm_call(SCM_SVC_BOOT, TZBSP_VIDEO_SET_STATE, &cmd,
-				sizeof(cmd), &tzbsp_rsp, sizeof(tzbsp_rsp));
-	} else {
-		rc = scm_call2(SCM_SIP_FNID(SCM_SVC_BOOT,
-				TZBSP_VIDEO_SET_STATE), &desc);
-		tzbsp_rsp = desc.ret[0];
-	}
+
+	rc = scm_call2(SCM_SIP_FNID(SCM_SVC_BOOT,
+			TZBSP_VIDEO_SET_STATE), &desc);
+	tzbsp_rsp = desc.ret[0];
 
 	if (rc) {
 		dprintk(VIDC_ERR, "Failed scm_call %d\n", rc);
@@ -2930,7 +2928,7 @@ static void __flush_debug_queue(struct venus_hfi_device *device, u8 *packet)
 	}
 
 	if (!packet) {
-		packet = kzalloc(VIDC_IFACEQ_VAR_HUGE_PKT_SIZE, GFP_TEMPORARY);
+		packet = kzalloc(VIDC_IFACEQ_VAR_HUGE_PKT_SIZE, GFP_KERNEL);
 		if (!packet) {
 			dprintk(VIDC_ERR, "In %s() Fail to allocate mem\n",
 				__func__);
@@ -3680,7 +3678,7 @@ static int __init_resources(struct venus_hfi_device *device,
 
 	device->sys_init_capabilities =
 		kzalloc(sizeof(struct msm_vidc_capability)
-		* VIDC_MAX_SESSIONS, GFP_TEMPORARY);
+		* VIDC_MAX_SESSIONS, GFP_KERNEL);
 
 	return rc;
 
@@ -3737,15 +3735,10 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 		}
 	}
 
-	if (!is_scm_armv8()) {
-		rc = scm_call(SCM_SVC_MP, TZBSP_MEM_PROTECT_VIDEO_VAR, &memprot,
-			sizeof(memprot), &resp, sizeof(resp));
-	} else {
-		desc.arginfo = SCM_ARGS(4);
-		rc = scm_call2(SCM_SIP_FNID(SCM_SVC_MP,
-			       TZBSP_MEM_PROTECT_VIDEO_VAR), &desc);
-		resp = desc.ret[0];
-	}
+	desc.arginfo = SCM_ARGS(4);
+	rc = scm_call2(SCM_SIP_FNID(SCM_SVC_MP,
+		       TZBSP_MEM_PROTECT_VIDEO_VAR), &desc);
+	resp = desc.ret[0];
 
 	if (rc) {
 		dprintk(VIDC_ERR, "Failed to protect memory(%d) response: %d\n",
@@ -4299,7 +4292,7 @@ static int venus_hfi_get_fw_info(void *dev, struct hal_fw_info *fw_info)
 {
 	int i = 0, j = 0;
 	struct venus_hfi_device *device = dev;
-	u32 smem_block_size = 0;
+	size_t smem_block_size = 0;
 	u8 *smem_table_ptr;
 	char version[VENUS_VERSION_LENGTH] = "";
 	const u32 smem_image_index_venus = 14 * 128;
@@ -4313,8 +4306,8 @@ static int venus_hfi_get_fw_info(void *dev, struct hal_fw_info *fw_info)
 
 	mutex_lock(&device->lock);
 
-	smem_table_ptr = smem_get_entry(SMEM_IMAGE_VERSION_TABLE,
-			&smem_block_size, 0, SMEM_ANY_HOST_FLAG);
+	smem_table_ptr = qcom_smem_get(QCOM_SMEM_HOST_ANY,
+			SMEM_IMAGE_VERSION_TABLE, &smem_block_size);
 	if (smem_table_ptr &&
 			((smem_image_index_venus +
 			  VENUS_VERSION_LENGTH) <= smem_block_size))
@@ -4497,7 +4490,7 @@ static struct venus_hfi_device *__add_device(u32 device_id,
 	}
 
 	hdevice->raw_packet =
-		kzalloc(VIDC_IFACEQ_VAR_HUGE_PKT_SIZE, GFP_TEMPORARY);
+		kzalloc(VIDC_IFACEQ_VAR_HUGE_PKT_SIZE, GFP_KERNEL);
 	if (!hdevice->raw_packet) {
 		dprintk(VIDC_ERR, "failed to allocate raw packet\n");
 		goto err_cleanup;

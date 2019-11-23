@@ -20,7 +20,7 @@
 #include <linux/ion_kernel.h>
 #include <linux/slab.h>
 #include <linux/types.h>
-#include "media/msm_vidc.h"
+#include "msm_vidc.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_resources.h"
 
@@ -131,7 +131,6 @@ static int msm_dma_put_device_address(u32 flags,
 	enum hal_buffer buffer_type)
 {
 	int rc = 0;
-	struct context_bank_info *cb = NULL;
 
 	if (!mapping_info) {
 		dprintk(VIDC_WARN, "Invalid mapping_info\n");
@@ -146,13 +145,9 @@ static int msm_dma_put_device_address(u32 flags,
 	}
 
 	trace_msm_smem_buffer_iommu_op_start("UNMAP", 0, 0, 0, 0, 0);
-	msm_dma_unmap_sg(mapping_info->dev, mapping_info->table->sgl,
-		mapping_info->table->nents, DMA_BIDIRECTIONAL,
-		mapping_info->buf);
 	dma_buf_unmap_attachment(mapping_info->attach,
 		mapping_info->table, DMA_BIDIRECTIONAL);
 	dma_buf_detach(mapping_info->buf, mapping_info->attach);
-	dma_buf_put(mapping_info->buf);
 	trace_msm_smem_buffer_iommu_op_end("UNMAP", 0, 0, 0, 0, 0);
 
 	mapping_info->dev = NULL;
@@ -161,6 +156,7 @@ static int msm_dma_put_device_address(u32 flags,
 	mapping_info->attach = NULL;
 	mapping_info->buf = NULL;
 	mapping_info->cb_info = NULL;
+
 
 	return rc;
 }
@@ -338,9 +334,6 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	int rc = 0;
 	int ion_flags = 0;
 	struct dma_buf *dbuf = NULL;
-	unsigned long page_count = 0;
-	unsigned long mapped_pages = 0;
-	void *kvaddr = NULL;
 
 	if (!res) {
 		dprintk(VIDC_ERR, "%s: NULL res\n", __func__);
@@ -351,7 +344,12 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	size = ALIGN(size, SZ_4K);
 
 	if (is_iommu_present(res)) {
-		heap_mask = ION_HEAP(ION_SYSTEM_HEAP_ID);
+		if (flags & SMEM_ADSP) {
+			dprintk(VIDC_DBG, "Allocating from ADSP heap\n");
+			heap_mask = ION_HEAP(ION_ADSP_HEAP_ID);
+		} else {
+			heap_mask = ION_HEAP(ION_SYSTEM_HEAP_ID);
+		}
 	} else {
 		dprintk(VIDC_DBG,
 			"allocate shared memory from adsp heap size %zx align %d\n",
@@ -362,7 +360,9 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	if (flags & SMEM_CACHED)
 		ion_flags |= ION_FLAG_CACHED;
 
-	if (flags & SMEM_SECURE) {
+	if ((flags & SMEM_SECURE) ||
+		(buffer_type == HAL_BUFFER_INTERNAL_PERSIST &&
+		 session_type == MSM_VIDC_ENCODER)) {
 		int secure_flag =
 			get_secure_flag_for_buffer_type(
 				session_type, buffer_type);
@@ -379,6 +379,7 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 			size = ALIGN(size, SZ_1M);
 			align = ALIGN(size, SZ_1M);
 		}
+		flags |= SMEM_SECURE;
 	}
 
 	trace_msm_smem_buffer_dma_op_start("ALLOC", (u32)buffer_type,
@@ -399,24 +400,7 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	mem->offset = 0;
 	mem->size = size;
 	mem->dma_buf = dbuf;
-
-	if (map_kernel) {
-		mem->pages = size/PAGE_SIZE;
-		for (page_count = 1; page_count <= mem->pages; page_count++) {
-			kvaddr = dma_buf_kmap(dbuf, page_count);
-			if (IS_ERR_OR_NULL(kvaddr)) {
-				dprintk(VIDC_ERR,
-					"Failed to map shared mem in kernel\n");
-				rc = -EIO;
-				goto fail_map;
-			}
-			if (page_count == 1)
-				mem->kvaddr = kvaddr;
-		}
-	} else {
-		mem->kvaddr = NULL;
-		mem->pages = 0;
-	}
+	mem->kvaddr = NULL;
 
 	rc = msm_dma_get_device_address(dbuf, align, &iova,
 			&buffer_size, flags, buffer_type,
@@ -432,25 +416,28 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 			&iova, mem->device_addr);
 		goto fail_device_address;
 	}
+
+	if (map_kernel) {
+		dma_buf_begin_cpu_access(dbuf, DMA_BIDIRECTIONAL);
+		mem->kvaddr = dma_buf_vmap(dbuf);
+		if (!mem->kvaddr) {
+			dprintk(VIDC_ERR,
+				"Failed to map shared mem in kernel\n");
+			rc = -EIO;
+			goto fail_map;
+		}
+	}
+
 	dprintk(VIDC_DBG,
 		"%s: dma_buf = %pK, device_addr = %x, size = %d, kvaddr = %pK, buffer_type = %#x, flags = %#lx\n",
 		__func__, mem->dma_buf, mem->device_addr, mem->size,
 		mem->kvaddr, mem->buffer_type, mem->flags);
 	return rc;
 
-fail_device_address:
-	mapped_pages = mem->pages;
 fail_map:
-	mapped_pages = page_count;
-	if (mem->kvaddr) {
-		kvaddr = mem->kvaddr;
-		for (page_count = 1; page_count < mapped_pages; page_count++) {
-			dma_buf_kunmap(mem->dma_buf, page_count, kvaddr);
-			kvaddr += PAGE_SIZE;
-		}
-		mem->pages = 0;
-		mem->kvaddr = NULL;
-	}
+	if (map_kernel)
+		dma_buf_end_cpu_access(dbuf, DMA_BIDIRECTIONAL);
+fail_device_address:
 	dma_buf_put(dbuf);
 fail_shared_mem_alloc:
 	return rc;
@@ -459,8 +446,6 @@ fail_shared_mem_alloc:
 static int free_dma_mem(struct msm_smem *mem)
 {
 	int rc = 0;
-	void *kvaddr;
-	unsigned long page_count = 0;
 
 	dprintk(VIDC_DBG,
 		"%s: dma_buf = %pK, device_addr = %x, size = %d, kvaddr = %pK, buffer_type = %#x\n",
@@ -474,13 +459,9 @@ static int free_dma_mem(struct msm_smem *mem)
 	}
 
 	if (mem->kvaddr) {
-		kvaddr = mem->kvaddr;
-		for (page_count = 1; page_count <= mem->pages; page_count++) {
-			dma_buf_kunmap(mem->dma_buf, page_count, kvaddr);
-			kvaddr += PAGE_SIZE;
-		}
-		mem->pages = 0;
+		dma_buf_vunmap(mem->dma_buf, mem->kvaddr);
 		mem->kvaddr = NULL;
+		dma_buf_end_cpu_access(mem->dma_buf, DMA_BIDIRECTIONAL);
 	}
 
 	if (mem->dma_buf) {
@@ -495,6 +476,7 @@ static int free_dma_mem(struct msm_smem *mem)
 
 	return rc;
 }
+
 
 int msm_smem_cache_operations(struct dma_buf *dbuf,
 	unsigned long offset, unsigned long size,
@@ -544,11 +526,14 @@ exit:
 	return rc;
 }
 
-void msm_smem_set_tme_encode_mode(struct smem_client *client, bool enable)
+void msm_smem_set_tme_encode_mode(void *client, bool enable)
 {
+
 	if (!client)
 		return;
+/*
 	client->tme_encode_mode = enable;
+*/
 }
 
 int msm_smem_alloc(size_t size, u32 align, u32 flags,

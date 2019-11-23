@@ -14,7 +14,7 @@
 #include <linux/dma-direction.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-#include <media/msm_vidc.h>
+#include "msm_vidc.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_debug.h"
 #include "msm_vdec.h"

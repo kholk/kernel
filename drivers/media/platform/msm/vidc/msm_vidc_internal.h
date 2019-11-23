@@ -31,7 +31,7 @@
 #include <media/v4l2-ctrls.h>
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-v4l2.h>
-#include <media/msm_vidc.h>
+#include "msm_vidc.h"
 #include <media/msm_media_info.h>
 #include "vidc_hfi_api.h"
 
@@ -473,7 +473,7 @@ struct msm_vidc_buffer {
 };
 
 void msm_comm_handle_thermal_event(void);
-void msm_smem_set_tme_encode_mode(struct smem_client *client, bool enable);
+void msm_smem_set_tme_encode_mode(void *client, bool enable);
 int msm_smem_alloc(size_t size, u32 align, u32 flags,
 	enum hal_buffer buffer_type, int map_kernel,
 	void  *res, u32 session_type, struct msm_smem *smem);

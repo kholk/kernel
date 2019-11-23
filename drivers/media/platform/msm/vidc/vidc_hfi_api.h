@@ -19,7 +19,7 @@
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/hash.h>
-#include <media/msm_vidc.h>
+#include "msm_vidc.h"
 #include "msm_vidc_resources.h"
 
 #define CONTAINS(__a, __sz, __t) (\

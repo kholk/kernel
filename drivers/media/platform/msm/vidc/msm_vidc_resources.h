@@ -16,7 +16,7 @@
 
 #include <linux/devfreq.h>
 #include <linux/platform_device.h>
-#include <media/msm_vidc.h>
+#include "msm_vidc.h"
 #include <linux/soc/qcom/llcc-qcom.h>
 
 #define MAX_BUFFER_TYPES 32
