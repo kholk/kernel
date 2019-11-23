@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,18 +14,6 @@
 #ifndef _MSM_VIDC_COMMON_H_
 #define _MSM_VIDC_COMMON_H_
 #include "msm_vidc_internal.h"
-
-#define MAX_DEC_BATCH_SIZE                     6
-#define MAX_DEC_BATCH_WIDTH                    1920
-#define MAX_DEC_BATCH_HEIGHT                   1088
-#define SKIP_BATCH_WINDOW                      100
-#define MIN_FRAME_QUALITY 0
-#define MAX_FRAME_QUALITY 100
-#define DEFAULT_FRAME_QUALITY 80
-#define FRAME_QUALITY_STEP 1
-#define HEIC_GRID_DIMENSION 512
-#define CBR_MB_LIMIT                           (((1280+15)/16)*((720+15)/16)*30)
-#define CBR_VFR_MB_LIMIT                       (((1280+15)/16)*((720+15)/16)*30)
 
 struct vb2_buf_entry {
 	struct list_head list;
@@ -46,74 +34,13 @@ enum load_calc_quirks {
 	LOAD_CALC_IGNORE_NON_REALTIME_LOAD = 1 << 2,
 };
 
-static inline bool is_turbo_session(struct msm_vidc_inst *inst)
-{
-	return !!(inst->flags & VIDC_TURBO);
-}
-
-static inline bool is_thumbnail_session(struct msm_vidc_inst *inst)
-{
-	return !!(inst->flags & VIDC_THUMBNAIL);
-}
-
-static inline bool is_low_power_session(struct msm_vidc_inst *inst)
-{
-	return !!(inst->flags & VIDC_LOW_POWER);
-}
-
-static inline bool is_realtime_session(struct msm_vidc_inst *inst)
-{
-	return !!(inst->flags & VIDC_REALTIME);
-}
-
-static inline bool is_decode_session(struct msm_vidc_inst *inst)
-{
-	return inst->session_type == MSM_VIDC_DECODER;
-}
-
-static inline bool is_encode_session(struct msm_vidc_inst *inst)
-{
-	return inst->session_type == MSM_VIDC_ENCODER;
-}
-
-static inline bool is_primary_output_mode(struct msm_vidc_inst *inst)
-{
-	return inst->stream_output_mode == HAL_VIDEO_DECODER_PRIMARY;
-}
-
-static inline bool is_secondary_output_mode(struct msm_vidc_inst *inst)
-{
-	return inst->stream_output_mode == HAL_VIDEO_DECODER_SECONDARY;
-}
-
-static inline int msm_comm_g_ctrl(struct msm_vidc_inst *inst,
-		struct v4l2_control *ctrl)
-{
-	return v4l2_g_ctrl(&inst->ctrl_handler, ctrl);
-}
-
-static inline int msm_comm_s_ctrl(struct msm_vidc_inst *inst,
-		struct v4l2_control *ctrl)
-{
-	return v4l2_s_ctrl(NULL, &inst->ctrl_handler, ctrl);
-}
-bool is_batching_allowed(struct msm_vidc_inst *inst);
 enum hal_buffer get_hal_buffer_type(unsigned int type,
 		unsigned int plane_num);
-void put_inst(struct msm_vidc_inst *inst);
-struct msm_vidc_inst *get_inst(struct msm_vidc_core *core,
-		void *session_id);
-void change_inst_state(struct msm_vidc_inst *inst, enum instance_state state);
 struct msm_vidc_core *get_vidc_core(int core_id);
 const struct msm_vidc_format *msm_comm_get_pixel_fmt_index(
 	const struct msm_vidc_format fmt[], int size, int index, int fmt_type);
 struct msm_vidc_format *msm_comm_get_pixel_fmt_fourcc(
 	struct msm_vidc_format fmt[], int size, int fourcc, int fmt_type);
-struct msm_vidc_format_constraint *msm_comm_get_pixel_fmt_constraints(
-	struct msm_vidc_format_constraint fmt[], int size, int fourcc);
-int msm_comm_set_color_format_constraints(struct msm_vidc_inst *inst,
-		enum hal_buffer buffer_type,
-		struct msm_vidc_format_constraint *pix_constraint);
 struct buf_queue *msm_comm_get_vb2q(
 		struct msm_vidc_inst *inst, enum v4l2_buf_type type);
 int msm_comm_try_state(struct msm_vidc_inst *inst, int state);
@@ -125,12 +52,9 @@ int msm_comm_try_get_prop(struct msm_vidc_inst *inst,
 int msm_comm_set_recon_buffers(struct msm_vidc_inst *inst);
 int msm_comm_set_scratch_buffers(struct msm_vidc_inst *inst);
 int msm_comm_set_persist_buffers(struct msm_vidc_inst *inst);
-int msm_comm_set_buffer_count(struct msm_vidc_inst *inst,
-	int host_count, int act_count, enum hal_buffer type);
 int msm_comm_set_output_buffers(struct msm_vidc_inst *inst);
 int msm_comm_queue_output_buffers(struct msm_vidc_inst *inst);
 int msm_comm_qbuf(struct msm_vidc_inst *inst, struct msm_vidc_buffer *mbuf);
-int msm_comm_qbufs(struct msm_vidc_inst *inst);
 void msm_comm_flush_dynamic_buffers(struct msm_vidc_inst *inst);
 int msm_comm_flush(struct msm_vidc_inst *inst, u32 flags);
 int msm_comm_release_scratch_buffers(struct msm_vidc_inst *inst,
@@ -143,12 +67,9 @@ int msm_comm_release_output_buffers(struct msm_vidc_inst *inst,
 void msm_comm_validate_output_buffers(struct msm_vidc_inst *inst);
 int msm_comm_force_cleanup(struct msm_vidc_inst *inst);
 int msm_comm_suspend(int core_id);
+int msm_vidc_update_host_buff_counts(struct msm_vidc_inst *inst);
 enum hal_extradata_id msm_comm_get_hal_extradata_index(
 	enum v4l2_mpeg_vidc_extradata index);
-int msm_comm_reset_bufreqs(struct msm_vidc_inst *inst,
-	enum hal_buffer buf_type);
-int msm_comm_copy_bufreqs(struct msm_vidc_inst *inst,
-	enum hal_buffer src_type, enum hal_buffer dst_type);
 struct hal_buffer_requirements *get_buff_req_buffer(
 			struct msm_vidc_inst *inst, u32 buffer_type);
 #define IS_PRIV_CTRL(idx) (\
@@ -159,8 +80,6 @@ int msm_comm_kill_session(struct msm_vidc_inst *inst);
 void msm_comm_generate_session_error(struct msm_vidc_inst *inst);
 void msm_comm_generate_sys_error(struct msm_vidc_inst *inst);
 enum multi_stream msm_comm_get_stream_output_mode(struct msm_vidc_inst *inst);
-int msm_comm_set_stream_output_mode(struct msm_vidc_inst *inst,
-		enum multi_stream mode);
 enum hal_buffer msm_comm_get_hal_output_buffer(struct msm_vidc_inst *inst);
 int msm_comm_smem_alloc(struct msm_vidc_inst *inst, size_t size, u32 align,
 		u32 flags, enum hal_buffer buffer_type, int map_kernel,
@@ -207,7 +126,7 @@ u32 get_frame_size_p010(int plane, u32 height, u32 width);
 struct vb2_buffer *msm_comm_get_vb_using_vidc_buffer(
 		struct msm_vidc_inst *inst, struct msm_vidc_buffer *mbuf);
 struct msm_vidc_buffer *msm_comm_get_buffer_using_device_planes(
-		struct msm_vidc_inst *inst, u32 type, u32 *planes);
+		struct msm_vidc_inst *inst, u32 *planes);
 struct msm_vidc_buffer *msm_comm_get_vidc_buffer(struct msm_vidc_inst *inst,
 		struct vb2_buffer *vb2);
 void msm_comm_put_vidc_buffer(struct msm_vidc_inst *inst,
@@ -215,7 +134,7 @@ void msm_comm_put_vidc_buffer(struct msm_vidc_inst *inst,
 void handle_release_buffer_reference(struct msm_vidc_inst *inst,
 		struct msm_vidc_buffer *mbuf);
 int msm_comm_vb2_buffer_done(struct msm_vidc_inst *inst,
-		struct msm_vidc_buffer *mbuf);
+		struct vb2_buffer *vb);
 int msm_comm_flush_vidc_buffer(struct msm_vidc_inst *inst,
 		struct msm_vidc_buffer *mbuf);
 int msm_comm_unmap_vidc_buffer(struct msm_vidc_inst *inst,
@@ -229,18 +148,18 @@ bool msm_comm_compare_vb2_plane(struct msm_vidc_inst *inst,
 bool msm_comm_compare_vb2_planes(struct msm_vidc_inst *inst,
 		struct msm_vidc_buffer *mbuf, struct vb2_buffer *vb2);
 bool msm_comm_compare_device_plane(struct msm_vidc_buffer *mbuf,
-		u32 type, u32 *planes, u32 i);
+		u32 *planes, u32 i);
 bool msm_comm_compare_device_planes(struct msm_vidc_buffer *mbuf,
-		u32 type, u32 *planes);
+		u32 *planes);
 void msm_comm_store_tags(struct msm_vidc_inst *inst,
 		struct vidc_tag_data *tag_data);
 void msm_comm_fetch_tags(struct msm_vidc_inst *inst,
 		struct vidc_tag_data *tag_data);
 void msm_comm_free_buffer_tags(struct msm_vidc_inst *inst);
 int msm_comm_qbuf_cache_operations(struct msm_vidc_inst *inst,
-		struct msm_vidc_buffer *mbuf);
+		struct v4l2_buffer *b);
 int msm_comm_dqbuf_cache_operations(struct msm_vidc_inst *inst,
-		struct msm_vidc_buffer *mbuf);
+			struct v4l2_buffer *b);
 void print_vidc_buffer(u32 tag, const char *str, struct msm_vidc_inst *inst,
 		struct msm_vidc_buffer *mbuf);
 void print_vb2_buffer(u32 tag, const char *str, struct msm_vidc_inst *inst,
@@ -249,15 +168,10 @@ void print_v4l2_buffer(u32 tag, const char *str, struct msm_vidc_inst *inst,
 		struct v4l2_buffer *v4l2);
 void kref_put_mbuf(struct msm_vidc_buffer *mbuf);
 bool kref_get_mbuf(struct msm_vidc_inst *inst, struct msm_vidc_buffer *mbuf);
-void msm_comm_store_filled_length(struct msm_vidc_list *data_list,
-		u32 index, u32 filled_length);
-void msm_comm_fetch_filled_length(struct msm_vidc_list *data_list,
-		u32 index, u32 *filled_length);
 void msm_comm_store_mark_data(struct msm_vidc_list *data_list,
 		u32 index, u32 mark_data, u32 mark_target);
 void msm_comm_fetch_mark_data(struct msm_vidc_list *data_list,
 		u32 index, u32 *mark_data, u32 *mark_target);
 int msm_comm_release_mark_data(struct msm_vidc_inst *inst);
-int msm_comm_qbuf_decode_batch(struct msm_vidc_inst *inst,
-		struct msm_vidc_buffer *mbuf);
+
 #endif

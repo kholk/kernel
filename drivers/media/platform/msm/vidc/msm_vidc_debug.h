@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,19 +16,11 @@
 #include <linux/debugfs.h>
 #include <linux/delay.h>
 #include "msm_vidc_internal.h"
-#include "trace/events/msm_vidc_events.h"
+#include "trace/events/msm_vidc.h"
 
 #ifndef VIDC_DBG_LABEL
 #define VIDC_DBG_LABEL "msm_vidc"
 #endif
-
-/*
- * This enforces a rate limit: not more than 6 messages
- * in every 1s.
- */
-
-#define VIDC_DBG_SESSION_RATELIMIT_INTERVAL (1 * HZ)
-#define VIDC_DBG_SESSION_RATELIMIT_BURST 6
 
 #define VIDC_DBG_TAG VIDC_DBG_LABEL ": %4s: "
 
@@ -50,6 +42,7 @@ enum vidc_msg_prio {
 
 enum vidc_msg_out {
 	VIDC_OUT_PRINTK = 0,
+	VIDC_OUT_FTRACE,
 };
 
 enum msm_vidc_debugfs_event {
@@ -65,36 +58,61 @@ extern int msm_vidc_fw_debug;
 extern int msm_vidc_fw_debug_mode;
 extern int msm_vidc_fw_low_power_mode;
 extern bool msm_vidc_fw_coverage;
+extern bool msm_vidc_sys_idle_indicator;
 extern bool msm_vidc_thermal_mitigation_disabled;
-extern int msm_vidc_clock_voting;
+extern bool msm_vidc_clock_scaling;
 extern bool msm_vidc_syscache_disable;
+
+#define VIDC_MSG_PRIO2STRING(__level) ({ \
+	char *__str; \
+	\
+	switch (__level) { \
+	case VIDC_ERR: \
+		__str = "err"; \
+		break; \
+	case VIDC_WARN: \
+		__str = "warn"; \
+		break; \
+	case VIDC_INFO: \
+		__str = "info"; \
+		break; \
+	case VIDC_DBG: \
+		__str = "dbg"; \
+		break; \
+	case VIDC_PROF: \
+		__str = "prof"; \
+		break; \
+	case VIDC_PKT: \
+		__str = "pkt"; \
+		break; \
+	case VIDC_FW: \
+		__str = "fw"; \
+		break; \
+	default: \
+		__str = "????"; \
+		break; \
+	} \
+	\
+	__str; \
+	})
 
 #define dprintk(__level, __fmt, arg...)	\
 	do { \
 		if (msm_vidc_debug & __level) { \
 			if (msm_vidc_debug_out == VIDC_OUT_PRINTK) { \
 				pr_info(VIDC_DBG_TAG __fmt, \
-					get_debug_level_str(__level),	\
-					## arg); \
-			} \
-		} \
-	} while (0)
-
-#define dprintk_ratelimit(__level, __fmt, arg...) \
-	do { \
-		if (msm_vidc_debug & __level) { \
-			if (msm_vidc_debug_out == VIDC_OUT_PRINTK && \
-					msm_vidc_check_ratelimit()) { \
-				pr_info(VIDC_DBG_TAG __fmt, \
-					get_debug_level_str(__level),	\
-					## arg); \
+						VIDC_MSG_PRIO2STRING(__level), \
+						## arg); \
+			} else if (msm_vidc_debug_out == VIDC_OUT_FTRACE) { \
+				trace_printk(KERN_DEBUG VIDC_DBG_TAG __fmt, \
+						VIDC_MSG_PRIO2STRING(__level), \
+						## arg); \
 			} \
 		} \
 	} while (0)
 
 #define MSM_VIDC_ERROR(value)					\
-	do {	if (value)					\
-			dprintk(VIDC_DBG, "BugOn");		\
+	do {							\
 		BUG_ON(value);					\
 	} while (0)
 
@@ -107,29 +125,6 @@ struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst,
 void msm_vidc_debugfs_deinit_inst(struct msm_vidc_inst *inst);
 void msm_vidc_debugfs_update(struct msm_vidc_inst *inst,
 		enum msm_vidc_debugfs_event e);
-int msm_vidc_check_ratelimit(void);
-
-static inline char *get_debug_level_str(int level)
-{
-	switch (level) {
-	case VIDC_ERR:
-		return "err";
-	case VIDC_WARN:
-		return "warn";
-	case VIDC_INFO:
-		return "info";
-	case VIDC_DBG:
-		return "dbg";
-	case VIDC_PROF:
-		return "prof";
-	case VIDC_PKT:
-		return "pkt";
-	case VIDC_FW:
-		return "fw";
-	default:
-		return "???";
-	}
-}
 
 static inline void tic(struct msm_vidc_inst *i, enum profiling_points p,
 				 char *b)

@@ -13,7 +13,7 @@
 #ifndef _MSM_VENC_H_
 #define _MSM_VENC_H_
 
-#include "msm_vidc.h"
+#include <media/msm_vidc.h>
 #include "msm_vidc_internal.h"
 #define MSM_VENC_DVC_NAME "msm_vidc_venc"
 

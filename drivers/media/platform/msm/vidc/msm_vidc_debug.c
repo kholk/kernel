@@ -16,19 +16,19 @@
 #include "msm_vidc_debug.h"
 #include "vidc_hfi_api.h"
 
-int msm_vidc_debug = VIDC_ERR | VIDC_WARN | VIDC_FW;
+int msm_vidc_debug = VIDC_ERR | VIDC_WARN;
 EXPORT_SYMBOL(msm_vidc_debug);
 
 int msm_vidc_debug_out = VIDC_OUT_PRINTK;
 EXPORT_SYMBOL(msm_vidc_debug_out);
 
-/* 0x18 = HFI_DEBUG_MSG_FATAL | HFI_DEBUG_MSG_ERROR */
 int msm_vidc_fw_debug = 0x18;
 int msm_vidc_fw_debug_mode = 1;
 int msm_vidc_fw_low_power_mode = 1;
 bool msm_vidc_fw_coverage = !true;
+bool msm_vidc_sys_idle_indicator = !true;
 bool msm_vidc_thermal_mitigation_disabled = !true;
-int msm_vidc_clock_voting = !1;
+bool msm_vidc_clock_scaling = true;
 bool msm_vidc_syscache_disable = !true;
 
 #define MAX_DBG_BUF_SIZE 4096
@@ -129,10 +129,9 @@ static int trigger_ssr_open(struct inode *inode, struct file *file)
 }
 
 static ssize_t trigger_ssr_write(struct file *filp, const char __user *buf,
-		size_t count, loff_t *ppos)
-{
+		size_t count, loff_t *ppos) {
 	unsigned long ssr_trigger_val = 0;
-	int rc = 0;
+	int rc = 0, ret = 0;
 	struct msm_vidc_core *core = filp->private_data;
 	size_t size = MAX_SSR_STRING_LEN;
 	char kbuf[MAX_SSR_STRING_LEN + 1] = {0};
@@ -157,8 +156,8 @@ static ssize_t trigger_ssr_write(struct file *filp, const char __user *buf,
 		dprintk(VIDC_WARN, "returning error err %d\n", rc);
 		rc = -EINVAL;
 	} else {
-		msm_vidc_trigger_ssr(core, ssr_trigger_val);
-		rc = count;
+		ret = msm_vidc_trigger_ssr(core, ssr_trigger_val);
+		rc = (ret == -EBUSY ? ret : count);
 	}
 exit:
 	return rc;
@@ -199,10 +198,12 @@ struct dentry *msm_vidc_debugfs_init_drv(void)
 	__debugfs_create(u32, "fw_low_power_mode",
 			&msm_vidc_fw_low_power_mode) &&
 	__debugfs_create(u32, "debug_output", &msm_vidc_debug_out) &&
+	__debugfs_create(bool, "sys_idle_indicator",
+			&msm_vidc_sys_idle_indicator) &&
 	__debugfs_create(bool, "disable_thermal_mitigation",
 			&msm_vidc_thermal_mitigation_disabled) &&
-	__debugfs_create(u32, "core_clock_voting",
-			&msm_vidc_clock_voting) &&
+	__debugfs_create(bool, "clock_scaling",
+			&msm_vidc_clock_scaling) &&
 	__debugfs_create(bool, "disable_video_syscache",
 			&msm_vidc_syscache_disable);
 
@@ -534,13 +535,5 @@ void msm_vidc_debugfs_update(struct msm_vidc_inst *inst,
 		dprintk(VIDC_ERR, "Invalid state in debugfs: %d\n", e);
 		break;
 	}
-}
-
-int msm_vidc_check_ratelimit(void)
-{
-	static DEFINE_RATELIMIT_STATE(_rs,
-				VIDC_DBG_SESSION_RATELIMIT_INTERVAL,
-				VIDC_DBG_SESSION_RATELIMIT_BURST);
-	return __ratelimit(&_rs);
 }
 

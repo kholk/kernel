@@ -16,9 +16,8 @@
 
 #include <linux/devfreq.h>
 #include <linux/platform_device.h>
-#include "msm_vidc.h"
+#include <media/msm_vidc.h>
 #include <linux/soc/qcom/llcc-qcom.h>
-#include "soc/qcom/cx_ipeak.h"
 
 #define MAX_BUFFER_TYPES 32
 
@@ -91,6 +90,7 @@ struct clock_info {
 	u32 count;
 	bool has_scaling;
 	bool has_mem_retention;
+	bool disable_memcore_only;
 };
 
 struct clock_set {
@@ -114,13 +114,6 @@ struct bus_info {
 struct bus_set {
 	struct bus_info *bus_tbl;
 	u32 count;
-};
-
-enum imem_type {
-	IMEM_NONE,
-	IMEM_OCMEM,
-	IMEM_VMEM,
-	IMEM_MAX,
 };
 
 struct allowed_clock_rates_table {
@@ -151,33 +144,18 @@ struct subcache_set {
 	u32 count;
 };
 
-struct msm_vidc_mem_cdsp {
-	struct device *dev;
-};
-
-struct imem_ab_table {
-	u32 core_freq;
-	u32 imem_ab;
-};
-
 struct msm_vidc_platform_resources {
 	phys_addr_t firmware_base;
 	phys_addr_t register_base;
-	phys_addr_t gcc_register_base;
 	uint32_t register_size;
-	uint32_t gcc_register_size;
 	uint32_t irq;
 	uint32_t sku_version;
-	uint8_t hfi_version;
 	struct allowed_clock_rates_table *allowed_clks_tbl;
 	u32 allowed_clks_tbl_size;
 	struct clock_freq_table clock_freq_tbl;
 	struct dcvs_table *dcvs_tbl;
 	uint32_t dcvs_tbl_size;
 	struct dcvs_limit *dcvs_limit;
-	struct imem_ab_table *imem_ab_tbl;
-	u32 imem_ab_tbl_size;
-	enum imem_type imem_type;
 	bool sys_cache_present;
 	bool sys_cache_res_set;
 	struct subcache_set subcache_set;
@@ -193,10 +171,12 @@ struct msm_vidc_platform_resources {
 	struct bus_set bus_set;
 	bool use_non_secure_pil;
 	bool sw_power_collapsible;
+	bool sys_idle_indicator;
 	bool slave_side_cp;
 	struct list_head context_banks;
 	bool thermal_mitigable;
 	const char *fw_name;
+	const char *hfi_version;
 	bool never_unload_fw;
 	bool debug_timeout;
 	uint32_t pm_qos_latency_us;
@@ -205,46 +185,11 @@ struct msm_vidc_platform_resources {
 	int msm_vidc_hw_rsp_timeout;
 	int msm_vidc_firmware_unload_delay;
 	uint32_t msm_vidc_pwr_collapse_delay;
-	bool domain_cvp;
 	bool non_fatal_pagefaults;
 	bool cache_pagetables;
-	bool decode_batching;
-	bool dcvs;
 	struct msm_vidc_codec_data *codec_data;
 	int codec_data_count;
 	struct msm_vidc_csc_coeff *csc_coeff_data;
-	struct msm_vidc_mem_cdsp mem_cdsp;
-	uint32_t vpu_ver;
-	uint32_t fw_cycles;
-	uint32_t fw_vpp_cycles;
-	uint32_t clk_freq_threshold;
-	struct cx_ipeak_client *cx_ipeak_context;
-	struct msm_vidc_ubwc_config *ubwc_config;
-	uint32_t ubwc_config_length;
-};
-
-/**
- * @bMaxChannelsOverride : enable - 1 /disable - 0 max channel override
- * @bMalLengthOverride : enable - 1 /disable - 0 HBB override
- * @bHBBOverride : enable - 1 /disable – 0 mal length override
- * @nMaxChannels: Num DDR channels 4/8 channel,
- *                This is to control mircotilling mode.
- * @nMalLength : UBWC compression ratio granularity 32B/64B MAL
- * @nHighestBankBit : Valid range 13-19
- */
-
-struct msm_vidc_ubwc_config {
-	struct {
-		u32 bMaxChannelsOverride : 1;
-		u32 bMalLengthOverride : 1;
-		u32 bHBBOverride : 1;
-		u32 reserved1 : 29;
-	} sOverrideBitInfo;
-
-	u32 nMaxChannels;
-	u32 nMalLength;
-	u32 nHighestBankBit;
-	u32 reserved2[2];
 };
 
 static inline bool is_iommu_present(struct msm_vidc_platform_resources *res)

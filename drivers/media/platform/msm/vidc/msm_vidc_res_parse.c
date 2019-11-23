@@ -25,6 +25,7 @@
 enum clock_properties {
 	CLOCK_PROP_HAS_SCALING = 1 << 0,
 	CLOCK_PROP_HAS_MEM_RETENTION    = 1 << 1,
+	CLOCK_PROP_DISABLE_MEMCORE_ONLY = 1 << 2,
 };
 
 #define PERF_GOV "performance"
@@ -71,12 +72,6 @@ static inline void msm_vidc_free_cycles_per_mb_table(
 		struct msm_vidc_platform_resources *res)
 {
 	res->clock_freq_tbl.clk_prof_entries = NULL;
-}
-
-static inline void msm_vidc_free_imem_ab_table(
-		struct msm_vidc_platform_resources *res)
-{
-	res->imem_ab_tbl = NULL;
 }
 
 static inline void msm_vidc_free_reg_table(
@@ -128,13 +123,6 @@ static inline void msm_vidc_free_clock_table(
 	res->clock_set.count = 0;
 }
 
-static inline void msm_vidc_free_cx_ipeak_context(
-			struct msm_vidc_platform_resources *res)
-{
-	cx_ipeak_unregister(res->cx_ipeak_context);
-	res->cx_ipeak_context = NULL;
-}
-
 void msm_vidc_free_platform_resources(
 			struct msm_vidc_platform_resources *res)
 {
@@ -145,7 +133,6 @@ void msm_vidc_free_platform_resources(
 	msm_vidc_free_qdss_addr_table(res);
 	msm_vidc_free_bus_vectors(res);
 	msm_vidc_free_buffer_usage_table(res);
-	msm_vidc_free_cx_ipeak_context(res);
 }
 
 static int msm_vidc_load_reg_table(struct msm_vidc_platform_resources *res)
@@ -384,14 +371,6 @@ static int msm_vidc_load_allowed_clocks_table(
 
 	sort(res->allowed_clks_tbl, res->allowed_clks_tbl_size,
 		 sizeof(*res->allowed_clks_tbl), cmp, NULL);
-
-	return 0;
-}
-
-static int msm_vidc_populate_mem_cdsp(struct device *dev,
-		struct msm_vidc_platform_resources *res)
-{
-	res->mem_cdsp.dev = dev;
 
 	return 0;
 }
@@ -688,6 +667,11 @@ static int msm_vidc_load_clock_table(
 		else
 			vc->has_mem_retention = false;
 
+		if (clock_props[c] & CLOCK_PROP_DISABLE_MEMCORE_ONLY)
+			vc->disable_memcore_only = true;
+		else
+			vc->disable_memcore_only = false;
+
 		dprintk(VIDC_DBG, "Found clock %s: scale-able = %s\n", vc->name,
 			vc->count ? "yes" : "no");
 	}
@@ -701,8 +685,7 @@ err_load_clk_table_fail:
 }
 
 static int msm_decide_dt_node(
-		struct msm_vidc_platform_resources *res)
-{
+		struct msm_vidc_platform_resources *res) {
 	struct platform_device *pdev = res->pdev;
 	int rc = 0;
 	u32 sku_index = 0;
@@ -723,46 +706,6 @@ static int msm_decide_dt_node(
 
 	return 0;
 }
-
-static int msm_vidc_load_imem_ab_table(struct msm_vidc_platform_resources *res)
-{
-	int num_elements = 0;
-	struct platform_device *pdev = res->pdev;
-
-	if (!of_find_property(pdev->dev.of_node, "qcom,imem-ab-tbl", NULL)) {
-		/* optional property */
-		dprintk(VIDC_DBG, "qcom,imem-freq-tbl not found\n");
-		return 0;
-	}
-
-	num_elements = get_u32_array_num_elements(pdev->dev.of_node,
-			"qcom,imem-ab-tbl");
-	num_elements /= (sizeof(*res->imem_ab_tbl) / sizeof(u32));
-	if (!num_elements) {
-		dprintk(VIDC_ERR, "no elements in imem ab table\n");
-		return -EINVAL;
-	}
-
-	res->imem_ab_tbl = devm_kzalloc(&pdev->dev, num_elements *
-			sizeof(*res->imem_ab_tbl), GFP_KERNEL);
-	if (!res->imem_ab_tbl) {
-		dprintk(VIDC_ERR, "Failed to alloc imem_ab_tbl\n");
-		return -ENOMEM;
-	}
-
-	if (of_property_read_u32_array(pdev->dev.of_node,
-		"qcom,imem-ab-tbl", (u32 *)res->imem_ab_tbl,
-		num_elements * sizeof(*res->imem_ab_tbl) / sizeof(u32))) {
-		dprintk(VIDC_ERR, "Failed to read imem_ab_tbl\n");
-		msm_vidc_free_imem_ab_table(res);
-		return -EINVAL;
-	}
-
-	res->imem_ab_tbl_size = num_elements;
-
-	return 0;
-}
-
 
 static int find_key_value(struct msm_vidc_platform_data *platform_data,
 	const char *key)
@@ -797,10 +740,9 @@ int read_platform_resources_from_drv_data(
 
 	res->sku_version = platform_data->sku_version;
 
-	res->hfi_version = find_key_value(platform_data,
-			"qcom,hfi-version");
-	if (!res->hfi_version)
-		res->hfi_version = 4;
+	res->fw_name = "venus";
+
+	dprintk(VIDC_DBG, "Firmware filename: %s\n", res->fw_name);
 
 	res->max_load = find_key_value(platform_data,
 			"qcom,max-hw-load");
@@ -828,6 +770,8 @@ int read_platform_resources_from_drv_data(
 
 	res->slave_side_cp = find_key_value(platform_data,
 			"qcom,slave-side-cp");
+	res->sys_idle_indicator = find_key_value(platform_data,
+			"qcom,enable-idle-indicator");
 	res->thermal_mitigable = find_key_value(platform_data,
 			"qcom,enable-thermal-mitigation");
 	res->msm_vidc_pwr_collapse_delay = find_key_value(platform_data,
@@ -836,75 +780,15 @@ int read_platform_resources_from_drv_data(
 			"qcom,fw-unload-delay");
 	res->msm_vidc_hw_rsp_timeout = find_key_value(platform_data,
 			"qcom,hw-resp-timeout");
-	res->domain_cvp = find_key_value(platform_data,
-			"qcom,domain-cvp");
 	res->non_fatal_pagefaults = find_key_value(platform_data,
 			"qcom,domain-attr-non-fatal-faults");
 	res->cache_pagetables = find_key_value(platform_data,
 			"qcom,domain-attr-cache-pagetables");
-	res->decode_batching = find_key_value(platform_data,
-			"qcom,decode-batching");
-	res->dcvs = find_key_value(platform_data,
-			"qcom,dcvs");
-	res->fw_cycles = find_key_value(platform_data,
-			"qcom,fw-cycles");
-	res->fw_vpp_cycles = find_key_value(platform_data,
-			"qcom,fw-vpp-cycles");
 
 	res->csc_coeff_data = &platform_data->csc_data;
 
-	res->gcc_register_base = platform_data->gcc_register_base;
-	res->gcc_register_size = platform_data->gcc_register_size;
-
-	res->vpu_ver = platform_data->vpu_ver;
-
-	res->ubwc_config = platform_data->ubwc_config;
-	res->ubwc_config_length = platform_data->ubwc_config_length;
-
 	return rc;
 
-}
-
-static int msm_vidc_populate_cx_ipeak_context(
-		struct msm_vidc_platform_resources *res)
-{
-	struct platform_device *pdev = res->pdev;
-	int rc = 0;
-
-	if (of_find_property(pdev->dev.of_node,
-			"qcom,cx-ipeak-data", NULL)) {
-		res->cx_ipeak_context = cx_ipeak_register(
-				pdev->dev.of_node, "qcom,cx-ipeak-data");
-	}
-
-	if (IS_ERR(res->cx_ipeak_context)) {
-		rc = PTR_ERR(res->cx_ipeak_context);
-		if (rc == -EPROBE_DEFER)
-			dprintk(VIDC_INFO,
-					"cx-ipeak register failed. Deferring probe!");
-		else
-			dprintk(VIDC_ERR,
-					"cx-ipeak register failed. rc: %d", rc);
-
-		res->cx_ipeak_context = NULL;
-		goto err_cx_ipeak;
-	}
-
-	if (res->cx_ipeak_context)
-		dprintk(VIDC_INFO, "cx-ipeak register successful");
-	else
-		dprintk(VIDC_INFO, "cx-ipeak register not implemented");
-
-	of_property_read_u32(pdev->dev.of_node,
-			"qcom,clock-freq-threshold",
-		&res->clk_freq_threshold);
-	dprintk(VIDC_DBG, "cx ipeak threshold frequency = %u\n",
-			res->clk_freq_threshold);
-
-	return rc;
-
-err_cx_ipeak:
-	return rc;
 }
 
 int read_platform_resources_from_dt(
@@ -924,9 +808,6 @@ int read_platform_resources_from_dt(
 	if (rc)
 		return rc;
 
-	res->imem_type =
-		!!of_find_compatible_node(NULL, NULL, "qcom,msm-vmem") ?
-						IMEM_VMEM : IMEM_NONE;
 
 	INIT_LIST_HEAD(&res->context_banks);
 
@@ -938,13 +819,6 @@ int read_platform_resources_from_dt(
 
 	kres = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	res->irq = kres ? kres->start : -1;
-
-	rc = of_property_read_string(pdev->dev.of_node, "qcom,firmware-name",
-			&res->fw_name);
-	if (rc)
-		res->fw_name = "venus";
-
-	dprintk(VIDC_DBG, "Firmware filename: %s\n", res->fw_name);
 
 	rc = msm_vidc_load_subcache_info(res);
 	if (rc)
@@ -987,10 +861,6 @@ int read_platform_resources_from_dt(
 		goto err_load_allowed_clocks_table;
 	}
 
-	rc = msm_vidc_load_imem_ab_table(res);
-	if (rc)
-		dprintk(VIDC_WARN, "Failed to load IMEM AB table: %d\n", rc);
-
 	rc = msm_vidc_populate_legacy_context_bank(res);
 	if (rc) {
 		dprintk(VIDC_ERR,
@@ -1009,16 +879,8 @@ int read_platform_resources_from_dt(
 				"Using fw-bias : %pa", &res->firmware_base);
 	}
 
-	rc = msm_vidc_populate_cx_ipeak_context(res);
-	if (rc) {
-		dprintk(VIDC_ERR,
-			"Failed to setup cx-ipeak %d\n", rc);
-		goto err_register_cx_ipeak;
-	}
-
 return rc;
 
-err_register_cx_ipeak:
 err_setup_legacy_cb:
 	msm_vidc_free_allowed_clocks_table(res);
 err_load_allowed_clocks_table:
@@ -1108,17 +970,6 @@ static int msm_vidc_setup_context_bank(struct msm_vidc_platform_resources *res,
 		goto release_mapping;
 	}
 
-	/*
-	 * configure device segment size and segment boundary to ensure
-	 * iommu mapping returns one mapping (which is required for partial
-	 * cache operations)
-	 */
-	if (!dev->dma_parms)
-		dev->dma_parms =
-			devm_kzalloc(dev, sizeof(*dev->dma_parms), GFP_KERNEL);
-	dma_set_max_seg_size(dev, DMA_BIT_MASK(32));
-	dma_set_seg_boundary(dev, DMA_BIT_MASK(64));
-
 	dprintk(VIDC_DBG, "Attached %s and created mapping\n", dev_name(dev));
 	dprintk(VIDC_DBG,
 		"Context bank name:%s, buffer_type: %#x, is_secure: %d, address range start: %#x, size: %#x, dev: %pK, mapping: %pK",
@@ -1147,7 +998,7 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 
 	if (core->smmu_fault_handled) {
 		if (core->resources.non_fatal_pagefaults) {
-			dprintk_ratelimit(VIDC_ERR,
+			dprintk(VIDC_ERR,
 					"%s: non-fatal pagefault address: %lx\n",
 					__func__, iova);
 			return 0;
@@ -1424,27 +1275,4 @@ int read_bus_resources_from_dt(struct platform_device *pdev)
 	}
 
 	return msm_vidc_populate_bus(&pdev->dev, &core->resources);
-}
-
-int read_mem_cdsp_resources_from_dt(struct platform_device *pdev)
-{
-	struct msm_vidc_core *core;
-
-	if (!pdev) {
-		dprintk(VIDC_ERR, "%s: invalid platform device\n", __func__);
-		return -EINVAL;
-	} else if (!pdev->dev.parent) {
-		dprintk(VIDC_ERR, "Failed to find a parent for %s\n",
-				dev_name(&pdev->dev));
-		return -ENODEV;
-	}
-
-	core = dev_get_drvdata(pdev->dev.parent);
-	if (!core) {
-		dprintk(VIDC_ERR, "Failed to find cookie in parent device %s",
-				dev_name(pdev->dev.parent));
-		return -EINVAL;
-	}
-
-	return msm_vidc_populate_mem_cdsp(&pdev->dev, &core->resources);
 }

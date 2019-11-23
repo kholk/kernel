@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -35,16 +35,25 @@
 #include "venus_boot.h"
 
 /* VENUS WRAPPER registers */
-#define VENUS_WRAPPER_SEC_CPA_START_ADDR			\
+#define VENUS_WRAPPER_VBIF_SS_SEC_CPA_START_ADDR_v1 \
+				(VIDC_WRAPPER_BASE_OFFS + 0x1018)
+#define VENUS_WRAPPER_VBIF_SS_SEC_CPA_END_ADDR_v1 \
+				(VIDC_WRAPPER_BASE_OFFS + 0x101C)
+#define VENUS_WRAPPER_VBIF_SS_SEC_FW_START_ADDR_v1 \
 				(VIDC_WRAPPER_BASE_OFFS + 0x1020)
-#define VENUS_WRAPPER_SEC_CPA_END_ADDR				\
+#define VENUS_WRAPPER_VBIF_SS_SEC_FW_END_ADDR_v1 \
 				(VIDC_WRAPPER_BASE_OFFS + 0x1024)
-#define VENUS_WRAPPER_SEC_FW_START_ADDR				\
+
+#define VENUS_WRAPPER_VBIF_SS_SEC_CPA_START_ADDR_v2 \
+				(VIDC_WRAPPER_BASE_OFFS + 0x1020)
+#define VENUS_WRAPPER_VBIF_SS_SEC_CPA_END_ADDR_v2 \
+				(VIDC_WRAPPER_BASE_OFFS + 0x1024)
+#define VENUS_WRAPPER_VBIF_SS_SEC_FW_START_ADDR_v2 \
 				(VIDC_WRAPPER_BASE_OFFS + 0x1028)
-#define VENUS_WRAPPER_SEC_FW_END_ADDR				\
+#define VENUS_WRAPPER_VBIF_SS_SEC_FW_END_ADDR_v2 \
 				(VIDC_WRAPPER_BASE_OFFS + 0x102C)
 
-#define VENUS_WRAPPER_A9SS_SW_RESET	(VIDC_WRAPPER_BASE_OFFS + 0x3000)
+#define VENUS_WRAPPER_SW_RESET	(VIDC_WRAPPER_BASE_OFFS + 0x3000)
 
 /* VENUS VBIF registers */
 #define VENUS_VBIF_CLKON_FORCE_ON			BIT(0)
@@ -66,7 +75,6 @@ static struct {
 	struct regulator *gdsc;
 	const char *reg_name;
 	void __iomem *reg_base;
-	void __iomem *gcc_base;
 	struct device *iommu_ctx_bank_dev;
 	struct dma_iommu_mapping *mapping;
 	dma_addr_t fw_iova;
@@ -202,15 +210,27 @@ static int pil_venus_auth_and_reset(void)
 
 	if (iommu_present) {
 		u32 cpa_start_addr, cpa_end_addr, fw_start_addr, fw_end_addr;
-		/* Get the cpa and fw start/end addr */
-		cpa_start_addr =
-			VENUS_WRAPPER_SEC_CPA_START_ADDR;
-		cpa_end_addr =
-			VENUS_WRAPPER_SEC_CPA_END_ADDR;
-		fw_start_addr =
-			VENUS_WRAPPER_SEC_FW_START_ADDR;
-		fw_end_addr =
-			VENUS_WRAPPER_SEC_FW_END_ADDR;
+		/* Get the cpa and fw start/end addr based on Venus version */
+		if (venus_data->hw_ver_major == 0x1 &&
+				venus_data->hw_ver_minor <= 1) {
+			cpa_start_addr =
+				VENUS_WRAPPER_VBIF_SS_SEC_CPA_START_ADDR_v1;
+			cpa_end_addr =
+				VENUS_WRAPPER_VBIF_SS_SEC_CPA_END_ADDR_v1;
+			fw_start_addr =
+				VENUS_WRAPPER_VBIF_SS_SEC_FW_START_ADDR_v1;
+			fw_end_addr =
+				VENUS_WRAPPER_VBIF_SS_SEC_FW_END_ADDR_v1;
+		} else {
+			cpa_start_addr =
+				VENUS_WRAPPER_VBIF_SS_SEC_CPA_START_ADDR_v2;
+			cpa_end_addr =
+				VENUS_WRAPPER_VBIF_SS_SEC_CPA_END_ADDR_v2;
+			fw_start_addr =
+				VENUS_WRAPPER_VBIF_SS_SEC_FW_START_ADDR_v2;
+			fw_end_addr =
+				VENUS_WRAPPER_VBIF_SS_SEC_FW_END_ADDR_v2;
+		}
 
 		/* Program CPA start and end address */
 		writel_relaxed(0, reg_base + cpa_start_addr);
@@ -283,7 +303,7 @@ static int pil_venus_auth_and_reset(void)
 		}
 	}
 	/* Bring Arm9 out of reset */
-	writel_relaxed(0, reg_base + VENUS_WRAPPER_A9SS_SW_RESET);
+	writel_relaxed(0, reg_base + VENUS_WRAPPER_SW_RESET);
 
 	venus_data->is_booted = 1;
 	return 0;
@@ -308,9 +328,9 @@ static int pil_venus_shutdown(void)
 		return 0;
 
 	/* Assert the reset to ARM9 */
-	reg = readl_relaxed(reg_base + VENUS_WRAPPER_A9SS_SW_RESET);
+	reg = readl_relaxed(reg_base + VENUS_WRAPPER_SW_RESET);
 	reg |= BIT(4);
-	writel_relaxed(reg, reg_base + VENUS_WRAPPER_A9SS_SW_RESET);
+	writel_relaxed(reg, reg_base + VENUS_WRAPPER_SW_RESET);
 
 	/* Make sure reset is asserted before the mapping is removed */
 	mb();
@@ -436,25 +456,10 @@ int venus_boot_init(struct msm_vidc_platform_resources *res,
 	}
 	venus_data->reg_base = ioremap_nocache(res->register_base,
 			(unsigned long)res->register_size);
-	dprintk(VIDC_DBG, "venus reg: base %llx size %x\n",
-		 res->register_base, res->register_size);
 	if (!venus_data->reg_base) {
 		dprintk(VIDC_ERR,
 				"could not map reg addr %pa of size %d\n",
 				&res->register_base, res->register_size);
-		rc = -ENOMEM;
-		goto err_ioremap_fail;
-	}
-
-	venus_data->gcc_base = ioremap_nocache(res->gcc_register_base,
-			(unsigned long)res->gcc_register_size);
-	dprintk(VIDC_DBG, "gcc reg: base %llx size %x\n",
-		 res->gcc_register_base, res->gcc_register_size);
-	if (!venus_data->gcc_base) {
-		dprintk(VIDC_ERR,
-				"could not map reg addr %pa of size %d\n",
-				&res->gcc_register_base,
-				res->gcc_register_size);
 		rc = -ENOMEM;
 		goto err_ioremap_fail;
 	}

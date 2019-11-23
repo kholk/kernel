@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -123,20 +123,10 @@ struct hfi_extradata_header {
 	(HFI_PROPERTY_PARAM_OX_START + 0x001)
 #define HFI_PROPERTY_PARAM_UNCOMPRESSED_PLANE_ACTUAL_CONSTRAINTS_INFO	\
 	(HFI_PROPERTY_PARAM_OX_START + 0x002)
-#define HFI_PROPERTY_PARAM_INTERLACE_FORMAT_SUPPORTED	\
-	(HFI_PROPERTY_PARAM_OX_START + 0x003)
-#define HFI_PROPERTY_PARAM_CHROMA_SITE					\
-(HFI_PROPERTY_PARAM_OX_START + 0x004)
-#define HFI_PROPERTY_PARAM_EXTRA_DATA_HEADER_CONFIG		\
-	(HFI_PROPERTY_PARAM_OX_START + 0x005)
 #define HFI_PROPERTY_PARAM_INDEX_EXTRADATA             \
 	(HFI_PROPERTY_PARAM_OX_START + 0x006)
-#define HFI_PROPERTY_PARAM_BUFFER_ALLOC_MODE			\
-	(HFI_PROPERTY_PARAM_OX_START + 0x008)
 #define HFI_PROPERTY_PARAM_S3D_FRAME_PACKING_EXTRADATA	\
 	(HFI_PROPERTY_PARAM_OX_START + 0x009)
-#define HFI_PROPERTY_PARAM_BUFFER_ALLOC_MODE_SUPPORTED	\
-	(HFI_PROPERTY_PARAM_OX_START + 0x00B)
 #define  HFI_PROPERTY_PARAM_BUFFER_SIZE_MINIMUM			\
 	(HFI_PROPERTY_PARAM_OX_START + 0x00C)
 #define HFI_PROPERTY_PARAM_SYNC_BASED_INTERRUPT			\
@@ -226,11 +216,12 @@ struct hfi_extradata_header {
 	(HFI_PROPERTY_PARAM_VENC_OX_START + 0x005)
 #define HFI_PROPERTY_PARAM_VENC_FRAME_QP_EXTRADATA		\
 	(HFI_PROPERTY_PARAM_VENC_OX_START + 0x006)
+#define  HFI_PROPERTY_PARAM_VENC_YUVSTAT_INFO_EXTRADATA		\
+	(HFI_PROPERTY_PARAM_VENC_OX_START + 0x007)
 #define  HFI_PROPERTY_PARAM_VENC_ROI_QP_EXTRADATA		\
 	(HFI_PROPERTY_PARAM_VENC_OX_START + 0x008)
-#define HFI_PROPERTY_PARAM_VENC_HDR10PLUS_METADATA_EXTRADATA	\
-	(HFI_PROPERTY_PARAM_VENC_OX_START + 0x00A)
-
+#define  HFI_PROPERTY_PARAM_VENC_OVERRIDE_QP_EXTRADATA		\
+	(HFI_PROPERTY_PARAM_VENC_OX_START + 0x009)
 #define HFI_PROPERTY_CONFIG_VENC_OX_START				\
 	(HFI_DOMAIN_BASE_VENC + HFI_ARCH_OX_OFFSET + 0x6000)
 #define HFI_PROPERTY_PARAM_VPE_OX_START					\
@@ -274,31 +265,6 @@ struct hfi_data_payload {
 struct hfi_enable_picture {
 	u32 picture_type;
 };
-
-struct hfi_display_picture_buffer_count {
-	int enable;
-	u32 count;
-};
-
-struct hfi_extra_data_header_config {
-	u32 type;
-	u32 buffer_type;
-	u32 version;
-	u32 port_index;
-	u32 client_extra_data_id;
-};
-
-struct hfi_interlace_format_supported {
-	u32 buffer_type;
-	u32 format;
-};
-
-struct hfi_buffer_alloc_mode_supported {
-	u32 buffer_type;
-	u32 num_entries;
-	u32 rg_data[1];
-};
-
 
 struct hfi_mb_error_map {
 	u32 error_map_size;
@@ -366,14 +332,6 @@ struct hfi_uncompressed_plane_actual_constraints_info {
 #define HFI_CMD_SESSION_CONTINUE	(HFI_CMD_SESSION_OX_START + 0x00D)
 #define HFI_CMD_SESSION_SYNC		(HFI_CMD_SESSION_OX_START + 0x00E)
 
-#define HFI_CMD_SESSION_CVP_START	\
-	(HFI_DOMAIN_BASE_CVP + HFI_ARCH_COMMON_OFFSET +	\
-	HFI_CMD_START_OFFSET + 0x1000)
-#define HFI_CMD_SESSION_REGISTER_BUFFERS	\
-	(HFI_CMD_SESSION_CVP_START + 0x0A0)
-#define HFI_CMD_SESSION_UNREGISTER_BUFFERS	\
-	(HFI_CMD_SESSION_CVP_START + 0x0A1)
-
 #define HFI_MSG_SYS_OX_START			\
 (HFI_DOMAIN_BASE_COMMON + HFI_ARCH_OX_OFFSET + HFI_MSG_START_OFFSET + 0x0000)
 #define HFI_MSG_SYS_PING_ACK	(HFI_MSG_SYS_OX_START + 0x2)
@@ -394,14 +352,6 @@ struct hfi_uncompressed_plane_actual_constraints_info {
 	(HFI_MSG_SESSION_OX_START + 0xA)
 #define  HFI_MSG_SESSION_RELEASE_BUFFERS_DONE			\
 	(HFI_MSG_SESSION_OX_START + 0xC)
-
-#define HFI_MSG_SESSION_CVP_START	\
-	(HFI_DOMAIN_BASE_CVP + HFI_ARCH_COMMON_OFFSET +	\
-	HFI_MSG_START_OFFSET + 0x1000)
-#define HFI_MSG_SESSION_REGISTER_BUFFERS_DONE	\
-	(HFI_MSG_SESSION_CVP_START + 0x0A0)
-#define HFI_MSG_SESSION_UNREGISTER_BUFFERS_DONE	\
-	(HFI_MSG_SESSION_CVP_START + 0x0A1)
 
 #define VIDC_IFACEQ_MAX_PKT_SIZE                        1024
 #define VIDC_IFACEQ_MED_PKT_SIZE                        768
@@ -562,6 +512,11 @@ struct hfi_msg_sys_session_abort_done_packet {
 	u32 error_type;
 };
 
+struct hfi_msg_sys_idle_packet {
+	u32 size;
+	u32 packet_type;
+};
+
 struct hfi_msg_sys_ping_ack_packet {
 	u32 size;
 	u32 packet_type;
@@ -646,7 +601,7 @@ struct hfi_msg_session_empty_buffer_done_packet {
 	u32 extra_data_buffer;
 	u32 flags;
 	struct hfi_frame_cr_stats_type ubwc_cr_stats;
-	u32 rgData[1];
+	u32 rgData[0];
 };
 
 struct hfi_msg_session_fill_buffer_done_compressed_packet {
@@ -740,22 +695,6 @@ struct hfi_msg_session_release_buffers_done_packet {
 	u32 error_type;
 	u32 num_buffers;
 	u32 rg_buffer_info[1];
-};
-
-struct hfi_msg_session_register_buffers_done_packet {
-	u32 size;
-	u32 packet_type;
-	u32 session_id;
-	u32 client_data;
-	u32 error_type;
-};
-
-struct hfi_msg_session_unregister_buffers_done_packet {
-	u32 size;
-	u32 packet_type;
-	u32 session_id;
-	u32 client_data;
-	u32 error_type;
 };
 
 struct hfi_extradata_mb_quantization_payload {
@@ -864,17 +803,12 @@ struct hfi_cmd_session_continue_packet {
 	u32 session_id;
 };
 
-enum session_flags {
-	SESSION_PAUSE = BIT(1),
-};
-
 struct hal_session {
 	struct list_head list;
 	void *session_id;
 	bool is_decoder;
 	enum hal_video_codec codec;
 	enum hal_domain domain;
-	u32 flags;
 	void *device;
 };
 
