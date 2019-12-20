@@ -292,6 +292,10 @@ do {						\
 #define DIAG_NUM_PROC	(1 + NUM_REMOTE_DEV)
 #endif
 
+#define DIAG_MSM_MASK (0x0001)   /* Bit mask for MSM */
+#define DIAG_MDM_MASK (0x0002)   /* Bit mask for first mdm device */
+#define DIAG_MDM2_MASK (0x0004) /* Bit mask for second mdm device */
+
 #define DIAG_WS_DCI		0
 #define DIAG_WS_MUX		1
 
@@ -308,6 +312,8 @@ do {						\
 #define DIAG_ID_UNKNOWN		0
 #define DIAG_ID_APPS		1
 
+#define DIAG_ROUTE_TO_USB 0
+#define DIAG_ROUTE_TO_PCIE 1
 /* List of remote processor supported */
 enum remote_procs {
 	MDM = 1,
@@ -319,8 +325,7 @@ enum remote_procs {
 #define DIAG_MD_BRIDGE_BASE	DIAG_MD_LOCAL_LAST
 #define DIAG_MD_MDM		(DIAG_MD_BRIDGE_BASE)
 #define DIAG_MD_MDM2		(DIAG_MD_BRIDGE_BASE + 1)
-#define DIAG_MD_SMUX		(DIAG_MD_BRIDGE_BASE + 2)
-#define DIAG_MD_BRIDGE_LAST	(DIAG_MD_BRIDGE_BASE + 3)
+#define DIAG_MD_BRIDGE_LAST	(DIAG_MD_BRIDGE_BASE + 2)
 
 #ifndef CONFIG_DIAGFWD_BRIDGE_CODE
 #define NUM_DIAG_MD_DEV		DIAG_MD_LOCAL_LAST
@@ -634,6 +639,8 @@ struct diagchar_dev {
 	struct mutex cmd_reg_mutex;
 	uint32_t cmd_reg_count;
 	struct mutex diagfwd_channel_mutex[NUM_PERIPHERALS];
+	int transport_set;
+	int pcie_transport_def;
 	/* Sizes that reflect memory pool sizes */
 	unsigned int poolsize;
 	unsigned int poolsize_hdlc;
@@ -687,6 +694,8 @@ struct diagchar_dev {
 #ifdef CONFIG_DIAG_OVER_USB
 	int usb_connected;
 #endif
+	int pcie_connected;
+	int pcie_switch_pid;
 	struct workqueue_struct *diag_wq;
 	struct work_struct diag_drain_work;
 	struct work_struct update_user_clients;
@@ -788,7 +797,6 @@ void diag_record_stats(int type, int flag);
 struct diag_md_session_t *diag_md_session_get_pid(int pid);
 struct diag_md_session_t *diag_md_session_get_peripheral(int dev_id,
 							uint8_t peripheral);
-int diag_md_session_match_pid_peripheral(int proc, int pid,
-					uint8_t peripheral);
+int diag_md_session_match_pid_peripheral(int proc, int pid, uint8_t peripheral);
 
 #endif
