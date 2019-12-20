@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,13 +14,13 @@
 #define _IPA_H_
 
 #include <linux/msm_ipa.h>
-#include <linux/msm-sps.h>
 #include <linux/skbuff.h>
 #include <linux/types.h>
 #include <linux/if_ether.h>
 #include "linux/msm_gsi.h"
 
 #define IPA_APPS_MAX_BW_IN_MBPS 700
+#define IPA_MAX_CH_STATS_SUPPORTED 5
 /**
  * enum ipa_transport_type
  * transport type: either GSI or SPS
@@ -102,8 +102,6 @@ enum ipa_aggr_mode {
 enum ipa_dp_evt_type {
 	IPA_RECEIVE,
 	IPA_WRITE_DONE,
-	IPA_CLIENT_START_POLL,
-	IPA_CLIENT_COMP_NAPI,
 };
 
 /**
@@ -537,7 +535,7 @@ struct ipa_get_wdi_sap_stats {
 /**
  * struct ipa_set_wifi_quota - structure used for
  *                                   IPA_SET_WIFI_QUOTA.
- *dp
+ *
  * @quota_bytes:    Quota (in bytes) for the STA interface.
  * @set_quota:       Indicate whether to set the quota (use 1) or
  *                   unset the quota.
@@ -553,60 +551,6 @@ struct ipa_set_wifi_quota {
 typedef void (*ipa_wdi_meter_notifier_cb)(enum ipa_wdi_meter_evt_type evt,
 		       void *data);
 
-/**
- * struct ipa_connect_params - low-level client connect input parameters. Either
- * client allocates the data and desc FIFO and specifies that in data+desc OR
- * specifies sizes and pipe_mem pref and IPA does the allocation.
- *
- * @ipa_ep_cfg:	IPA EP configuration
- * @client:	type of "client"
- * @client_bam_hdl:	 client SPS handle
- * @client_ep_idx:	 client PER EP index
- * @priv:	callback cookie
- * @notify:	callback
- *		priv - callback cookie evt - type of event data - data relevant
- *		to event.  May not be valid. See event_type enum for valid
- *		cases.
- * @desc_fifo_sz:	size of desc FIFO
- * @data_fifo_sz:	size of data FIFO
- * @pipe_mem_preferred:	if true, try to alloc the FIFOs in pipe mem, fallback
- *			to sys mem if pipe mem alloc fails
- * @desc:	desc FIFO meta-data when client has allocated it
- * @data:	data FIFO meta-data when client has allocated it
- * @skip_ep_cfg: boolean field that determines if EP should be configured
- *  by IPA driver
- * @keep_ipa_awake: when true, IPA will not be clock gated
- */
-struct ipa_connect_params {
-	struct ipa_ep_cfg ipa_ep_cfg;
-	enum ipa_client_type client;
-	unsigned long client_bam_hdl;
-	u32 client_ep_idx;
-	void *priv;
-	ipa_notify_cb notify;
-	u32 desc_fifo_sz;
-	u32 data_fifo_sz;
-	bool pipe_mem_preferred;
-	struct sps_mem_buffer desc;
-	struct sps_mem_buffer data;
-	bool skip_ep_cfg;
-	bool keep_ipa_awake;
-};
-
-/**
- *  struct ipa_sps_params - SPS related output parameters resulting from
- *  low/high level client connect
- *  @ipa_bam_hdl:	IPA SPS handle
- *  @ipa_ep_idx:	IPA PER EP index
- *  @desc:	desc FIFO meta-data
- *  @data:	data FIFO meta-data
- */
-struct ipa_sps_params {
-	unsigned long ipa_bam_hdl;
-	u32 ipa_ep_idx;
-	struct sps_mem_buffer desc;
-	struct sps_mem_buffer data;
-};
 
 /**
  * struct ipa_tx_intf - interface tx properties
@@ -672,7 +616,6 @@ struct ipa_sys_connect_params {
 	bool skip_ep_cfg;
 	bool keep_ipa_awake;
 	struct napi_struct *napi_obj;
-	bool napi_enabled;
 	bool recycle_enabled;
 };
 
@@ -863,6 +806,20 @@ struct ipa_rx_data {
 };
 
 /**
+ * struct  ipa_rx_page_data - information needed
+ * to send to wlan driver on receiving data from ipa hw
+ * @page: skb page
+ * @dma_addr: DMA address of this Rx packet
+ * @is_tmp_alloc: skb page from tmp_alloc or recycle_list
+ */
+struct ipa_rx_page_data {
+	struct page *page;
+	dma_addr_t dma_addr;
+	bool is_tmp_alloc;
+};
+
+
+/**
  * enum ipa_irq_type - IPA Interrupt Type
  * Used to register handlers for IPA interrupts
  *
@@ -870,15 +827,12 @@ struct ipa_rx_data {
  */
 enum ipa_irq_type {
 	IPA_BAD_SNOC_ACCESS_IRQ,
-	IPA_EOT_COAL_IRQ,
 	IPA_UC_IRQ_0,
 	IPA_UC_IRQ_1,
 	IPA_UC_IRQ_2,
 	IPA_UC_IRQ_3,
 	IPA_UC_IN_Q_NOT_EMPTY_IRQ,
 	IPA_UC_RX_CMD_Q_NOT_FULL_IRQ,
-	IPA_UC_TX_CMD_Q_NOT_FULL_IRQ,
-	IPA_UC_TO_PROC_ACK_Q_NOT_FULL_IRQ,
 	IPA_PROC_TO_UC_ACK_Q_NOT_EMPTY_IRQ,
 	IPA_RX_ERR_IRQ,
 	IPA_DEAGGR_ERR_IRQ,
@@ -947,6 +901,33 @@ struct IpaHwBamStats_t {
 } __packed;
 
 /**
+ * struct IpaOffloadStatschannel_info - channel info for uC
+ * stats
+ * @dir: Direction of the channel ID DIR_CONSUMER =0,
+ * DIR_PRODUCER = 1
+ * @ch_id: GSI ch_id of the IPA endpoint for which stats need
+ * to be calculated, 0xFF means invalid channel or disable stats
+ * on already stats enabled channel
+ */
+struct IpaOffloadStatschannel_info {
+	u8 dir;
+	u8 ch_id;
+} __packed;
+
+/**
+ * struct IpaHwOffloadStatsAllocCmdData_t - protocol info for uC
+ * stats start
+ * @protocol: Enum that indicates the protocol type
+ * @ch_id_info: GSI ch_id and dir of the IPA endpoint for which stats
+ * need to be calculated
+ */
+struct IpaHwOffloadStatsAllocCmdData_t {
+	u32 protocol;
+	struct IpaOffloadStatschannel_info
+		ch_id_info[IPA_MAX_CH_STATS_SUPPORTED];
+} __packed;
+
+/**
  * struct IpaHwRingStats_t - Structure holding the Ring statistics
  *
  * @ringFull : Number of times Transfer Ring got full - For In Ch: Good,
@@ -965,6 +946,17 @@ struct IpaHwRingStats_t {
 	u32 ringUsageLow;
 	u32 RingUtilCount;
 } __packed;
+
+/**
+ * struct ipa_uc_dbg_ring_stats - uC dbg stats info for each
+ * offloading protocol
+ * @ring: ring stats for each channel
+ * @ch_num: number of ch supported for given protocol
+ */
+struct ipa_uc_dbg_ring_stats {
+	struct IpaHwRingStats_t ring[IPA_MAX_CH_STATS_SUPPORTED];
+	u8 num_ch;
+};
 
 /**
  * struct IpaHwStatsWDIRxInfoData_t - Structure holding the WDI Rx channel
@@ -1246,6 +1238,7 @@ struct ipa_tz_unlock_reg_info {
 
 enum ipa_smmu_client_type {
 	IPA_SMMU_WLAN_CLIENT,
+	IPA_SMMU_AP_CLIENT,
 	IPA_SMMU_CLIENT_MAX
 };
 
@@ -1346,7 +1339,12 @@ int ipa_del_hdr_proc_ctx(struct ipa_ioc_del_hdr_proc_ctx *hdls);
  */
 int ipa_add_rt_rule(struct ipa_ioc_add_rt_rule *rules);
 
+int ipa_add_rt_rule_v2(struct ipa_ioc_add_rt_rule_v2 *rules);
+
 int ipa_add_rt_rule_usr(struct ipa_ioc_add_rt_rule *rules, bool user_only);
+
+int ipa_add_rt_rule_usr_v2(struct ipa_ioc_add_rt_rule_v2 *rules,
+	bool user_only);
 
 int ipa_del_rt_rule(struct ipa_ioc_del_rt_rule *hdls);
 
@@ -1362,16 +1360,25 @@ int ipa_query_rt_index(struct ipa_ioc_get_rt_tbl_indx *in);
 
 int ipa_mdfy_rt_rule(struct ipa_ioc_mdfy_rt_rule *rules);
 
+int ipa_mdfy_rt_rule_v2(struct ipa_ioc_mdfy_rt_rule_v2 *rules);
+
 /*
  * Filtering
  */
 int ipa_add_flt_rule(struct ipa_ioc_add_flt_rule *rules);
 
+int ipa_add_flt_rule_v2(struct ipa_ioc_add_flt_rule_v2 *rules);
+
 int ipa_add_flt_rule_usr(struct ipa_ioc_add_flt_rule *rules, bool user_only);
+
+int ipa_add_flt_rule_usr_v2(struct ipa_ioc_add_flt_rule_v2 *rules,
+	bool user_only);
 
 int ipa_del_flt_rule(struct ipa_ioc_del_flt_rule *hdls);
 
 int ipa_mdfy_flt_rule(struct ipa_ioc_mdfy_flt_rule *rules);
+
+int ipa_mdfy_flt_rule_v2(struct ipa_ioc_mdfy_flt_rule_v2 *rules);
 
 int ipa_commit_flt(enum ipa_ip_type ip);
 
@@ -1604,6 +1611,13 @@ enum ipa_transport_type ipa_get_transport_type(void);
 struct device *ipa_get_dma_dev(void);
 struct iommu_domain *ipa_get_smmu_domain(void);
 
+int ipa_uc_debug_stats_alloc(
+	struct IpaHwOffloadStatsAllocCmdData_t cmdinfo);
+int ipa_uc_debug_stats_dealloc(uint32_t protocol);
+void ipa_get_gsi_stats(int prot_id,
+	struct ipa_uc_dbg_ring_stats *stats);
+int ipa_get_prot_id(enum ipa_client_type client);
+
 int ipa_disable_apps_wan_cons_deaggr(uint32_t agg_size, uint32_t agg_count);
 
 const struct ipa_gsi_ep_config *ipa_get_gsi_ep_info
@@ -1661,6 +1675,11 @@ int ipa_get_smmu_params(struct ipa_smmu_in_params *in,
  * Returns: 0 on success, negative on failure
  */
 int ipa_is_vlan_mode(enum ipa_vlan_ifaces iface, bool *res);
+
+/**
+ * ipa_get_lan_rx_napi - returns true if NAPI is enabled in the LAN RX dp
+ */
+bool ipa_get_lan_rx_napi(void);
 #else /* (CONFIG_IPA || CONFIG_IPA3) */
 
 /*
@@ -1840,8 +1859,19 @@ static inline int ipa_add_rt_rule(struct ipa_ioc_add_rt_rule *rules)
 	return -EPERM;
 }
 
+static inline int ipa_add_rt_rule_v2(struct ipa_ioc_add_rt_rule_v2 *rules)
+{
+	return -EPERM;
+}
+
 static inline int ipa_add_rt_rule_usr(struct ipa_ioc_add_rt_rule *rules,
 					bool user_only)
+{
+	return -EPERM;
+}
+
+static inline int ipa_add_rt_rule_usr_v2(
+	struct ipa_ioc_add_rt_rule_v2 *rules, bool user_only)
 {
 	return -EPERM;
 }
@@ -1881,6 +1911,11 @@ static inline int ipa_mdfy_rt_rule(struct ipa_ioc_mdfy_rt_rule *rules)
 	return -EPERM;
 }
 
+static inline int ipa_mdfy_rt_rule_v2(struct ipa_ioc_mdfy_rt_rule_v2 *rules)
+{
+	return -EPERM;
+}
+
 /*
  * Filtering
  */
@@ -1889,8 +1924,19 @@ static inline int ipa_add_flt_rule(struct ipa_ioc_add_flt_rule *rules)
 	return -EPERM;
 }
 
+static inline int ipa_add_flt_rule_v2(struct ipa_ioc_add_flt_rule_v2 *rules)
+{
+	return -EPERM;
+}
+
 static inline int ipa_add_flt_rule_usr(struct ipa_ioc_add_flt_rule *rules,
 					bool user_only)
+{
+	return -EPERM;
+}
+
+static inline int ipa_add_flt_rule_usr_v2(
+	struct ipa_ioc_add_flt_rule_v2 *rules, bool user_only)
 {
 	return -EPERM;
 }
@@ -1904,6 +1950,13 @@ static inline int ipa_mdfy_flt_rule(struct ipa_ioc_mdfy_flt_rule *rules)
 {
 	return -EPERM;
 }
+
+static inline int ipa_mdfy_flt_rule_v2(
+	struct ipa_ioc_mdfy_flt_rule_v2 *rules)
+{
+	return -EPERM;
+}
+
 
 static inline int ipa_commit_flt(enum ipa_ip_type ip)
 {
@@ -2469,6 +2522,32 @@ static inline int ipa_get_smmu_params(struct ipa_smmu_in_params *in,
 static inline int ipa_is_vlan_mode(enum ipa_vlan_ifaces iface, bool *res)
 {
 	return -EPERM;
+}
+
+static inline int ipa_uc_debug_stats_alloc(
+	struct IpaHwOffloadStatsAllocCmdData_t cmdinfo)
+{
+	return -EPERM;
+}
+
+static inline int ipa_uc_debug_stats_dealloc(uint32_t protocol)
+{
+	return -EPERM;
+}
+
+static inline void ipa_get_gsi_stats(int prot_id,
+	struct ipa_uc_dbg_ring_stats *stats)
+{
+}
+
+static inline int ipa_get_prot_id(enum ipa_client_type client)
+{
+	return -EPERM;
+}
+
+static inline bool ipa_get_lan_rx_napi(void)
+{
+	return false;
 }
 #endif /* (CONFIG_IPA || CONFIG_IPA3) */
 

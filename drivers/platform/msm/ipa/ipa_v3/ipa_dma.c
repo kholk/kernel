@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -67,7 +67,7 @@
 
 #ifdef CONFIG_DEBUG_FS
 #define IPADMA_MAX_MSG_LEN 1024
-static char *dbg_buff;
+static char dbg_buff[IPADMA_MAX_MSG_LEN];
 static void ipa3_dma_debugfs_init(void);
 static void ipa3_dma_debugfs_destroy(void);
 #else
@@ -1096,11 +1096,9 @@ void ipa3_dma_async_memcpy_notify_cb(void *priv
 	struct ipa3_dma_xfer_wrapper *xfer_descr_expected;
 	struct ipa3_sys_context *sys;
 	unsigned long flags;
-	struct ipa_mem_buffer *mem_info;
 
 	IPADMA_FUNC_ENTRY();
 
-	mem_info = (struct ipa_mem_buffer *)data;
 	ep_idx = ipa3_get_ep_mapping(IPA_CLIENT_MEMCPY_DMA_ASYNC_CONS);
 	if (ep_idx < 0) {
 		IPADMA_ERR("IPA Client mapping failed\n");
@@ -1198,10 +1196,10 @@ static ssize_t ipa3_dma_debugfs_reset_statistics(struct file *file,
 	unsigned long missing;
 	s8 in_num = 0;
 
-	if (IPADMA_MAX_MSG_LEN < count + 1)
+	if (sizeof(dbg_buff) < count + 1)
 		return -EFAULT;
 
-	missing = ipa_safe_copy_from_user(dbg_buff, ubuf, count);
+	missing = copy_from_user(dbg_buff, ubuf, min(sizeof(dbg_buff), count));
 	if (missing)
 		return -EFAULT;
 
@@ -1238,10 +1236,6 @@ static void ipa3_dma_debugfs_init(void)
 		return;
 	}
 
-	dbg_buff = kmalloc(IPADMA_MAX_MSG_LEN * sizeof(char), GFP_KERNEL);
-	if (!dbg_buff)
-		return;
-
 	dfile_info =
 		debugfs_create_file("info", read_write_mode, dent,
 				 0, &ipa3_ipadma_stats_ops);
@@ -1251,14 +1245,12 @@ static void ipa3_dma_debugfs_init(void)
 	}
 	return;
 fail:
-	kfree(dbg_buff);
 	debugfs_remove_recursive(dent);
 }
 
 static void ipa3_dma_debugfs_destroy(void)
 {
 	debugfs_remove_recursive(dent);
-	kfree(dbg_buff);
 }
 
 #endif /* !CONFIG_DEBUG_FS */
