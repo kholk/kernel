@@ -1944,7 +1944,7 @@ static void ipa_rm_notify(void *dev, enum ipa_rm_event event,
 {
 	struct wwan_private *wwan_ptr = netdev_priv(dev);
 
-	pr_debug("%s: event %d\n", __func__, event);
+	pr_err("%s: event %d\n", __func__, event);
 	switch (event) {
 	case IPA_RM_RESOURCE_GRANTED:
 		if (wwan_ptr->device_status == WWAN_DEVICE_INACTIVE) {

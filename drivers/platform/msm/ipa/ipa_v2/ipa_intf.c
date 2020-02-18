@@ -460,7 +460,7 @@ static int wlan_msg_process(struct ipa_msg_meta *meta, void *buff)
 					sizeof(mac));
 				if (event_ex_list->attribs[cnt].attrib_type ==
 					WLAN_HDR_ATTRIB_MAC_ADDR) {
-					pr_debug("%02x:%02x:%02x:%02x:%02x:%02x\n",
+					pr_err("%02x:%02x:%02x:%02x:%02x:%02x\n",
 					mac[0],	mac[1], mac[2],
 					mac[3],	mac[4],	mac[5]);
 

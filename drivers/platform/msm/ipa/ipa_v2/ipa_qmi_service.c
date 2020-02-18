@@ -47,6 +47,7 @@ static bool qmi_modem_init_fin, qmi_indication_fin;
 static uint32_t ipa_wan_platform;
 struct ipa_qmi_context *ipa_qmi_ctx;
 static bool first_time_handshake;
+static bool send_qmi_init_q6;
 static atomic_t workqueues_stopped;
 static atomic_t ipa_qmi_initialized;
 struct mutex ipa_qmi_lock;

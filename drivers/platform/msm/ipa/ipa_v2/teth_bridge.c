@@ -29,12 +29,12 @@
 #define TETH_BRIDGE_DRV_NAME "ipa_tethering_bridge"
 
 #define TETH_DBG(fmt, args...) \
-	pr_debug(TETH_BRIDGE_DRV_NAME " %s:%d " fmt, \
+	pr_err(TETH_BRIDGE_DRV_NAME " %s:%d " fmt, \
 		 __func__, __LINE__, ## args)
 #define TETH_DBG_FUNC_ENTRY() \
-	pr_debug(TETH_BRIDGE_DRV_NAME " %s:%d ENTRY\n", __func__, __LINE__)
+	pr_err(TETH_BRIDGE_DRV_NAME " %s:%d ENTRY\n", __func__, __LINE__)
 #define TETH_DBG_FUNC_EXIT() \
-	pr_debug(TETH_BRIDGE_DRV_NAME " %s:%d EXIT\n", __func__, __LINE__)
+	pr_err(TETH_BRIDGE_DRV_NAME " %s:%d EXIT\n", __func__, __LINE__)
 #define TETH_ERR(fmt, args...) \
 	pr_err(TETH_BRIDGE_DRV_NAME " %s:%d " fmt, __func__, __LINE__, ## args)
 
