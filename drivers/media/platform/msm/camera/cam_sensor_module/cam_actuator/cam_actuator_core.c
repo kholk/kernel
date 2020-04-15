@@ -232,6 +232,75 @@ send_data:
 	return rc;
 }
 
+static struct cam_sensor_i2c_reg_array samsung_set_dac_array[4] = {
+        { 0x6180, 0x00, 0, 0 },
+        { 0x6181, 0x00, 0, 0 },
+	{ 0x6182, 0, 0, 0 },
+	{ 0x6183, 0, 0, 0 },
+};
+
+static int32_t samsung_set_dac(struct camera_io_master *io_master_info,
+				struct i2c_settings_list *i2c_list)
+{
+	struct cam_sensor_i2c_reg_array *reg_setting =
+				i2c_list->i2c_settings.reg_setting;
+	uint16_t dac_val_ori, dac_value = reg_setting[0].reg_data;
+	uint8_t dac_bytes[2] = {0, 0};
+	uint16_t new_max, new_min, new_range;
+	uint16_t old_max, old_min, old_range, req_val;
+	int rc;
+
+#ifdef KUMANO_NO_RANGE_RECALC
+	dac_val_ori = dac_value;
+	goto send_data;
+#endif
+	/* Framework-passed (old) and real (new) min-max values */
+	old_max = 807;
+	old_min = 511;
+	new_max = 920;
+	new_min = 450;
+
+	/* Are we parking the lens? */
+	if (reg_setting[0].reg_data < 100)
+		goto send_data;
+
+	/* Normalize the values for the correct range */
+	old_range = old_max - old_min;
+	new_range = new_max - new_min;
+
+	dac_value -= old_min;
+	dac_value = DIV_ROUND_CLOSEST((dac_value * new_range), old_range);
+	dac_value += new_min;
+	dac_val_ori = dac_value;
+
+	/* Check the ranges */
+	if (unlikely(dac_value > new_max)) {
+		CAM_WARN(CAM_ACTUATOR, "Oops, tried to shatter the glass and "
+				       "go fly freely in the air. Failure: "
+				       "Keeping the beast in its cage...");
+		return -EINVAL;
+	}
+
+send_data:
+	dac_bytes[1] = do_div(dac_value, 0xFF);
+	dac_bytes[0] = dac_value; /* remainder */
+	CAM_ERR(CAM_ACTUATOR, "Set new dac value %u: %u, %u (0x%x)",
+		dac_val_ori, dac_bytes[0], dac_bytes[1],
+		(*(uint16_t *)dac_bytes));
+
+	samsung_set_dac_array[0].reg_data = dac_bytes[0];
+	samsung_set_dac_array[1].reg_data =  dac_bytes[1];
+
+	i2c_list->i2c_settings.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	i2c_list->i2c_settings.size = 4;
+	i2c_list->i2c_settings.reg_setting = samsung_set_dac_array;
+	rc = camera_io_dev_write_continuous(
+			io_master_info, &(i2c_list->i2c_settings), 0);
+	i2c_list->i2c_settings.reg_setting = reg_setting;
+
+	return rc;
+}
+
 static int32_t cam_actuator_i2c_modes_util(
 	struct camera_io_master *io_master_info,
 	struct i2c_settings_list *i2c_list)
@@ -247,6 +316,15 @@ static int32_t cam_actuator_i2c_modes_util(
 		    i2c_list->i2c_settings.data_type == 2 &&
 		    i2c_list->i2c_settings.size == 1) {
 			return bu64747_set_dac(io_master_info, i2c_list);
+		}
+
+		/* xxxxxxx: override i2c commands for set_dac (imx445/s5k3m3 assy) */
+		if (io_master_info->cci_client->sid == (0x7C >> 1) &&
+		    i2c_list->i2c_settings.reg_setting[0].reg_addr == 0x60DA &&
+		    i2c_list->i2c_settings.addr_type == 2 &&
+		    i2c_list->i2c_settings.data_type == 2 &&
+		    i2c_list->i2c_settings.size == 1) {
+			return samsung_set_dac(io_master_info, i2c_list);
 		}
 
 		/* bu64253: override i2c commands for set_dac */
