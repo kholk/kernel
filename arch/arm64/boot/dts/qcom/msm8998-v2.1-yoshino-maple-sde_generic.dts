@@ -62,8 +62,8 @@
 	/* Set workaround for legacy bootloaders */
 	qcom,set-split-flush-reg-wa;
 
-	qcom,dsi-select-clocks = "mux_byte_clk1", "mux_pixel_clk1",
-				 "mux_byte_clk0", "mux_pixel_clk0";
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0",
+				 "mux_byte_clk1", "mux_pixel_clk1";
 
 	qcom,dsi-panel = <&sde_dsi_dual0_6_panel>;
 };
