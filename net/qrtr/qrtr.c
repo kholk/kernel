@@ -696,15 +696,20 @@ EXPORT_SYMBOL(qrtr_peek_pkt_size);
 static void qrtr_alloc_backup(struct work_struct *work)
 {
 	struct sk_buff *skb;
+	int errcode;
 
 	while (skb_queue_len(&qrtr_backup_lo) < QRTR_BACKUP_LO_NUM) {
-		skb = alloc_skb(QRTR_BACKUP_LO_SIZE, GFP_KERNEL);
+		skb = alloc_skb_with_frags(sizeof(struct qrtr_hdr_v1),
+					   QRTR_BACKUP_LO_SIZE, 0, &errcode,
+					   GFP_KERNEL);
 		if (!skb)
 			break;
 		skb_queue_tail(&qrtr_backup_lo, skb);
 	}
 	while (skb_queue_len(&qrtr_backup_hi) < QRTR_BACKUP_HI_NUM) {
-		skb = alloc_skb(QRTR_BACKUP_HI_SIZE, GFP_KERNEL);
+		skb = alloc_skb_with_frags(sizeof(struct qrtr_hdr_v1),
+					   QRTR_BACKUP_HI_SIZE, 0, &errcode,
+					   GFP_KERNEL);
 		if (!skb)
 			break;
 		skb_queue_tail(&qrtr_backup_hi, skb);
@@ -957,8 +962,10 @@ static void qrtr_fwd_pkt(struct sk_buff *skb, struct qrtr_cb *cb)
 
 	qrtr_skb_align_linearize(skb);
 	node = qrtr_node_lookup(cb->dst_node);
-	if (!node)
+	if (!node) {
+		kfree_skb(skb);
 		return;
+	}
 
 	qrtr_node_enqueue(node, skb, cb->type, &from, &to, 0);
 	qrtr_node_release(node);
