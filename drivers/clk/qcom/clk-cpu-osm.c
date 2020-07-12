@@ -35,7 +35,7 @@
 #include <linux/delay.h>
 #include <linux/regulator/consumer.h>
 #include <dt-bindings/clock/qcom,cpucc-sm8150.h>
-#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+#include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
 
 #include "common.h"
 #include "clk-regmap.h"
