@@ -897,7 +897,7 @@ static void geni_i3c_perform_daa(struct geni_i3c_dev *gi3c)
 		list_for_each_entry(i3cboardinfo, &m->boardinfo.i3c, node) {
 			if (pid == i3cboardinfo->pid) {
 				GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-				"PID 0x:%x matched with boardinfo\n", pid);
+				"PID 0x:%llx matched with boardinfo\n", pid);
 				break;
 			}
 		}
