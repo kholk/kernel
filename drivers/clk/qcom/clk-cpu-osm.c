@@ -879,12 +879,7 @@ static int osm_cpufreq_cpu_init(struct cpufreq_policy *policy)
 	}
 	table[i].frequency = CPUFREQ_TABLE_END;
 
-	ret = cpufreq_table_validate_and_show(policy, table);
-	if (ret) {
-		pr_err("%s: invalid frequency table: %d\n", __func__, ret);
-		goto err;
-	}
-
+	policy->freq_table = table;
 	policy->dvfs_possible_from_any_cpu = true;
 	policy->fast_switch_possible = true;
 	policy->driver_data = c;
