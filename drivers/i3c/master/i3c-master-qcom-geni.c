@@ -868,7 +868,7 @@ static void geni_i3c_perform_daa(struct geni_i3c_dev *gi3c)
 		list_for_each_entry(i3cboardinfo, &m->boardinfo.i3c, node) {
 			if (pid == i3cboardinfo->pid) {
 				GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-				"PID 0x:%x matched with boardinfo\n", pid);
+				"PID 0x:%llx matched with boardinfo\n", pid);
 				break;
 			}
 		}
@@ -880,20 +880,20 @@ static void geni_i3c_perform_daa(struct geni_i3c_dev *gi3c)
 
 		if (ret < 0) {
 			GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-			"error during get_free_addr ret:%d for pid:0x:%x\n"
+			"error during get_free_addr ret:%d for pid:0x:%llx\n"
 				, ret, pid);
 			goto daa_err;
 		} else if (ret == init_dyn_addr) {
 			GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-			"assigning requested addr:0x%x for pid:0x:%x\n"
+			"assigning requested addr:0x%x for pid:0x:%llx\n"
 				, ret, pid);
 		} else if (init_dyn_addr) {
 			GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-			"Can't assign req addr:0x%x for pid:0x%x assigning avl addr:0x%x\n"
+			"Can't assign req addr:0x%x for pid:0x%llx assigning avl addr:0x%x\n"
 				, init_dyn_addr, pid, addr);
 		} else {
 			GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-			"assigning addr:0x%x for pid:x:%x\n", ret, pid);
+			"assigning addr:0x%x for pid:x:%llx\n", ret, pid);
 		}
 
 		set_new_addr_slot(gi3c->newaddrslots, addr);
