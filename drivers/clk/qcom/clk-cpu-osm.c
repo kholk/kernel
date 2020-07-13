@@ -824,7 +824,6 @@ static int osm_cpufreq_cpu_init(struct cpufreq_policy *policy)
 	struct cpufreq_frequency_table *table;
 	struct clk_osm *c, *parent;
 	struct clk_hw *p_hw;
-	int ret;
 	unsigned int i;
 
 	c = osm_configure_policy(policy);
@@ -887,10 +886,6 @@ static int osm_cpufreq_cpu_init(struct cpufreq_policy *policy)
 	cpumask_copy(policy->cpus, &c->related_cpus);
 
 	return 0;
-
-err:
-	kfree(table);
-	return ret;
 }
 
 static int osm_cpufreq_cpu_exit(struct cpufreq_policy *policy)
@@ -1171,7 +1166,6 @@ static int clk_osm_read_lut(struct platform_device *pdev, struct clk_osm *c)
 		}
 		vdd->num_levels = j;
 		vdd->cur_level = j;
-		vdd->use_max_uV = true;
 	}
 
 	for (i = 0; i < j; i++)
