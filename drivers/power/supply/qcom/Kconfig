@@ -2,6 +2,19 @@
 
 menu "Qualcomm Technologies, Inc. Charger and Fuel Gauge support"
 
+config QPNP_SMB2
+	tristate "SMB2 Battery Charger"
+	depends on MFD_SPMI_PMIC
+	help
+	  Say Y to enables support for the SMB2 charging peripheral.
+	  The QPNP SMB2 charger driver supports the charger peripheral
+	  present in the PMICOBALT chip.
+	  The power supply framework is used to communicate battery and
+	  usb properties to userspace and other driver consumers such
+	  as fuel gauge, USB, and USB-PD.
+	  VBUS and VCONN regulators are registered for supporting OTG,
+	  and powered Type-C cables respectively.
+
 config QPNP_SMB5
 	tristate "SMB5 Battery Charger"
 	depends on MFD_SPMI_PMIC
@@ -57,6 +70,15 @@ config QPNP_QNOVO5
 	  Qnovo5 driver accepts pulse parameters via sysfs entries and programs
 	  the hardware module. It also allows userspace code to read diagnostics
 	  of voltage and current measured during certain phases of the pulses.
+
+config QPNP_FG_GEN3
+	tristate "QPNP GEN3 fuel gauge driver"
+	depends on MFD_SPMI_PMIC
+	help
+	  Say Y here to enable the GEN3 Fuel Gauge driver. This adds support
+	  for battery fuel gauging and state of charge of battery connected to
+	  the fuel gauge. The state of charge is reported through a BMS power
+	  supply property and also sends uevents when the capacity is updated.
 
 config QPNP_FG_GEN4
 	tristate "QPNP GEN4 fuel gauge driver"
