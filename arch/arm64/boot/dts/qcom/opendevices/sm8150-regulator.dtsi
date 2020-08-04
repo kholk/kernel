@@ -11,7 +11,7 @@
  */
 
 #include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
-
+#define RPMH_REGULATOR_LEVEL_OFF 0
 
 &soc {
 	/* Stub regulators */
