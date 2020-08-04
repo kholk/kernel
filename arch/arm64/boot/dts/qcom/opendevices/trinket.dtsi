@@ -11,7 +11,7 @@
  * GNU General Public License for more details.
  */
 
-#include "skeleton64.dtsi"
+#include "../skeleton64.dtsi"
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/qcom,rpmcc.h>
 #include <dt-bindings/clock/qcom,gcc-trinket.h>

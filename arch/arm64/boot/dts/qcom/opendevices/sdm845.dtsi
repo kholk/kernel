@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  */
 
-#include "skeleton64.dtsi"
+#include "../skeleton64.dtsi"
 #include <dt-bindings/clock/qcom,gcc-sdm845.h>
 #include <dt-bindings/clock/qcom,camcc-sdm845.h>
 #include <dt-bindings/clock/qcom,dispcc-sdm845.h>
