@@ -11,7 +11,7 @@
  */
 
 #include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+#include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
 
 /* Stub regulators */
 / {
